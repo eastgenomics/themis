@@ -243,7 +243,7 @@ def add_successful_multiQC_time(run_dict):
                     ) / 1000
                 )
             else:
-                multiqc_fin = jobs[0]['describe']['stoppedRunning']
+                multiqc_fin = jobs[0]['describe']['stoppedRunning'] / 1000
 
             multi_qc_completed = (
                 f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(multiqc_fin))}"
@@ -427,7 +427,7 @@ def create_TAT_fig(assay_df, assay_type):
         go.Bar(
             x=assay_df["run_name"],
             y=assay_df["log_file_to_first_002_job_days"],
-            name="Log file upload to first 002 job",
+            name="First 002 job",
             legendrank=2
         )
     )
@@ -437,7 +437,7 @@ def create_TAT_fig(assay_df, assay_type):
         go.Bar(
             x=assay_df["run_name"],
             y=assay_df["processing_time"],
-            name="Bioinformatics run time",
+            name="Pipeline running",
             legendrank=1
         )
     )
@@ -458,7 +458,9 @@ def create_TAT_fig(assay_df, assay_type):
         font_family='Helvetica'
     )
 
-    fig.show()
+    return fig
+
+    # fig.show()
 
 def main():
 
@@ -479,7 +481,17 @@ def main():
     TSO500_df = extract_assay_df(all_assays_df, 'TSO500')
     TWE_df = extract_assay_df(all_assays_df, 'TWE')
 
-    create_TAT_fig(CEN_df, 'CEN')
+    CEN_fig = create_TAT_fig(CEN_df, 'CEN')
+    MYE_fig = create_TAT_fig(MYE_df, 'MYE')
+    TSO500_fig = create_TAT_fig(TSO500_df, 'TSO500')
+    TWE_fig = create_TAT_fig(TWE_df, 'TWE')
+
+
+    with open('turnaround_graphs.html', 'a') as f:
+        f.write(CEN_fig.to_html(full_html=False, include_plotlyjs='cdn'))
+        f.write(MYE_fig.to_html(full_html=False, include_plotlyjs='cdn'))
+        f.write(TSO500_fig.to_html(full_html=False, include_plotlyjs='cdn'))
+        f.write(TWE_fig.to_html(full_html=False, include_plotlyjs='cdn'))
 
 if __name__ == "__main__":
     main()

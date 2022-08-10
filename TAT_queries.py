@@ -427,7 +427,7 @@ def create_TAT_fig(assay_df, assay_type):
         go.Bar(
             x=assay_df["run_name"],
             y=assay_df["log_file_to_first_002_job_days"],
-            name="First 002 job",
+            name="Upload to processing start",
             legendrank=2
         )
     )
@@ -486,12 +486,12 @@ def main():
     TSO500_fig = create_TAT_fig(TSO500_df, 'TSO500')
     TWE_fig = create_TAT_fig(TWE_df, 'TWE')
 
-
     with open('turnaround_graphs.html', 'a') as f:
         f.write(CEN_fig.to_html(full_html=False, include_plotlyjs='cdn'))
         f.write(MYE_fig.to_html(full_html=False, include_plotlyjs='cdn'))
         f.write(TSO500_fig.to_html(full_html=False, include_plotlyjs='cdn'))
         f.write(TWE_fig.to_html(full_html=False, include_plotlyjs='cdn'))
+
 
 if __name__ == "__main__":
     main()

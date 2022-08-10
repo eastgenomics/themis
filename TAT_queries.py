@@ -1,3 +1,4 @@
+import datetime as dt
 import dxpy as dx
 import json
 import numpy as np
@@ -21,6 +22,10 @@ JIRA_TOKEN = CREDENTIALS.get('JIRA_TOKEN')
 STAGING_AREA_PROJ_ID = CREDENTIALS.get('STAGING_AREA_PROJ_ID')
 
 NO_OF_AUDIT_WEEKS = 12
+
+today_date = dt.date.today()
+x_weeks_before = dt.timedelta(weeks = NO_OF_AUDIT_WEEKS)
+begin_date_of_audit = today_date - x_weeks_before
 
 def login() -> None:
     """
@@ -281,7 +286,10 @@ def create_info_dict(assay_type):
     )
     assay_run_dict = add_successful_multiQC_time(assay_run_dict)
     find_earliest_002_job(assay_run_dict)
-    add_log_file_time(assay_run_dict)
+    if assay_type == 'SNP':
+        pass
+    else:
+        add_log_file_time(assay_run_dict)
 
     return assay_run_dict
 
@@ -446,7 +454,8 @@ def create_TAT_fig(assay_df, assay_type):
     fig.update_layout(
         barmode='stack',
         title={
-            'text': f"{assay_type} Turnaround Times",
+            'text': f"{assay_type} Turnaround Times - {begin_date_of_audit} -"
+                    f" {today_date}",
             'xanchor': 'center',
             'x': 0.5,
             'font_size': 20
@@ -465,32 +474,40 @@ def create_TAT_fig(assay_df, assay_type):
 def main():
 
     login()
-
+    
+    print("Creating dicts for each assay")
     all_assays_dict = {}
-    assay_types = ['TWE', 'CEN', 'MYE', 'TSO500']
+    assay_types = ['TWE', 'CEN', 'MYE', 'TSO500', 'SNP']
     for assay_type in assay_types:
         all_assays_dict.update(create_info_dict(assay_type))
-
+    
+    print("Adding demultiplex job")
     add_001_demultiplex_job(all_assays_dict)
-
+    
+    print("Merging to one df")
     all_assays_df = create_all_assays_df(all_assays_dict)
+    print("Adding TAT days")
     add_calculation_columns(all_assays_df)
-
+    
+    print("Extracting each df")
     CEN_df = extract_assay_df(all_assays_df, 'CEN')
     MYE_df = extract_assay_df(all_assays_df, 'MYE')
     TSO500_df = extract_assay_df(all_assays_df, 'TSO500')
     TWE_df = extract_assay_df(all_assays_df, 'TWE')
-
+    SNP_df = extract_assay_df(all_assays_df, 'SNP')
+    print("Creating figs")
     CEN_fig = create_TAT_fig(CEN_df, 'CEN')
     MYE_fig = create_TAT_fig(MYE_df, 'MYE')
     TSO500_fig = create_TAT_fig(TSO500_df, 'TSO500')
     TWE_fig = create_TAT_fig(TWE_df, 'TWE')
+    SNP_fig = create_TAT_fig(SNP_df, 'SNP')
 
     with open('turnaround_graphs.html', 'a') as f:
         f.write(CEN_fig.to_html(full_html=False, include_plotlyjs='cdn'))
         f.write(MYE_fig.to_html(full_html=False, include_plotlyjs='cdn'))
         f.write(TSO500_fig.to_html(full_html=False, include_plotlyjs='cdn'))
         f.write(TWE_fig.to_html(full_html=False, include_plotlyjs='cdn'))
+        f.write(SNP_fig.to_html(full_html=False, include_plotlyjs='cdn'))
 
 
 if __name__ == "__main__":

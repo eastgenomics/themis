@@ -365,6 +365,19 @@ def add_001_demultiplex_job(all_assays_dict):
 
 
 def get_jira_info(queue_id, jira_name):
+    """
+    Creates a df with all the assay types, run names and relevant audit info
+    Parameters
+    ----------
+    queue_id :  int
+        int of the ID for the relevant servicedesk queue
+    jira_name : str
+        the orgs name in Jira
+    Returns
+    -------
+    queue_response :  dict
+        dict with response from Jira API request
+    """
     url = (
         f"https://{jira_name}.atlassian.net/rest/servicedeskapi/servicedesk/"
         f"4/queue/{queue_id}/issue"
@@ -383,6 +396,20 @@ def get_jira_info(queue_id, jira_name):
 
 
 def add_jira_info(all_assays_dict, jira_response):
+    """
+    Creates a df with all the assay types, run names and relevant audit info
+    Parameters
+    ----------
+    all_assays_dict :  collects.defaultdict(dict)
+        dictionary where all the assay types are merged. Each key is run name
+        with all the relevant audit info
+    jira_response : dict
+        API response from Jira
+    Returns
+    -------
+    all_assays_dict :  collects.defaultdict(dict)
+        dict with the final Jira status and the time of resolution added
+    """
     for issue in jira_response['values']:
         run_name = issue['fields']['summary']
 
@@ -502,6 +529,7 @@ def extract_assay_df(all_assays_df, assay_type):
     assay_df = all_assays_df.loc[all_assays_df['assay_type'] == assay_type]
 
     return assay_df
+
 
 def create_TAT_fig(assay_df, assay_type):
     """

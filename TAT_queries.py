@@ -745,16 +745,33 @@ def make_stats_table(assay_df):
     stats_table : str
         dataframe as a HTML string to pass to DataTables
     """
+    # Count runs to include as compliant that are less than 3
+    # Count runs to include overall
+    compliant_runs = assay_df.loc[
+        assay_df['upload_to_release'] <=3, 'upload_to_release'].count() + (
+            assay_df.loc[assay_df['urgents_time'] <=3, 'urgents_time'].count()
+        )
+    relevant_run_count = assay_df[
+        assay_df.upload_to_release.notna() | assay_df.urgents_time.notna()
+    ].shape[0]
+
+    compliance_percentage = (compliant_runs / relevant_run_count) * 100
+
     stats_df = pd.DataFrame(
         {
             'Mean turnaround time': assay_df['upload_to_release'].mean(),
             'Median turnaround time': assay_df['upload_to_release'].median(),
-            'Mean upload to first 002 job time': assay_df['log_file_to_first_002_job'].mean(),
+            'Mean upload to first 002 job time': (
+                assay_df['log_file_to_first_002_job'].mean()
+            ),
             'Mean pipeline running time': assay_df['processing_time'].mean(),
-            'Mean processing end to release time': assay_df['processing_end_to_release'].mean(),
-            'Compliance with audit standards (%)': (assay_df.loc[
-                assay_df['upload_to_release'] <=3, 'upload_to_release'
-            ].count() / assay_df['upload_to_release'].count()) * 100
+            'Mean processing end to release time': (
+                assay_df['processing_end_to_release'].mean()
+            ),
+            'Compliance with audit standards': (
+                f"({compliant_runs}/{relevant_run_count}) "
+                f"{round(compliance_percentage, 2)}%"
+            )
         }, index=[assay_df.index.values[-1]]
     ).T.reset_index()
 
@@ -764,7 +781,7 @@ def make_stats_table(assay_df):
 
     stats_table = stats_df.to_html(
         index=False,
-        float_format="%.2f",
+        float_format='{:.2f}'.format,
         classes='table table-striped"',
         justify='left'
     )

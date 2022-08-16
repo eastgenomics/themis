@@ -11,6 +11,7 @@ import sys
 import time
 
 from collections import defaultdict
+from jinja2 import Environment, FileSystemLoader
 from requests.auth import HTTPBasicAuth
 
 pd.options.mode.chained_assignment = None
@@ -49,7 +50,9 @@ headers = {
 }
 
 # Audit settings and relevant dates (used in plot titles)
-NO_OF_AUDIT_WEEKS = 12
+NO_OF_AUDIT_WEEKS = 20
+
+ASSAY_TYPES = ['TWE', 'CEN', 'MYE', 'TSO500', 'SNP']
 
 today_date = dt.date.today()
 x_weeks = dt.timedelta(weeks = NO_OF_AUDIT_WEEKS)
@@ -86,7 +89,7 @@ def login() -> None:
 
 def get_002_projects_in_period(assay_type):
     """
-    Gets all the 002 projects ending with the relevant assay type
+    Gets all the 002 projects ending with the relevant assay type from DNAnexus
     That have been created in the last X weeks
     Parameters
     ----------
@@ -137,9 +140,9 @@ def add_in_002_created_time_and_assay(assay_type, assay_response):
     # Add key 002_project_created with the time the 002 project was created
     # Add key assay_type with the str name of the assay type
     for project in assay_response:
-        run_name = project['describe']['name'].removeprefix(
-            '002_'
-        ).removesuffix(f'_{assay_type}')
+        run_name = (
+            project['describe']['name']
+        ).removeprefix('002_').removesuffix(f'_{assay_type}')
         run_dict[run_name]['project_id'] = project['id']
         run_dict[run_name]['002_project_created'] = time.strftime(
             '%Y-%m-%d %H:%M:%S', time.localtime(
@@ -185,10 +188,11 @@ def add_log_file_time(run_dict):
 
         # For key with relevant run name
         # Add log_file_created key with time logfile created in datetime format
-        log_time = log_file_info[0]['describe']['created'] / 1000
-        run_dict[run_name]['log_file_created'] = (
-            time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(log_time))
-        )
+        if log_file_info:
+            log_time = log_file_info[0]['describe']['created'] / 1000
+            run_dict[run_name]['log_file_created'] = (
+                time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(log_time))
+            )
 
     return run_dict
 
@@ -219,16 +223,21 @@ def find_earliest_002_job(run_dict):
         }
         ))
 
+        if jobs:
         # Get the earliest created time of the jobs
-        first_job = (
-            min(data['describe']['created'] for data in jobs) / 1000
-        )
+            min_job = (
+                min(data['describe']['created'] for data in jobs) / 1000
+            )
+            first_job = (
+                time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(min_job))
+            )
+
+        else:
+            first_job = None
 
         # For key with relevant run name
         # Add earliest_002_job key with time of earliest job in datetime format
-        run_dict[run]['earliest_002_job'] = (
-            time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(first_job))
-        )
+        run_dict[run]['earliest_002_job'] = first_job
 
     return run_dict
 
@@ -366,38 +375,49 @@ def add_001_demultiplex_job(all_assays_dict):
 
 def get_jira_info(queue_id, jira_name):
     """
-    Creates a df with all the assay types, run names and relevant audit info
+    Get the info from Jira API. As can't change size of response and seems to
+    Be limited to 50, loop over each page of response to get all tickets
+    Until response is empty
     Parameters
     ----------
     queue_id :  int
         int of the ID for the relevant servicedesk queue
     jira_name : str
-        the orgs name in Jira
+        the org's name in Jira
     Returns
     -------
-    queue_response :  dict
-        dict with response from Jira API request
+    queue_response :  list
+        list of dicts with response from Jira API request
     """
     url = (
         f"https://{jira_name}.atlassian.net/rest/servicedeskapi/servicedesk/"
         f"4/queue/{queue_id}/issue"
     )
 
-    response = requests.request(
-       "GET",
-       url,
-       headers=headers,
-       auth=auth
-    )
+    data = []
+    new_data = True
+    start = 0
+    page_size = 50
 
-    queue_response = json.loads(response.text)
+    while new_data:
+        queue_response = requests.request(
+            "GET",
+            url=f"{url}?start={start}",
+            headers=headers,
+            auth=auth
+        )
 
-    return queue_response
+        new_data = json.loads(queue_response.text)['values']
+        data += new_data
+        start += page_size
+
+    return data
 
 
-def add_jira_info(all_assays_dict, jira_response):
+def add_jira_info_closed_issues(all_assays_dict, jira_response):
     """
-    Creates a df with all the assay types, run names and relevant audit info
+    Adds the Jira ticket resolution time and final status of runs in the Closed 
+    Sequencing runs queue
     Parameters
     ----------
     all_assays_dict :  collects.defaultdict(dict)
@@ -410,11 +430,14 @@ def add_jira_info(all_assays_dict, jira_response):
     all_assays_dict :  collects.defaultdict(dict)
         dict with the final Jira status and the time of resolution added
     """
-    for issue in jira_response['values']:
+    # Run name is normally the summary of the ticket
+    for issue in jira_response:
         run_name = issue['fields']['summary']
 
+        # If this matches run in our dict
+        # Add in final Jira status and the time of resolution in datetime
         if run_name in all_assays_dict:
-            final_status = issue['fields']['status']['name']
+            final_jira_status = issue['fields']['status']['name']
             status_time_misec = (
                 issue['fields']['customfield_10032'][
                     'completedCycles'
@@ -426,8 +449,37 @@ def add_jira_info(all_assays_dict, jira_response):
                 ).replace(microsecond=0)
             )
             res_time_str = res_time.strftime('%Y-%m-%d %H:%M:%S')
-            all_assays_dict[run_name]['final_jira_status'] = final_status
+            all_assays_dict[run_name]['final_jira_status'] = final_jira_status
             all_assays_dict[run_name]['jira_resolved'] = res_time_str
+
+    return all_assays_dict
+
+
+def add_jira_info_open_issues(all_assays_dict, open_jira_response):
+    """
+    Adds the Jira ticket current status for those open and the current time
+    To the all_assays_dict
+    Parameters
+    ----------
+    all_assays_dict :  collects.defaultdict(dict)
+        dictionary where all the assay types are merged. Each key is run name
+        with all the relevant audit info
+    jira_response : dict
+        API response from Jira
+    Returns
+    -------
+    all_assays_dict :  collects.defaultdict(dict)
+        dict with the current Jira status and current time added
+    """
+    for issue in open_jira_response:
+        run_name = issue['fields']['summary']
+
+        if run_name in all_assays_dict:
+            current_jira_status = issue['fields']['status']['name']
+            current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            all_assays_dict[run_name]['current_jira_status'] = current_jira_status
+            all_assays_dict[run_name]['current_time'] = current_time
 
     return all_assays_dict
 
@@ -452,20 +504,23 @@ def create_all_assays_df(all_assays_dict):
 
     # Reorder columns
     all_assays_df = all_assays_df[[
-        'assay_type', 'run_name', 'log_file_created', 'demultiplex_started',
+        'assay_type','run_name', 'log_file_created', 'demultiplex_started',
         '002_project_created', 'earliest_002_job', 'multiQC_finished',
-        'final_jira_status', 'jira_resolved'
+        'final_jira_status', 'current_jira_status', 'jira_resolved',
+        'current_time'
     ]]
 
     cols_to_convert = [
-        'log_file_created', 'demultiplex_started', '002_project_created',
-        'earliest_002_job', 'multiQC_finished', 'jira_resolved'
+        'log_file_created','demultiplex_started','002_project_created',
+        'earliest_002_job', 'multiQC_finished', 'jira_resolved',
+        'current_time'
     ]
 
     # Convert cols to pandas datetime type
     all_assays_df[cols_to_convert] = all_assays_df[cols_to_convert].apply(
         pd.to_datetime, format='%Y-%m-%d %H:%M:%S'
     )
+
 
     return all_assays_df
 
@@ -498,15 +553,29 @@ def add_calculation_columns(all_assays_df):
 
     # Add new column for time from MultiQC end to Jira resolution
     all_assays_df['processing_end_to_release'] = (
-        (all_assays_df['jira_resolved'] - all_assays_df['multiQC_finished'])
+        (all_assays_df['jira_resolved'] - all_assays_df['multiQC_finished']).where(
+        all_assays_df['final_jira_status'] == "All samples released")
         / np.timedelta64(1, 'D')
     )
 
     # Add new column for time from log file creation to Jira resolution
     all_assays_df['upload_to_release'] = (
-        (all_assays_df['jira_resolved'] - all_assays_df['log_file_created'])
-        / np.timedelta64(1, 'D')
+        (all_assays_df['jira_resolved'] - all_assays_df['log_file_created']).where(
+        all_assays_df['final_jira_status'] == "All samples released"
+        ) / np.timedelta64(1, 'D')
     )
+
+    # Add the time since MultiQC to now for open tickets with urgents released
+    all_assays_df['urgents_time'] = ((
+        all_assays_df['current_time'] - all_assays_df['multiQC_finished']
+    ).where(all_assays_df['current_jira_status'] == 'Urgent samples released')
+    / np.timedelta64(1, 'D'))
+
+    # Add the time since MultiQC to now for open tickets on hold
+    all_assays_df['on_hold_time'] = ((
+        all_assays_df['current_time'] - all_assays_df['multiQC_finished']
+    ).where(all_assays_df['current_jira_status'] == 'On hold')
+    / np.timedelta64(1, 'D'))
 
     return all_assays_df
 
@@ -526,7 +595,9 @@ def extract_assay_df(all_assays_df, assay_type):
         dataframe with only rows from that assay type
     """
     # Get df with the rows of the relevant assay type
-    assay_df = all_assays_df.loc[all_assays_df['assay_type'] == assay_type]
+    assay_df = all_assays_df.loc[
+        all_assays_df['assay_type'] == assay_type
+    ].reset_index()
 
     return assay_df
 
@@ -541,6 +612,10 @@ def create_TAT_fig(assay_df, assay_type):
         dataframe with only rows from that assay type
     assay_type : str
         e.g. 'CEN'
+    Returns
+    -------
+    html_fig : str
+        Plotly figure as HTML string
     """
     # Add trace for Log file to first 002 job
     fig = go.Figure()
@@ -549,7 +624,7 @@ def create_TAT_fig(assay_df, assay_type):
             x=assay_df["run_name"],
             y=assay_df["log_file_to_first_002_job"],
             name="Upload to processing start",
-            legendrank=3
+            legendrank=4
         )
     )
 
@@ -559,7 +634,7 @@ def create_TAT_fig(assay_df, assay_type):
             x=assay_df["run_name"],
             y=assay_df["processing_time"],
             name="Pipeline running",
-            legendrank=2
+            legendrank=3
         )
     )
 
@@ -568,12 +643,35 @@ def create_TAT_fig(assay_df, assay_type):
             x=assay_df["run_name"],
             y=assay_df["processing_end_to_release"],
             name="End of processing to release",
-            legendrank=1,
+            legendrank=2,
             text=round(assay_df['upload_to_release'])
         )
     )
 
+    if assay_df['current_jira_status'].isnull().values.all():
+        pass
+    else:
+        if "Urgent samples released" in assay_df.current_jira_status.values:
+            fig.add_trace(
+                go.Bar(
+                    x=assay_df["run_name"],
+                    y=assay_df["urgents_time"],
+                    name="Only urgents released",
+                )
+            )
+
+        if "On hold" in assay_df.current_jira_status.values:
+            fig.add_trace(
+                go.Bar(
+                    x=assay_df["run_name"],
+                    y=assay_df["on_hold_time"],
+                    name="On hold",
+                )
+            )
+
     fig.add_hline(y=3, line_dash="dash")
+
+    fig.update_xaxes(tickangle=45)
 
     fig.update_traces(
         hovertemplate=(
@@ -597,12 +695,138 @@ def create_TAT_fig(assay_df, assay_type):
         },
         xaxis_title="Run name",
         yaxis_title="Number of days",
-        width=1000,
-        height=600,
+        width=1100,
+        height=700,
         font_family='Helvetica'
     )
 
-    return fig
+    html_fig = fig.to_html(full_html=False, include_plotlyjs='cdn')
+
+    return html_fig
+
+
+def make_stats_table(assay_df):
+    """
+    Creates a table of relevant TAT stats to be shown under chart
+    Parameters
+    ----------
+    assay_df :  pd.DataFrame()
+        dataframe with all rows for a specific assay type
+    Returns
+    -------
+    stats_table : str
+        dataframe as a HTML string to pass to DataTables
+    """
+    stats_df = pd.DataFrame(
+        {
+            'Mean turnaround time': assay_df['upload_to_release'].mean(),
+            'Median turnaround time': assay_df['upload_to_release'].median(),
+            'Mean upload to first 002 job time': assay_df['log_file_to_first_002_job'].mean(),
+            'Mean pipeline running time': assay_df['processing_time'].mean(),
+            'Mean processing end to release time': assay_df['processing_end_to_release'].mean(),
+            'Compliance with KPI (%)': (assay_df.loc[
+                assay_df['upload_to_release'] <=3, 'upload_to_release'
+            ].count() / assay_df['upload_to_release'].count()) * 100
+        }, index=[assay_df.index.values[-1]]
+    ).T.reset_index()
+
+    stats_df.rename(columns={
+        "index": "Metric", stats_df.columns[1]: ""
+    }, inplace=True)
+
+    stats_table = stats_df.to_html(
+        index=False,
+        float_format="%.2f",
+        classes='table table-striped"',
+        justify='left'
+    )
+
+    return stats_table
+
+
+def find_runs_for_manual_review(assay_df):
+    """
+    Finds any runs that should be manually checked
+    Parameters
+    ----------
+    assay_df :  pd.DataFrame()
+        dataframe with all rows for a specific assay type
+    Returns
+    -------
+    manual_review_dict : dict
+        dict with issue as key and any runs with that issue as value
+        if dict values empty passes as empty dict to be checked in HTML to
+        Decide whether to show 'Runs to be manually reviewed' text
+    """
+    manual_review_dict = defaultdict(dict)
+
+    # If no Jira status and no current Jira status found flag
+    manual_review_dict['no_jira_tix'] = list(
+        assay_df.loc[(assay_df['final_jira_status'].isna())
+        & (assay_df['current_jira_status'].isna())]['run_name']
+    )
+
+    # If days between log file and 002 job is negative flag
+    manual_review_dict['job_002_before_log'] = list(
+        assay_df.loc[(assay_df['log_file_to_first_002_job'] < 0)]['run_name']
+    )
+
+    # If days between processing end + release is negative flag
+    manual_review_dict['reports_before_multiqc'] = list(
+        assay_df.loc[(assay_df['processing_end_to_release'] < 0)]['run_name']
+    )
+
+    # If related log file was never found flag
+    manual_review_dict['no_log_file'] = list(
+        assay_df.loc[(assay_df['log_file_created'].isna())]['run_name']
+    )
+
+    # If no 002 job was found flag
+    manual_review_dict['no_002_found'] = list(
+        assay_df.loc[(assay_df['earliest_002_job'].isna())]['run_name']
+    )
+
+    # If no MultiQC job was found flag
+    manual_review_dict['no_multiqc_found'] = list(
+        assay_df.loc[(assay_df['multiQC_finished'].isna())]['run_name']
+    )
+
+    # If there are runs to be flagged in dict pass
+    # If all vals empty pass empty dict so can check in Jinja2 if defined
+    if any(manual_review_dict.values()):
+        pass
+    else:
+        manual_review_dict = {}
+
+    return manual_review_dict
+
+
+def create_assay_objects(all_assays_df, assay_type):
+    """
+    Create the stats table, find issues and make fig for each assay
+    Parameters
+    ----------
+    all_assays_df :  pd.DataFrame()
+        dataframe with a row for each run with all audit metrics
+    assay_type : str
+        service e.g. 'CEN'
+    Returns
+    -------
+    assay_stats : str
+        dataframe of TAT stats as HTML string
+    assay_issues : dict
+        dict with issue as key and any runs with that issue as value
+        if dict values empty passes as empty dict to be checked in HTML to
+        Decide whether to show 'Runs to be manually reviewed' text
+    assay_fig : str
+        Plotly fig as HTML string
+    """
+    assay_df = extract_assay_df(all_assays_df, assay_type)
+    assay_stats = make_stats_table(assay_df)
+    assay_issues = find_runs_for_manual_review(assay_df)
+    assay_fig = create_TAT_fig(assay_df, assay_type)
+
+    return assay_stats, assay_issues, assay_fig
 
 
 def main():
@@ -618,36 +842,63 @@ def main():
     logger.info("Adding demultiplex job")
     add_001_demultiplex_job(all_assays_dict)
 
-    logger.info("Getting JIRA ticket info for closed seq runs")
+    logger.info("Getting + adding JIRA ticket info for closed seq runs")
     closed_runs_response = get_jira_info(35, JIRA_NAME)
+    add_jira_info_closed_issues(all_assays_dict, closed_runs_response)
 
-    logger.info("Adding closed tickets info to dict")
-    add_jira_info(all_assays_dict, closed_runs_response)
+    logger.info("Getting + adding JIRA ticket info for open seq runs")
+    open_jira_response = get_jira_info(34, JIRA_NAME)
+    add_jira_info_open_issues(all_assays_dict, open_jira_response)
 
-    logger.info("Merging to one df")
+    logger.info("Creating df for all assays")
     all_assays_df = create_all_assays_df(all_assays_dict)
-    logger.info("Adding TAT steps info")
+    logger.info("Adding calculation columns")
     add_calculation_columns(all_assays_df)
 
-    logger.info("Extracting each df")
-    CEN_df = extract_assay_df(all_assays_df, 'CEN')
-    MYE_df = extract_assay_df(all_assays_df, 'MYE')
-    TSO500_df = extract_assay_df(all_assays_df, 'TSO500')
-    TWE_df = extract_assay_df(all_assays_df, 'TWE')
-    SNP_df = extract_assay_df(all_assays_df, 'SNP')
-    logger.info("Creating figs")
-    CEN_fig = create_TAT_fig(CEN_df, 'CEN')
-    MYE_fig = create_TAT_fig(MYE_df, 'MYE')
-    TSO500_fig = create_TAT_fig(TSO500_df, 'TSO500')
-    TWE_fig = create_TAT_fig(TWE_df, 'TWE')
-    SNP_fig = create_TAT_fig(SNP_df, 'SNP')
+    logger.info("Generating objects for each assay")
+    CEN_stats, CEN_issues, CEN_fig = create_assay_objects(
+        all_assays_df, 'CEN'
+    )
+    MYE_stats, MYE_issues, MYE_fig = create_assay_objects(
+        all_assays_df, 'MYE'
+    )
+    TSO500_stats, TSO500_issues, TSO500_fig = create_assay_objects(
+        all_assays_df, 'TSO500'
+    )
+    TWE_stats, TWE_issues, TWE_fig = create_assay_objects(
+        all_assays_df, 'TWE'
+    )
+    SNP_stats, SNP_issues, SNP_fig = create_assay_objects(
+        all_assays_df, 'SNP'
+    )
 
-    with open('turnaround_graphs.html', 'a') as f:
-        f.write(CEN_fig.to_html(full_html=False, include_plotlyjs='cdn'))
-        f.write(MYE_fig.to_html(full_html=False, include_plotlyjs='cdn'))
-        f.write(TSO500_fig.to_html(full_html=False, include_plotlyjs='cdn'))
-        f.write(TWE_fig.to_html(full_html=False, include_plotlyjs='cdn'))
-        f.write(SNP_fig.to_html(full_html=False, include_plotlyjs='cdn'))
+    # Add the charts, tables and issues into the Jinja2 template
+    environment = Environment(loader=FileSystemLoader("templates/"))
+    template = environment.get_template("audit_template.html")
+
+    logger.info("Adding all the info to HTML template")
+    filename = f"turnaround_times_previous_{NO_OF_AUDIT_WEEKS}_weeks.html"
+    content = template.render(
+        chart_1=CEN_fig,
+        averages_1=CEN_stats,
+        runs_to_review_1=CEN_issues,
+        chart_2=MYE_fig,
+        averages_2=MYE_stats,
+        runs_to_review_2=MYE_issues,
+        chart_3=TSO500_fig,
+        averages_3=TSO500_stats,
+        runs_to_review_3=TSO500_issues,
+        chart_4=TWE_fig,
+        averages_4=TWE_stats,
+        runs_to_review_4=TWE_issues,
+        chart_5=SNP_fig,
+        averages_5=SNP_stats,
+        runs_to_review_5=SNP_issues
+    )
+
+    logger.info("Writing final report file")
+    with open(filename, mode="w", encoding="utf-8") as message:
+        message.write(content)
 
 
 if __name__ == "__main__":

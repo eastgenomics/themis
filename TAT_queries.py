@@ -190,9 +190,37 @@ def add_log_file_time(run_dict):
         # Add log_file_created key with time logfile created in datetime format
         if log_file_info:
             log_time = log_file_info[0]['describe']['created'] / 1000
-            run_dict[run_name]['log_file_created'] = (
-                time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(log_time))
+            log_time_str = time.strftime(
+                '%Y-%m-%d %H:%M:%S', time.localtime(log_time)
             )
+
+
+            if log_time_str < run_dict[run_name]['earliest_002_job']:
+                run_dict[run_name]['log_file_created'] = log_time_str
+
+            # If log file is upload is after earliest 002 job
+            # Go into the processed folder and get the log file time instead
+            else:
+                actual_log_file_info = list(
+                    dx.find_data_objects(
+                        project=STAGING_AREA_PROJ_ID,
+                        folder=f'/processed/{run_name}/runs',
+                        classname='file',
+                        name="*.lane.all.log",
+                        name_mode="glob",
+                        describe={
+                            'fields': {
+                                'name': True,
+                                'created': True
+                            }
+                        }
+                    )
+                )
+
+                actual_log_time = actual_log_file_info[0]['describe']['created'] / 1000
+                run_dict[run_name]['log_file_created'] = (
+                    time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(actual_log_time))
+                )
 
     return run_dict
 
@@ -724,7 +752,7 @@ def make_stats_table(assay_df):
             'Mean upload to first 002 job time': assay_df['log_file_to_first_002_job'].mean(),
             'Mean pipeline running time': assay_df['processing_time'].mean(),
             'Mean processing end to release time': assay_df['processing_end_to_release'].mean(),
-            'Compliance with KPI (%)': (assay_df.loc[
+            'Compliance with audit standards (%)': (assay_df.loc[
                 assay_df['upload_to_release'] <=3, 'upload_to_release'
             ].count() / assay_df['upload_to_release'].count()) * 100
         }, index=[assay_df.index.values[-1]]

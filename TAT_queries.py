@@ -154,7 +154,7 @@ def add_in_002_created_time_and_assay(assay_type, assay_response):
     return run_dict
 
 
-def add_log_file_time(run_dict):
+def add_log_file_time(run_dict, assay_type):
     """
     Adds the time the log file was created for that run to a dict
     Parameters
@@ -162,65 +162,96 @@ def add_log_file_time(run_dict):
     run_dict :  collects.defaultdict(dict)
         dictionary where key is run name and dict inside with relevant info
         for that run
+    assay_type : str
+        e.g. 'CEN'
     Returns
     -------
     run_dict : collects.defaultdict(dict)
-        dictionary where key is run name with dict inside and log_file_created
+        dictionary where key is run name with dict inside and upload_time
         added
     """
-    # For each run, get the time in epoch the .lane.all.log file was created
-    for run_name in run_dict:
-        log_file_info = list(
-            dx.find_data_objects(
-                project=STAGING_AREA_PROJ_ID,
-                folder=f'/{run_name}/runs',
-                classname='file',
-                name="*.lane.all.log",
-                name_mode="glob",
-                describe={
-                    'fields': {
-                        'name': True,
-                        'created': True
-                    }
-                }
-            )
-        )
-
-        # For key with relevant run name
-        # Add log_file_created key with time logfile created in datetime format
-        if log_file_info:
-            log_time = log_file_info[0]['describe']['created'] / 1000
-            log_time_str = time.strftime(
-                '%Y-%m-%d %H:%M:%S', time.localtime(log_time)
-            )
-
-
-            if log_time_str < run_dict[run_name]['earliest_002_job']:
-                run_dict[run_name]['log_file_created'] = log_time_str
-
-            # If log file is upload is after earliest 002 job
-            # Go into the processed folder and get the log file time instead
-            else:
-                actual_log_file_info = list(
-                    dx.find_data_objects(
-                        project=STAGING_AREA_PROJ_ID,
-                        folder=f'/processed/{run_name}/runs',
-                        classname='file',
-                        name="*.lane.all.log",
-                        name_mode="glob",
-                        describe={
-                            'fields': {
-                                'name': True,
-                                'created': True
-                            }
+    # If SNP run, uploaded manually, so get time last file was uploaded
+    # In staging area
+    if assay_type == 'SNP':
+        for run_name in run_dict:
+            file_info = list(
+                dx.find_data_objects(
+                    project=STAGING_AREA_PROJ_ID,
+                    folder=f'/{run_name}/',
+                    classname='file',
+                    created_after=f'-{NO_OF_AUDIT_WEEKS}w',
+                    describe={
+                        'fields': {
+                            'name': True,
+                            'created': True
                         }
-                    )
+                    }
+                )
+            )
+
+            if file_info:
+                min_file_upload = min(
+                    data['describe']['created'] for data in file_info
+                ) / 1000
+                first_file_uploaded = time.strftime(
+                    '%Y-%m-%d %H:%M:%S', time.localtime(min_file_upload)
                 )
 
-                actual_log_time = actual_log_file_info[0]['describe']['created'] / 1000
-                run_dict[run_name]['log_file_created'] = (
-                    time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(actual_log_time))
+                run_dict[run_name]['upload_time'] = first_file_uploaded
+    # For each run, get the time in epoch the .lane.all.log file was created
+    else:
+        for run_name in run_dict:
+            log_file_info = list(
+                dx.find_data_objects(
+                    project=STAGING_AREA_PROJ_ID,
+                    folder=f'/{run_name}/runs',
+                    classname='file',
+                    name="*.lane.all.log",
+                    name_mode="glob",
+                    describe={
+                        'fields': {
+                            'name': True,
+                            'created': True
+                        }
+                    }
                 )
+            )
+
+            # For key with relevant run name
+            # Add upload_time key with time logfile created in datetime format
+            if log_file_info:
+                log_time = log_file_info[0]['describe']['created'] / 1000
+                log_time_str = time.strftime(
+                    '%Y-%m-%d %H:%M:%S', time.localtime(log_time)
+                )
+
+
+                if log_time_str < run_dict[run_name]['earliest_002_job']:
+                    run_dict[run_name]['upload_time'] = log_time_str
+
+                # If log file is upload is after earliest 002 job
+                # Go into the processed folder and get the log file time instead
+                else:
+                    actual_log_file_info = list(
+                        dx.find_data_objects(
+                            project=STAGING_AREA_PROJ_ID,
+                            folder=f'/processed/{run_name}/runs',
+                            classname='file',
+                            name="*.lane.all.log",
+                            name_mode="glob",
+                            describe={
+                                'fields': {
+                                    'name': True,
+                                    'created': True
+                                }
+                            }
+                        )
+                    )
+
+                    actual_log_time = actual_log_file_info[0]['describe']['created'] / 1000
+                    run_dict[run_name]['upload_time'] = (
+                        time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(actual_log_time))
+                    )
 
     return run_dict
 
@@ -352,10 +383,7 @@ def create_info_dict(assay_type):
     find_earliest_002_job(assay_run_dict)
 
     # SNP runs are uploaded manually so don't have lane.all.log file
-    if assay_type == 'SNP':
-        pass
-    else:
-        add_log_file_time(assay_run_dict)
+    add_log_file_time(assay_run_dict, assay_type)
 
     return assay_run_dict
 
@@ -442,24 +470,24 @@ def get_jira_info(queue_id, jira_name):
     return data
 
 
-def add_jira_info_closed_issues(all_assays_dict, jira_response):
+def add_jira_info_closed_issues(all_assays_dict, closed_response):
     """
-    Adds the Jira ticket resolution time and final status of runs in the Closed 
-    Sequencing runs queue
+    Adds the Jira ticket resolution time and final status of runs in the
+    Closed Sequencing runs queue
     Parameters
     ----------
     all_assays_dict :  collects.defaultdict(dict)
         dictionary where all the assay types are merged. Each key is run name
         with all the relevant audit info
-    jira_response : dict
-        API response from Jira
+    closed_response : list
+        API response as list of dicts from Jira for closed sequencing runs
     Returns
     -------
     all_assays_dict :  collects.defaultdict(dict)
         dict with the final Jira status and the time of resolution added
     """
     # Run name is normally the summary of the ticket
-    for issue in jira_response:
+    for issue in closed_response:
         run_name = issue['fields']['summary']
 
         # If this matches run in our dict
@@ -532,14 +560,14 @@ def create_all_assays_df(all_assays_dict):
 
     # Reorder columns
     all_assays_df = all_assays_df[[
-        'assay_type','run_name', 'log_file_created', 'demultiplex_started',
+        'assay_type','run_name', 'upload_time', 'demultiplex_started',
         '002_project_created', 'earliest_002_job', 'multiQC_finished',
         'final_jira_status', 'current_jira_status', 'jira_resolved',
         'current_time'
     ]]
 
     cols_to_convert = [
-        'log_file_created','demultiplex_started','002_project_created',
+        'upload_time','demultiplex_started','002_project_created',
         'earliest_002_job', 'multiQC_finished', 'jira_resolved',
         'current_time'
     ]
@@ -567,8 +595,8 @@ def add_calculation_columns(all_assays_df):
         dataframe with a row for each run and extra columns
     """
     # Add new column for type between log file and earliest 002 job
-    all_assays_df['log_file_to_first_002_job'] = (
-        (all_assays_df['earliest_002_job'] - all_assays_df['log_file_created'])
+    all_assays_df['upload_to_first_002_job'] = (
+        (all_assays_df['earliest_002_job'] - all_assays_df['upload_time'])
         / np.timedelta64(1, 'D')
     )
 
@@ -588,7 +616,7 @@ def add_calculation_columns(all_assays_df):
 
     # Add new column for time from log file creation to Jira resolution
     all_assays_df['upload_to_release'] = (
-        (all_assays_df['jira_resolved'] - all_assays_df['log_file_created']).where(
+        (all_assays_df['jira_resolved'] - all_assays_df['upload_time']).where(
         all_assays_df['final_jira_status'] == "All samples released"
         ) / np.timedelta64(1, 'D')
     )
@@ -650,7 +678,7 @@ def create_TAT_fig(assay_df, assay_type):
     fig.add_trace(
         go.Bar(
             x=assay_df["run_name"],
-            y=assay_df["log_file_to_first_002_job"],
+            y=assay_df["upload_to_first_002_job"],
             name="Upload to processing start",
             legendrank=4
         )
@@ -762,7 +790,7 @@ def make_stats_table(assay_df):
             'Mean turnaround time': assay_df['upload_to_release'].mean(),
             'Median turnaround time': assay_df['upload_to_release'].median(),
             'Mean upload to first 002 job time': (
-                assay_df['log_file_to_first_002_job'].mean()
+                assay_df['upload_to_first_002_job'].mean()
             ),
             'Mean pipeline running time': assay_df['processing_time'].mean(),
             'Mean processing end to release time': (
@@ -776,7 +804,7 @@ def make_stats_table(assay_df):
     ).T.reset_index()
 
     stats_df.rename(columns={
-        "index": "Metric", stats_df.columns[1]: ""
+        "index": "Metric", stats_df.columns[1]: "Days"
     }, inplace=True)
 
     stats_table = stats_df.to_html(
@@ -813,7 +841,7 @@ def find_runs_for_manual_review(assay_df):
 
     # If days between log file and 002 job is negative flag
     manual_review_dict['job_002_before_log'] = list(
-        assay_df.loc[(assay_df['log_file_to_first_002_job'] < 0)]['run_name']
+        assay_df.loc[(assay_df['upload_to_first_002_job'] < 0)]['run_name']
     )
 
     # If days between processing end + release is negative flag
@@ -823,7 +851,7 @@ def find_runs_for_manual_review(assay_df):
 
     # If related log file was never found flag
     manual_review_dict['no_log_file'] = list(
-        assay_df.loc[(assay_df['log_file_created'].isna())]['run_name']
+        assay_df.loc[(assay_df['upload_time'].isna())]['run_name']
     )
 
     # If no 002 job was found flag
@@ -846,7 +874,49 @@ def find_runs_for_manual_review(assay_df):
     return manual_review_dict
 
 
-def create_assay_objects(all_assays_df, assay_type):
+def find_cancelled_runs(closed_runs_response, assay_type):
+    """
+    Finds runs that were not processed or released or received to be flagged
+    Parameters
+    ----------
+    closed_response : list
+        API response as list of dicts from Jira for closed sequencing runs
+    assay_type : str
+        e.g. 'CEN'
+    Returns
+    -------
+    cancelled_dict : dict
+        dict with run as key and nested dict with date of creation
+        and status of the ticket to show why cancelled
+    """
+    cancelled_list = []
+    if assay_type == 'SNP':
+        assay_helpdesk_value = 'SNP Genotyping'
+    else:
+        assay_helpdesk_value = assay_type
+    for issue in closed_runs_response:
+        start_time = issue['fields']['created'].split("T")[0]
+        if start_time >= begin_date_of_audit.strftime('%Y-%m-%d'):
+            fields_of_interest = [
+                'Data cannot be processed', "Data cannot be released",
+                "Data not received"
+            ]
+            run_name = issue['fields']['summary']
+            status = issue['fields']['status']['name']
+            assay = issue['fields']['customfield_10070'][0]['value']
+            if status in fields_of_interest and assay == assay_helpdesk_value:
+                cancelled_list.append(
+                    {
+                        'run_name': run_name,
+                        'date_jira_ticket_created': start_time,
+                        'reason_not_released': status
+                    }
+                )
+
+    return cancelled_list
+
+
+def create_assay_objects(all_assays_df, assay_type, closed_runs_response):
     """
     Create the stats table, find issues and make fig for each assay
     Parameters
@@ -855,6 +925,8 @@ def create_assay_objects(all_assays_df, assay_type):
         dataframe with a row for each run with all audit metrics
     assay_type : str
         service e.g. 'CEN'
+    closed_runs_response : list
+        API response as list of dicts from Jira for closed sequencing runs
     Returns
     -------
     assay_stats : str
@@ -870,8 +942,11 @@ def create_assay_objects(all_assays_df, assay_type):
     assay_stats = make_stats_table(assay_df)
     assay_issues = find_runs_for_manual_review(assay_df)
     assay_fig = create_TAT_fig(assay_df, assay_type)
+    assay_cancelled_runs = find_cancelled_runs(
+        closed_runs_response, assay_type
+    )
 
-    return assay_stats, assay_issues, assay_fig
+    return assay_stats, assay_issues, assay_fig, assay_cancelled_runs
 
 
 def main():
@@ -901,20 +976,20 @@ def main():
     add_calculation_columns(all_assays_df)
 
     logger.info("Generating objects for each assay")
-    CEN_stats, CEN_issues, CEN_fig = create_assay_objects(
-        all_assays_df, 'CEN'
+    CEN_stats, CEN_issues, CEN_fig, CEN_cancelled = create_assay_objects(
+        all_assays_df, 'CEN', closed_runs_response
     )
-    MYE_stats, MYE_issues, MYE_fig = create_assay_objects(
-        all_assays_df, 'MYE'
+    MYE_stats, MYE_issues, MYE_fig, MYE_cancelled = create_assay_objects(
+        all_assays_df, 'MYE', closed_runs_response
     )
-    TSO500_stats, TSO500_issues, TSO500_fig = create_assay_objects(
-        all_assays_df, 'TSO500'
+    TSO500_stats, TSO500_issues, TSO500_fig, TSO500_cancelled = (
+        create_assay_objects(all_assays_df, 'TSO500', closed_runs_response)
     )
-    TWE_stats, TWE_issues, TWE_fig = create_assay_objects(
-        all_assays_df, 'TWE'
+    TWE_stats, TWE_issues, TWE_fig, TWE_cancelled = create_assay_objects(
+        all_assays_df, 'TWE', closed_runs_response
     )
-    SNP_stats, SNP_issues, SNP_fig = create_assay_objects(
-        all_assays_df, 'SNP'
+    SNP_stats, SNP_issues, SNP_fig, SNP_cancelled = create_assay_objects(
+        all_assays_df, 'SNP', closed_runs_response
     )
 
     # Add the charts, tables and issues into the Jinja2 template
@@ -927,6 +1002,7 @@ def main():
         chart_1=CEN_fig,
         averages_1=CEN_stats,
         runs_to_review_1=CEN_issues,
+        cancelled_runs_1=CEN_cancelled,
         chart_2=MYE_fig,
         averages_2=MYE_stats,
         runs_to_review_2=MYE_issues,
@@ -938,7 +1014,8 @@ def main():
         runs_to_review_4=TWE_issues,
         chart_5=SNP_fig,
         averages_5=SNP_stats,
-        runs_to_review_5=SNP_issues
+        runs_to_review_5=SNP_issues,
+        cancelled_runs_5=SNP_cancelled
     )
 
     logger.info("Writing final report file")

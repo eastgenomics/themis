@@ -1,6 +1,7 @@
 import datetime as dt
 import dxpy as dx
 import json
+import Levenshtein
 import logging
 import numpy as np
 import os
@@ -224,7 +225,6 @@ def add_log_file_time(run_dict, assay_type):
                 log_time_str = time.strftime(
                     '%Y-%m-%d %H:%M:%S', time.localtime(log_time)
                 )
-
 
                 if log_time_str < run_dict[run_name]['earliest_002_job']:
                     run_dict[run_name]['upload_time'] = log_time_str
@@ -470,6 +470,32 @@ def get_jira_info(queue_id, jira_name):
     return data
 
 
+def hamming_distance(ticket_name, my_dict):
+    """
+    Checks for run names in the dict that are only off by 1 character
+    In the Jira ticket name
+    Parameters
+    ----------
+    ticket_name :  str
+        the summary name of the Jira ticket (should be run name)
+    my_dict : collections.defaultdict
+        dict that contains run as key and all audit info as key val pairs
+    Returns
+    -------
+    closest_key_in_dict : str or None
+        the key in the dict that either matches the ticket name completely
+        or is off by 1. If no relevant key found returns none
+    """
+    closest_key_in_dict = None
+    for key in my_dict.keys():
+        if len(key) == len(ticket_name):
+            distance = Levenshtein.hamming(ticket_name, key)
+            if distance <=1:
+                closest_key_in_dict = key
+
+    return closest_key_in_dict
+
+
 def add_jira_info_closed_issues(all_assays_dict, closed_response):
     """
     Adds the Jira ticket resolution time and final status of runs in the
@@ -486,13 +512,15 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
     all_assays_dict :  collects.defaultdict(dict)
         dict with the final Jira status and the time of resolution added
     """
-    # Run name is normally the summary of the ticket
+    # Summary of the ticket should be the run name
     for issue in closed_response:
-        run_name = issue['fields']['summary']
+        ticket_name = issue['fields']['summary']
 
-        # If this matches run in our dict
+        # If this matches run name in our dict (or is off by 1 char)
+        # Get relevant run name key in dict
         # Add in final Jira status and the time of resolution in datetime
-        if run_name in all_assays_dict:
+        if hamming_distance(ticket_name, all_assays_dict):
+            matching_key = hamming_distance(ticket_name, all_assays_dict)
             final_jira_status = issue['fields']['status']['name']
             status_time_misec = (
                 issue['fields']['customfield_10032'][
@@ -505,8 +533,12 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
                 ).replace(microsecond=0)
             )
             res_time_str = res_time.strftime('%Y-%m-%d %H:%M:%S')
-            all_assays_dict[run_name]['final_jira_status'] = final_jira_status
-            all_assays_dict[run_name]['jira_resolved'] = res_time_str
+            all_assays_dict[matching_key]['final_jira_status'] = (
+                final_jira_status
+            )
+            all_assays_dict[matching_key]['jira_resolved'] = (
+                res_time_str
+            )
 
     return all_assays_dict
 
@@ -527,15 +559,20 @@ def add_jira_info_open_issues(all_assays_dict, open_jira_response):
     all_assays_dict :  collects.defaultdict(dict)
         dict with the current Jira status and current time added
     """
+    # Summary of the ticket should be the run name
     for issue in open_jira_response:
-        run_name = issue['fields']['summary']
-
-        if run_name in all_assays_dict:
+        ticket_name = issue['fields']['summary']
+        # If this matches run name in our dict (or is off by 1 char)
+        # Get relevant run name key in dict
+        if hamming_distance(ticket_name, all_assays_dict):
+            matching_key = hamming_distance(ticket_name, all_assays_dict)
             current_jira_status = issue['fields']['status']['name']
             current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-            all_assays_dict[run_name]['current_jira_status'] = current_jira_status
-            all_assays_dict[run_name]['current_time'] = current_time
+            all_assays_dict[matching_key]['current_jira_status'] = (
+                current_jira_status
+            )
+            all_assays_dict[matching_key]['current_time'] = current_time
 
     return all_assays_dict
 
@@ -560,7 +597,7 @@ def create_all_assays_df(all_assays_dict):
 
     # Reorder columns
     all_assays_df = all_assays_df[[
-        'assay_type','run_name', 'upload_time', 'demultiplex_started',
+        'assay_type', 'run_name', 'upload_time', 'demultiplex_started',
         '002_project_created', 'earliest_002_job', 'multiQC_finished',
         'final_jira_status', 'current_jira_status', 'jira_resolved',
         'current_time'
@@ -631,6 +668,12 @@ def add_calculation_columns(all_assays_df):
     all_assays_df['on_hold_time'] = ((
         all_assays_df['current_time'] - all_assays_df['multiQC_finished']
     ).where(all_assays_df['current_jira_status'] == 'On hold')
+    / np.timedelta64(1, 'D'))
+
+    # Add the time since MultiQC to now for open tickets to do
+    all_assays_df['new_time'] = ((
+        all_assays_df['current_time'] - all_assays_df['multiQC_finished']
+    ).where(all_assays_df['current_jira_status'] == 'Data Received')
     / np.timedelta64(1, 'D'))
 
     return all_assays_df
@@ -712,7 +755,8 @@ def create_TAT_fig(assay_df, assay_type):
                 go.Bar(
                     x=assay_df["run_name"],
                     y=assay_df["urgents_time"],
-                    name="Only urgents released",
+                    name="Urgent samples released",
+                    marker_color='#FFA15A'
                 )
             )
 
@@ -722,6 +766,17 @@ def create_TAT_fig(assay_df, assay_type):
                     x=assay_df["run_name"],
                     y=assay_df["on_hold_time"],
                     name="On hold",
+                    marker_color='#FECB52'
+                )
+            )
+
+        if "Data Received" in assay_df.current_jira_status.values:
+            fig.add_trace(
+                go.Bar(
+                    x=assay_df["run_name"],
+                    y=assay_df["new_time"],
+                    name="Data Received",
+                    marker_color='#AB63FA'
                 )
             )
 

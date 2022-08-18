@@ -488,6 +488,9 @@ def hamming_distance(ticket_name, my_dict):
     """
     closest_key_in_dict = None
     for key in my_dict.keys():
+        # If the names are same length (has to be for hamming)
+        # Get the distance between the names, if 1 or 0 then
+        # Get the closest key in the dict
         if len(key) == len(ticket_name):
             distance = Levenshtein.hamming(ticket_name, key)
             if distance <=1:
@@ -953,7 +956,7 @@ def find_cancelled_runs(closed_runs_response, assay_type):
         start_time = issue['fields']['created'].split("T")[0]
         if start_time >= begin_date_of_audit.strftime('%Y-%m-%d'):
             fields_of_interest = [
-                'Data cannot be processed', "Data cannot be released",
+                "Data cannot be processed", "Data cannot be released",
                 "Data not received"
             ]
             run_name = issue['fields']['summary']
@@ -1061,12 +1064,15 @@ def main():
         chart_2=MYE_fig,
         averages_2=MYE_stats,
         runs_to_review_2=MYE_issues,
+        cancelled_runs_2=MYE_cancelled,
         chart_3=TSO500_fig,
         averages_3=TSO500_stats,
         runs_to_review_3=TSO500_issues,
+        cancelled_runs_3=TSO500_cancelled,
         chart_4=TWE_fig,
         averages_4=TWE_stats,
         runs_to_review_4=TWE_issues,
+        cancelled_runs_4=TWE_cancelled,
         chart_5=SNP_fig,
         averages_5=SNP_stats,
         runs_to_review_5=SNP_issues,

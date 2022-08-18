@@ -429,7 +429,7 @@ def add_001_demultiplex_job(all_assays_dict):
     return all_assays_dict
 
 
-def get_jira_info(queue_id, jira_name):
+def get_jira_info(queue_id):
     """
     Get the info from Jira API. As can't change size of response and seems to
     Be limited to 50, loop over each page of response to get all tickets
@@ -438,15 +438,13 @@ def get_jira_info(queue_id, jira_name):
     ----------
     queue_id :  int
         int of the ID for the relevant servicedesk queue
-    jira_name : str
-        the org's name in Jira
     Returns
     -------
     queue_response :  list
         list of dicts with response from Jira API request
     """
     url = (
-        f"https://{jira_name}.atlassian.net/rest/servicedeskapi/servicedesk/"
+        f"https://{JIRA_NAME}.atlassian.net/rest/servicedeskapi/servicedesk/"
         f"4/queue/{queue_id}/issue"
     )
 
@@ -499,6 +497,47 @@ def hamming_distance(ticket_name, my_dict):
     return closest_key_in_dict
 
 
+def get_status_change_time(ticket_id):
+    """
+    Queries the individual Jira ticket to get the correct resolution time
+    Since when querying all tickets in a queue it is not correct
+    Parameters
+    ----------
+    ticket_id :  int
+        the ID of the Jira ticket
+    Returns
+    -------
+    res_time_str :  str
+        the time of Jira resolution as e.g. "2022-08-10 12:54"
+    """
+    url = (
+        f"https://{JIRA_NAME}.atlassian.net/rest/servicedeskapi/request/"
+        f"{ticket_id}?expand=changelog"
+    )
+
+    ticket_info = requests.request(
+        "GET",
+        url=url,
+        headers=headers,
+        auth=auth
+    )
+
+    ticket_data = json.loads(ticket_info.text)
+    status = ticket_data['currentStatus']['status']
+    if status == 'All samples released':
+        time_of_release = (
+            ticket_data['currentStatus']['statusDate']['epochMillis'] / 1000
+        )
+        res_time = (
+            dt.datetime.fromtimestamp(
+                time_of_release
+            ).replace(microsecond=0)
+    )
+        res_time_str = res_time.strftime('%Y-%m-%d %H:%M:%S')
+
+    return res_time_str
+
+
 def add_jira_info_closed_issues(all_assays_dict, closed_response):
     """
     Adds the Jira ticket resolution time and final status of runs in the
@@ -518,6 +557,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
     # Summary of the ticket should be the run name
     for issue in closed_response:
         ticket_name = issue['fields']['summary']
+        ticket_id = issue['id']
 
         # If this matches run name in our dict (or is off by 1 char)
         # Get relevant run name key in dict
@@ -525,17 +565,9 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
         if hamming_distance(ticket_name, all_assays_dict):
             matching_key = hamming_distance(ticket_name, all_assays_dict)
             final_jira_status = issue['fields']['status']['name']
-            status_time_misec = (
-                issue['fields']['customfield_10032'][
-                    'completedCycles'
-                ][0]['stopTime']['epochMillis'] / 1000
-            )
-            res_time = (
-                dt.datetime.fromtimestamp(
-                    status_time_misec
-                ).replace(microsecond=0)
-            )
-            res_time_str = res_time.strftime('%Y-%m-%d %H:%M:%S')
+            # Jira resolution time is incorrect so query the ticket
+            # For more info
+            res_time_str = get_status_change_time(ticket_id)
             all_assays_dict[matching_key]['final_jira_status'] = (
                 final_jira_status
             )
@@ -1021,11 +1053,11 @@ def main():
     add_001_demultiplex_job(all_assays_dict)
 
     logger.info("Getting + adding JIRA ticket info for closed seq runs")
-    closed_runs_response = get_jira_info(35, JIRA_NAME)
+    closed_runs_response = get_jira_info(35)
     add_jira_info_closed_issues(all_assays_dict, closed_runs_response)
 
     logger.info("Getting + adding JIRA ticket info for open seq runs")
-    open_jira_response = get_jira_info(34, JIRA_NAME)
+    open_jira_response = get_jira_info(34)
     add_jira_info_open_issues(all_assays_dict, open_jira_response)
 
     logger.info("Creating df for all assays")

@@ -129,7 +129,7 @@ def add_in_002_created_time_and_assay(assay_type, assay_response):
         list of dicts from get_002_projects_in_period() function
     Returns
     -------
-    run_dict : collects.defaultdict(dict)
+    run_dict : collections.defaultdict(dict)
         dictionary where key is run name and dict inside with relevant info
         for that run
     """
@@ -155,9 +155,35 @@ def add_in_002_created_time_and_assay(assay_type, assay_response):
     return run_dict
 
 
+def get_staging_folders():
+    """
+    Gets the names of the folders in Staging Area
+    Parameters
+    ----------
+    None
+    Returns
+    -------
+    staging_folders : list
+        list of folder names with '/' removed from beginning
+    """
+
+    staging_folder_names = list(
+        dx.dxfile_functions.list_subfolders(
+            project=STAGING_AREA_PROJ_ID,
+            path='/',
+            recurse=False
+        )
+    )
+
+    # Remove the '/' from the run folder name for matching
+    staging_folders = [name.removeprefix('/') for name in staging_folder_names]
+
+    return staging_folders
+
 def add_log_file_time(run_dict, assay_type):
     """
-    Adds the time the log file was created for that run to a dict
+    Adds the time the log file was created for that run to a dict and
+    returns any mismatched names between run folders + 002 proj names
     Parameters
     ----------
     run_dict :  collects.defaultdict(dict)
@@ -170,72 +196,64 @@ def add_log_file_time(run_dict, assay_type):
     run_dict : collects.defaultdict(dict)
         dictionary where key is run name with dict inside and upload_time
         added
+    typo_run_folders : defaultdict(list)
+        dict where key is assay type and value is list of dicts
+        containing each mismatched run for that assay type
     """
-    # If SNP run, uploaded manually, so get time last file was uploaded
-    # In staging area
+    staging_folders = get_staging_folders()
+    typo_run_folders = defaultdict(list)
+    #typo_run_folders = []
+    typo_folder_info = None
+    # If SNP run files uploaded manually to staging area
+    # So get time last file was uploaded
     if assay_type == 'SNP':
-        for run_name in run_dict:
-            file_info = list(
-                dx.find_data_objects(
-                    project=STAGING_AREA_PROJ_ID,
-                    folder=f'/{run_name}/',
-                    classname='file',
-                    created_after=f'-{NO_OF_AUDIT_WEEKS}w',
-                    describe={
-                        'fields': {
-                            'name': True,
-                            'created': True
-                        }
-                    }
-                )
-            )
-
-            if file_info:
-                min_file_upload = min(
-                    data['describe']['created'] for data in file_info
-                ) / 1000
-                first_file_uploaded = time.strftime(
-                    '%Y-%m-%d %H:%M:%S', time.localtime(min_file_upload)
-                )
-
-                run_dict[run_name]['upload_time'] = first_file_uploaded
-    # For each run, get the time in epoch the .lane.all.log file was created
-    else:
-        for run_name in run_dict:
-            log_file_info = list(
-                dx.find_data_objects(
-                    project=STAGING_AREA_PROJ_ID,
-                    folder=f'/{run_name}/runs',
-                    classname='file',
-                    name="*.lane.all.log",
-                    name_mode="glob",
-                    describe={
-                        'fields': {
-                            'name': True,
-                            'created': True
-                        }
-                    }
-                )
-            )
-
-            # For key with relevant run name
-            # Add upload_time key with time logfile created in datetime format
-            if log_file_info:
-                log_time = log_file_info[0]['describe']['created'] / 1000
-                log_time_str = time.strftime(
-                    '%Y-%m-%d %H:%M:%S', time.localtime(log_time)
-                )
-
-                if log_time_str < run_dict[run_name]['earliest_002_job']:
-                    run_dict[run_name]['upload_time'] = log_time_str
-
-                # If log file is upload is after earliest 002 job
-                # Go into the processed folder and get the log file time instead
-                else:
-                    actual_log_file_info = list(
+        for folder_name in staging_folders:
+            for run_name in run_dict.keys():
+                distance = Levenshtein.distance(folder_name, run_name)
+                if distance <= 2:
+                    log_file_info = list(
                         dx.find_data_objects(
                             project=STAGING_AREA_PROJ_ID,
-                            folder=f'/processed/{run_name}/runs',
+                            folder=f'/{folder_name}/',
+                            classname='file',
+                            created_after=f'-{NO_OF_AUDIT_WEEKS}w',
+                            describe={
+                                'fields': {
+                                    'name': True,
+                                    'created': True
+                                }
+                            }
+                        )
+                    )
+
+                    if distance > 0:
+                        typo_folder_info = {
+                            'folder_name': folder_name,
+                            'project_name_002': run_name,
+                            'assay_type': run_dict[run_name]['assay_type']
+                        }
+
+                    if log_file_info:
+                        min_file_upload = min(
+                            data['describe']['created']
+                            for data in log_file_info
+                        ) / 1000
+                        first_file_upload = time.strftime(
+                            '%Y-%m-%d %H:%M:%S', time.localtime(min_file_upload)
+                        )
+
+                        run_dict[run_name]['upload_time'] = first_file_upload
+
+    # For non-SNP run, get the time in epoch the .lane.all.log file was created
+    else:
+        for folder_name in staging_folders:
+            for run_name in run_dict.keys():
+                distance = Levenshtein.distance(folder_name, run_name)
+                if distance <= 2:
+                    log_file_info = list(
+                        dx.find_data_objects(
+                            project=STAGING_AREA_PROJ_ID,
+                            folder=f'/{folder_name}/runs',
                             classname='file',
                             name="*.lane.all.log",
                             name_mode="glob",
@@ -248,12 +266,62 @@ def add_log_file_time(run_dict, assay_type):
                         )
                     )
 
-                    actual_log_time = actual_log_file_info[0]['describe']['created'] / 1000
-                    run_dict[run_name]['upload_time'] = (
-                        time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(actual_log_time))
-                    )
+                    if distance > 0:
+                        typo_folder_info = {
+                            'folder_name': folder_name,
+                            'project_name_002': run_name,
+                            'assay_type': run_dict[run_name]['assay_type']
+                        }
 
-    return run_dict
+                    # For key with relevant run name
+                    # Add upload_time key with datetime logfile created
+                    if log_file_info:
+                        log_time = (
+                            log_file_info[0]['describe']['created'] / 1000
+                        )
+                        log_str = time.strftime(
+                            '%Y-%m-%d %H:%M:%S', time.localtime(log_time)
+                        )
+
+                        # If log file was uploaded before the 002 job
+                        # Add in log file upload time
+                        if log_str < run_dict[run_name]['earliest_002_job']:
+                            run_dict[run_name]['upload_time'] = log_str
+
+                        # If log file upload is after earliest 002 job
+                        # Go into the processed folder and get log time instead
+                        else:
+                            actual_log_file_info = list(
+                                dx.find_data_objects(
+                                    project=STAGING_AREA_PROJ_ID,
+                                    folder=f'/processed/{run_name}/runs',
+                                    classname='file',
+                                    name="*.lane.all.log",
+                                    name_mode="glob",
+                                    describe={
+                                        'fields': {
+                                            'name': True,
+                                            'created': True
+                                        }
+                                    }
+                                )
+                            )
+
+                            actual_log_time = (
+                                actual_log_file_info[0]['describe']['created']
+                                / 1000
+                            )
+                            run_dict[run_name]['upload_time'] = (
+                                time.strftime(
+                                    '%Y-%m-%d %H:%M:%S', time.localtime(
+                                        actual_log_time
+                                    )
+                                )
+                            )
+    if typo_folder_info:
+        typo_run_folders[assay_type].append(typo_folder_info)
+
+    return run_dict, typo_run_folders
 
 
 def find_earliest_002_job(run_dict):
@@ -262,12 +330,12 @@ def find_earliest_002_job(run_dict):
     that run
     Parameters
     ----------
-    run_dict :  collects.defaultdict(dict)
+    run_dict :  collections.defaultdict(dict)
         dictionary where key is run name and dict inside with relevant info
         for that run
     Returns
     -------
-    run_dict : collects.defaultdict(dict)
+    run_dict : collections.defaultdict(dict)
         dictionary where key is run name with dict inside and earliest_002 job
         added
     """
@@ -307,12 +375,12 @@ def add_successful_multiQC_time(run_dict):
     run
     Parameters
     ----------
-    run_dict :  collects.defaultdict(dict)
+    run_dict : collections.defaultdict(dict)
         dictionary where key is run name and dict inside with relevant info
         for that run
     Returns
     -------
-    run_dict : collects.defaultdict(dict)
+    run_dict : collections.defaultdict(dict)
         dictionary where key is run name with dict inside and multiQC_finished
         key and val added
     """
@@ -370,9 +438,12 @@ def create_info_dict(assay_type):
         e.g. 'CEN'
     Returns
     -------
-    assay_run_dict : collects.defaultdict(dict)
+    assay_run_dict : collections.defaultdict(dict)
         dictionary where key is run name with dict inside and all relevant
         audit info inside
+    typo_run_folders : collections.defaultdict(list)
+        dict where key is assay type and value is list of dicts
+        containing each mismatched run for that assay type
     """
     # Do all the steps for the assay type
     assay_response = get_002_projects_in_period(assay_type)
@@ -383,9 +454,9 @@ def create_info_dict(assay_type):
     find_earliest_002_job(assay_run_dict)
 
     # SNP runs are uploaded manually so don't have lane.all.log file
-    add_log_file_time(assay_run_dict, assay_type)
+    assay_run_dict, typo_run_folders = add_log_file_time(assay_run_dict, assay_type)
 
-    return assay_run_dict
+    return assay_run_dict, typo_run_folders
 
 
 def add_001_demultiplex_job(all_assays_dict):
@@ -393,12 +464,12 @@ def add_001_demultiplex_job(all_assays_dict):
     Adds the time the demultiplexing started for each run in the merged dict
     Parameters
     ----------
-    all_assays_dict :  collects.defaultdict(dict)
+    all_assays_dict :  collections.defaultdict(dict)
         dictionary where all the assay types are merged. Each key is run
         with all the relevant audit info
     Returns
     -------
-    all_assays_dict : collects.defaultdict(dict)
+    all_assays_dict : collections.defaultdict(dict)
         merged dict with added 'demultiplex_started' key
     """
     # Find the jobs in staging area in last X weeks that are done
@@ -440,7 +511,7 @@ def get_jira_info(queue_id):
         int of the ID for the relevant servicedesk queue
     Returns
     -------
-    queue_response :  list
+    data :  list
         list of dicts with response from Jira API request
     """
     url = (
@@ -468,7 +539,7 @@ def get_jira_info(queue_id):
     return data
 
 
-def hamming_distance(ticket_name, my_dict):
+def find_distance(ticket_name, my_dict):
     """
     Checks for run names in the dict that are only off by 1 character
     In the Jira ticket name
@@ -483,18 +554,25 @@ def hamming_distance(ticket_name, my_dict):
     closest_key_in_dict : str or None
         the key in the dict that either matches the ticket name completely
         or is off by 1. If no relevant key found returns none
+    typo_ticket_info : dict or None
+        info of the tickets where they mismatch by 1
     """
+    typo_ticket_info = None
     closest_key_in_dict = None
     for key in my_dict.keys():
-        # If the names are same length (has to be for hamming)
-        # Get the distance between the names, if 1 or 0 then
-        # Get the closest key in the dict
-        if len(key) == len(ticket_name):
-            distance = Levenshtein.hamming(ticket_name, key)
-            if distance <=1:
-                closest_key_in_dict = key
+        # Get the distance between the names
+        # If 1 or 0 get the closest key in the dict
+        distance = Levenshtein.distance(ticket_name, key)
+        if distance <=1:
+            closest_key_in_dict = key
+            if distance == 1:
+                typo_ticket_info = {
+                    'jira_ticket_name': ticket_name,
+                    'project_name_002': closest_key_in_dict,
+                    'assay_type': my_dict[closest_key_in_dict]['assay_type']
+                }
 
-    return closest_key_in_dict
+    return closest_key_in_dict, typo_ticket_info
 
 
 def get_status_change_time(ticket_id):
@@ -544,16 +622,17 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
     Closed Sequencing runs queue
     Parameters
     ----------
-    all_assays_dict :  collects.defaultdict(dict)
+    all_assays_dict :  collections.defaultdict(dict)
         dictionary where all the assay types are merged. Each key is run name
         with all the relevant audit info
     closed_response : list
         API response as list of dicts from Jira for closed sequencing runs
     Returns
     -------
-    all_assays_dict :  collects.defaultdict(dict)
+    all_assays_dict :  collections.defaultdict(dict)
         dict with the final Jira status and the time of resolution added
     """
+    typo_tickets = []
     # Summary of the ticket should be the run name
     for issue in closed_response:
         ticket_name = issue['fields']['summary']
@@ -562,20 +641,24 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
         # If this matches run name in our dict (or is off by 1 char)
         # Get relevant run name key in dict
         # Add in final Jira status and the time of resolution in datetime
-        if hamming_distance(ticket_name, all_assays_dict):
-            matching_key = hamming_distance(ticket_name, all_assays_dict)
+        closest_dict_key, typo_ticket_info = (
+            find_distance(ticket_name, all_assays_dict)
+        )
+        if closest_dict_key:
             final_jira_status = issue['fields']['status']['name']
             # Jira resolution time is incorrect so query the ticket
             # For more info
             res_time_str = get_status_change_time(ticket_id)
-            all_assays_dict[matching_key]['final_jira_status'] = (
+            all_assays_dict[closest_dict_key]['final_jira_status'] = (
                 final_jira_status
             )
-            all_assays_dict[matching_key]['jira_resolved'] = (
+            all_assays_dict[closest_dict_key]['jira_resolved'] = (
                 res_time_str
             )
+        if typo_ticket_info:
+            typo_tickets.append(typo_ticket_info)
 
-    return all_assays_dict
+    return all_assays_dict, typo_tickets
 
 
 def add_jira_info_open_issues(all_assays_dict, open_jira_response):
@@ -584,32 +667,58 @@ def add_jira_info_open_issues(all_assays_dict, open_jira_response):
     To the all_assays_dict
     Parameters
     ----------
-    all_assays_dict :  collects.defaultdict(dict)
+    all_assays_dict :  collections.defaultdict(dict)
         dictionary where all the assay types are merged. Each key is run name
         with all the relevant audit info
     jira_response : dict
         API response from Jira
     Returns
     -------
-    all_assays_dict :  collects.defaultdict(dict)
+    all_assays_dict :  collections.defaultdict(dict)
         dict with the current Jira status and current time added
+    new_runs_list : list
+        list of dicts for open runs that don't have a 002 project yet
+    typo_tickets : list
+        list of dicts with info on proj names which differ to tickets
     """
+    new_runs_list = []
+    typo_tickets = []
     # Summary of the ticket should be the run name
     for issue in open_jira_response:
         ticket_name = issue['fields']['summary']
+        current_jira_status = issue['fields']['status']['name']
+        current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         # If this matches run name in our dict (or is off by 1 char)
         # Get relevant run name key in dict
-        if hamming_distance(ticket_name, all_assays_dict):
-            matching_key = hamming_distance(ticket_name, all_assays_dict)
-            current_jira_status = issue['fields']['status']['name']
-            current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-            all_assays_dict[matching_key]['current_jira_status'] = (
+        closest_dict_key, typo_ticket_info = (
+            find_distance(ticket_name, all_assays_dict)
+        )
+        if closest_dict_key:
+            all_assays_dict[closest_dict_key]['current_jira_status'] = (
                 current_jira_status
             )
-            all_assays_dict[matching_key]['current_time'] = current_time
+            all_assays_dict[closest_dict_key]['current_time'] = current_time
 
-    return all_assays_dict
+        # If not in our dict (i.e. it's a new run with no 002 proj yet)
+        else:
+            start_time = issue['fields']['created'].split("T")[0]
+            assay_type = issue['fields']['customfield_10070'][0]['value']
+            if assay_type == 'SNP Genotyping':
+                run_type = 'SNP'
+            else:
+                run_type = assay_type
+            if start_time >= begin_date_of_audit.strftime('%Y-%m-%d'):
+                new_runs_list.append({
+                    'run_name': ticket_name,
+                    'assay_type': run_type,
+                    'date_jira_ticket_created': start_time,
+                    'current_status': current_jira_status
+                })
+
+        if typo_ticket_info:
+            typo_tickets.append(typo_ticket_info)
+
+    return all_assays_dict, new_runs_list, typo_tickets
 
 
 def create_all_assays_df(all_assays_dict):
@@ -617,7 +726,7 @@ def create_all_assays_df(all_assays_dict):
     Creates a df with all the assay types, run names and relevant audit info
     Parameters
     ----------
-    all_assays_dict :  collects.defaultdict(dict)
+    all_assays_dict :  collections.defaultdict(dict)
         dictionary where all the assay types are merged. Each key is run
         with all the relevant audit info
     Returns
@@ -817,7 +926,7 @@ def create_TAT_fig(assay_df, assay_type):
 
     fig.add_hline(y=3, line_dash="dash")
 
-    fig.update_xaxes(tickangle=45)
+    fig.update_xaxes(tickangle=45, categoryorder='category ascending')
 
     fig.update_traces(
         hovertemplate=(
@@ -843,7 +952,7 @@ def create_TAT_fig(assay_df, assay_type):
         yaxis_title="Number of days",
         width=1100,
         height=700,
-        font_family='Helvetica'
+        font_family='Helvetica',
     )
 
     html_fig = fig.to_html(full_html=False, include_plotlyjs='cdn')
@@ -866,7 +975,8 @@ def make_stats_table(assay_df):
     # Count runs to include as compliant that are less than 3
     # Count runs to include overall
     compliant_runs = assay_df.loc[
-        assay_df['upload_to_release'] <=3, 'upload_to_release'].count() + (
+        assay_df['upload_to_release'] <=3, 'upload_to_release'
+        ].count() + (
             assay_df.loc[assay_df['urgents_time'] <=3, 'urgents_time'].count()
         )
     relevant_run_count = assay_df[
@@ -893,9 +1003,11 @@ def make_stats_table(assay_df):
         }, index=[assay_df.index.values[-1]]
     ).T.reset_index()
 
-    stats_df.rename(columns={
-        "index": "Metric", stats_df.columns[1]: "Days"
-    }, inplace=True)
+    stats_df.rename(
+        columns={
+            "index": "Metric", stats_df.columns[1]: "Days"
+        }, inplace=True
+    )
 
     stats_table = stats_df.to_html(
         index=False,
@@ -909,7 +1021,8 @@ def make_stats_table(assay_df):
 
 def find_runs_for_manual_review(assay_df):
     """
-    Finds any runs that should be manually checked
+    Finds any runs that should be manually checked because certain metrics
+    Could not be extracted by the script
     Parameters
     ----------
     assay_df :  pd.DataFrame()
@@ -969,15 +1082,15 @@ def find_cancelled_runs(closed_runs_response, assay_type):
     Finds runs that were not processed or released or received to be flagged
     Parameters
     ----------
-    closed_response : list
+    closed_runs_response : list
         API response as list of dicts from Jira for closed sequencing runs
     assay_type : str
         e.g. 'CEN'
     Returns
     -------
-    cancelled_dict : dict
-        dict with run as key and nested dict with date of creation
-        and status of the ticket to show why cancelled
+    cancelled_list : list
+        list of dicts containing run name, date jira tix created +
+        status of the ticket to show why cancelled
     """
     cancelled_list = []
     if assay_type == 'SNP':
@@ -985,23 +1098,21 @@ def find_cancelled_runs(closed_runs_response, assay_type):
     else:
         assay_helpdesk_value = assay_type
     for issue in closed_runs_response:
+        run_name = issue['fields']['summary']
         start_time = issue['fields']['created'].split("T")[0]
         if start_time >= begin_date_of_audit.strftime('%Y-%m-%d'):
             fields_of_interest = [
                 "Data cannot be processed", "Data cannot be released",
                 "Data not received"
             ]
-            run_name = issue['fields']['summary']
             status = issue['fields']['status']['name']
             assay = issue['fields']['customfield_10070'][0]['value']
             if status in fields_of_interest and assay == assay_helpdesk_value:
-                cancelled_list.append(
-                    {
-                        'run_name': run_name,
-                        'date_jira_ticket_created': start_time,
-                        'reason_not_released': status
-                    }
-                )
+                cancelled_list.append({
+                    'run_name': run_name,
+                    'date_jira_ticket_created': start_time,
+                    'reason_not_released': status
+                })
 
     return cancelled_list
 
@@ -1045,20 +1156,29 @@ def main():
 
     logger.info("Creating dicts for each assay")
     all_assays_dict = {}
-    assay_types = ['TWE', 'CEN', 'MYE', 'TSO500', 'SNP']
-    for assay_type in assay_types:
-        all_assays_dict.update(create_info_dict(assay_type))
+    typo_folders_list = []
+    for assay_type in ASSAY_TYPES:
+        assay_run_dict, typo_run_folders = create_info_dict(assay_type)
+        all_assays_dict.update(assay_run_dict)
+        if typo_run_folders:
+            typo_folders_list.append(typo_run_folders)
 
     logger.info("Adding demultiplex job")
     add_001_demultiplex_job(all_assays_dict)
 
     logger.info("Getting + adding JIRA ticket info for closed seq runs")
     closed_runs_response = get_jira_info(35)
-    add_jira_info_closed_issues(all_assays_dict, closed_runs_response)
+    all_assays_dict, closed_typo_tickets = add_jira_info_closed_issues(
+        all_assays_dict, closed_runs_response
+    )
 
     logger.info("Getting + adding JIRA ticket info for open seq runs")
     open_jira_response = get_jira_info(34)
-    add_jira_info_open_issues(all_assays_dict, open_jira_response)
+    all_assays_dict, new_runs_list, open_typo_tickets = (
+        add_jira_info_open_issues(
+            all_assays_dict, open_jira_response
+        )
+    )
 
     logger.info("Creating df for all assays")
     all_assays_df = create_all_assays_df(all_assays_dict)
@@ -1073,7 +1193,9 @@ def main():
         all_assays_df, 'MYE', closed_runs_response
     )
     TSO500_stats, TSO500_issues, TSO500_fig, TSO500_cancelled = (
-        create_assay_objects(all_assays_df, 'TSO500', closed_runs_response)
+        create_assay_objects(
+            all_assays_df, 'TSO500', closed_runs_response
+        )
     )
     TWE_stats, TWE_issues, TWE_fig, TWE_cancelled = create_assay_objects(
         all_assays_df, 'TWE', closed_runs_response
@@ -1108,7 +1230,11 @@ def main():
         chart_5=SNP_fig,
         averages_5=SNP_stats,
         runs_to_review_5=SNP_issues,
-        cancelled_runs_5=SNP_cancelled
+        cancelled_runs_5=SNP_cancelled,
+        new_runs=new_runs_list,
+        open_ticket_typos=open_typo_tickets,
+        closed_ticket_typos=closed_typo_tickets,
+        typo_folders=typo_folders_list
     )
 
     logger.info("Writing final report file")

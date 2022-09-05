@@ -3,3 +3,6 @@
 !templates/*
 *.log
 *.Rhistory
+*.csv
+*.pyc
+tests/*

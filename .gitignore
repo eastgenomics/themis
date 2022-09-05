@@ -4,5 +4,6 @@
 *.log
 *.Rhistory
 *.csv
+*.csv#
 *.pyc
 tests/*

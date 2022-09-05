@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+
+import argparse
 import datetime as dt
 import dxpy as dx
 import json
@@ -17,6 +20,15 @@ from requests.auth import HTTPBasicAuth
 
 pd.options.mode.chained_assignment = None
 
+parser = argparse.ArgumentParser(description='Audit settings')
+parser.add_argument(
+    'no_of_audit_weeks',
+    type=int,
+    help='Integer number of weeks to audit before today'
+)
+args = parser.parse_args()
+NO_OF_AUDIT_WEEKS = args.no_of_audit_weeks
+
 # Get tokens etc from credentials file
 with open("credentials.json", "r") as json_file:
     CREDENTIALS = json.load(json_file)
@@ -31,7 +43,10 @@ JIRA_NAME = CREDENTIALS.get('JIRA_NAME')
 CURRENT_DIR = os.path.abspath(os.getcwd())
 
 # Create and configure logger
-LOG_FORMAT = "%(asctime)s — %(name)s — %(levelname)s — %(lineno)d — %(message)s"
+LOG_FORMAT = (
+    "%(asctime)s — %(name)s — %(levelname)s"
+    " — %(lineno)d — %(message)s"
+)
 
 # Set level to debug, format with date and time and re-write file each time
 logging.basicConfig(
@@ -51,7 +66,7 @@ headers = {
 }
 
 # Audit settings and relevant dates (used in plot titles)
-NO_OF_AUDIT_WEEKS = 20
+#NO_OF_AUDIT_WEEKS = 26
 
 ASSAY_TYPES = ['TWE', 'CEN', 'MYE', 'TSO500', 'SNP']
 
@@ -144,13 +159,16 @@ def add_in_002_created_time_and_assay(assay_type, assay_response):
         run_name = (
             project['describe']['name']
         ).removeprefix('002_').removesuffix(f'_{assay_type}')
-        run_dict[run_name]['project_id'] = project['id']
-        run_dict[run_name]['002_project_created'] = time.strftime(
-            '%Y-%m-%d %H:%M:%S', time.localtime(
-                project['describe']['created'] / 1000
+        # Check if the date of the run is after the begin date of the audit
+        # Because 002 project may have been made days after actual run
+        if run_name.split('_')[0] >= begin_date_of_audit.strftime('%y%m%d'):
+            run_dict[run_name]['project_id'] = project['id']
+            run_dict[run_name]['002_project_created'] = time.strftime(
+                '%Y-%m-%d %H:%M:%S', time.localtime(
+                    project['describe']['created'] / 1000
+                )
             )
-        )
-        run_dict[run_name]['assay_type'] = assay_type
+            run_dict[run_name]['assay_type'] = assay_type
 
     return run_dict
 
@@ -186,14 +204,14 @@ def add_log_file_time(run_dict, assay_type):
     returns any mismatched names between run folders + 002 proj names
     Parameters
     ----------
-    run_dict :  collects.defaultdict(dict)
+    run_dict : collections.defaultdict(dict)
         dictionary where key is run name and dict inside with relevant info
         for that run
     assay_type : str
         e.g. 'CEN'
     Returns
     -------
-    run_dict : collects.defaultdict(dict)
+    run_dict : collections.defaultdict(dict)
         dictionary where key is run name with dict inside and upload_time
         added
     typo_run_folders : defaultdict(list)
@@ -553,9 +571,9 @@ def find_distance(ticket_name, my_dict):
     -------
     closest_key_in_dict : str or None
         the key in the dict that either matches the ticket name completely
-        or is off by 1. If no relevant key found returns none
+        or is off by 2. If no relevant key found returns none
     typo_ticket_info : dict or None
-        info of the tickets where they mismatch by 1
+        info of the tickets where they mismatch by 2
     """
     typo_ticket_info = None
     closest_key_in_dict = None
@@ -563,9 +581,9 @@ def find_distance(ticket_name, my_dict):
         # Get the distance between the names
         # If 1 or 0 get the closest key in the dict
         distance = Levenshtein.distance(ticket_name, key)
-        if distance <=1:
+        if distance <=2:
             closest_key_in_dict = key
-            if distance == 1:
+            if distance > 0:
                 typo_ticket_info = {
                     'jira_ticket_name': ticket_name,
                     'project_name_002': closest_key_in_dict,
@@ -633,10 +651,16 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
         dict with the final Jira status and the time of resolution added
     """
     typo_tickets = []
+    runs_no_002_proj = []
     # Summary of the ticket should be the run name
     for issue in closed_response:
         ticket_name = issue['fields']['summary']
         ticket_id = issue['id']
+        start_date, start_time = issue['fields']['created'].split("T")
+        start_time = start_time.split(".")[0]
+        date_time_created = dt.datetime.strptime(
+            f"{start_date} {start_time}", '%Y-%m-%d %H:%M:%S'
+        )
 
         # If this matches run name in our dict (or is off by 1 char)
         # Get relevant run name key in dict
@@ -655,10 +679,37 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
             all_assays_dict[closest_dict_key]['jira_resolved'] = (
                 res_time_str
             )
+        else:
+            status = issue['fields']['status']['name']
+            if (
+                start_date >= begin_date_of_audit.strftime('%Y-%m-%d')
+                and status == 'All samples released'
+            ):
+                assay_type_value = issue['fields']['customfield_10070'][0]['value']
+                res_time_str = get_status_change_time(ticket_id)
+                res_time = dt.datetime.strptime(res_time_str, '%Y-%m-%d %H:%M:%S')
+                if assay_type_value == 'SNP Genotyping':
+                    assay_type = 'SNP'
+                else:
+                    assay_type = assay_type_value
+                if assay_type in ASSAY_TYPES:
+                    turnaround_time_days = (res_time - date_time_created).days
+                    remainder = round(
+                        ((res_time - date_time_created).seconds) / 86400, 1
+                    )
+                    turnaround_time = turnaround_time_days + remainder
+                    runs_no_002_proj.append({
+                        'run_name': ticket_name,
+                        'assay_type': assay_type,
+                        'jira_ticket_created': date_time_created,
+                        'jira_ticket_resolved': res_time_str,
+                        'estimated_TAT': turnaround_time
+                    })
+
         if typo_ticket_info:
             typo_tickets.append(typo_ticket_info)
 
-    return all_assays_dict, typo_tickets
+    return all_assays_dict, typo_tickets, runs_no_002_proj
 
 
 def add_jira_info_open_issues(all_assays_dict, open_jira_response):
@@ -808,17 +859,17 @@ def add_calculation_columns(all_assays_df):
     ).where(all_assays_df['current_jira_status'] == 'Urgent samples released')
     / np.timedelta64(1, 'D'))
 
-    # Add the time since MultiQC to now for open tickets on hold
+    # Add the time since last processing step to now for open tickets on hold
     all_assays_df['on_hold_time'] = ((
-        all_assays_df['current_time'] - all_assays_df['multiQC_finished']
+        all_assays_df['current_time'] - all_assays_df.ffill(axis=1).iloc[:, 6]
     ).where(all_assays_df['current_jira_status'] == 'On hold')
     / np.timedelta64(1, 'D'))
 
     # Add the time since MultiQC to now for open tickets to do
-    all_assays_df['new_time'] = ((
-        all_assays_df['current_time'] - all_assays_df['multiQC_finished']
-    ).where(all_assays_df['current_jira_status'] == 'Data Received')
-    / np.timedelta64(1, 'D'))
+    # all_assays_df['new_time'] = ((
+    #     all_assays_df['current_time'] - all_assays_df['multiQC_finished']
+    # ).where(all_assays_df['current_jira_status'] == 'Data Received')
+    # / np.timedelta64(1, 'D'))
 
     return all_assays_df
 
@@ -914,15 +965,15 @@ def create_TAT_fig(assay_df, assay_type):
                 )
             )
 
-        if "Data Received" in assay_df.current_jira_status.values:
-            fig.add_trace(
-                go.Bar(
-                    x=assay_df["run_name"],
-                    y=assay_df["new_time"],
-                    name="Data Received",
-                    marker_color='#AB63FA'
-                )
-            )
+        # if "Data Received" in assay_df.current_jira_status.values:
+        #     fig.add_trace(
+        #         go.Bar(
+        #             x=assay_df["run_name"],
+        #             y=assay_df["new_time"],
+        #             name="Data Received",
+        #             marker_color='#AB63FA'
+        #         )
+        #     )
 
     fig.add_hline(y=3, line_dash="dash")
 
@@ -1168,8 +1219,10 @@ def main():
 
     logger.info("Getting + adding JIRA ticket info for closed seq runs")
     closed_runs_response = get_jira_info(35)
-    all_assays_dict, closed_typo_tickets = add_jira_info_closed_issues(
-        all_assays_dict, closed_runs_response
+    all_assays_dict, closed_typo_tickets, runs_no_002_proj = (
+        add_jira_info_closed_issues(
+            all_assays_dict, closed_runs_response
+        )
     )
 
     logger.info("Getting + adding JIRA ticket info for open seq runs")
@@ -1232,6 +1285,7 @@ def main():
         runs_to_review_5=SNP_issues,
         cancelled_runs_5=SNP_cancelled,
         new_runs=new_runs_list,
+        runs_no_002=runs_no_002_proj,
         open_ticket_typos=open_typo_tickets,
         closed_ticket_typos=closed_typo_tickets,
         typo_folders=typo_folders_list

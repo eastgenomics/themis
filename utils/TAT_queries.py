@@ -788,7 +788,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
                                 'date_jira_ticket_created': start_time,
                                 'reason_not_released': jira_status
                             })
-            except:
+            except Exception:
                 pass
 
         if typo_ticket_info:
@@ -943,7 +943,7 @@ def add_calculation_columns(all_assays_df):
             pd.to_datetime(current_time, format='%Y-%m-%d %H:%M:%S')
             - all_assays_df['multiQC_finished']
         ).where(all_assays_df['jira_status'] == 'Urgent samples released')
-    / np.timedelta64(1, 'D')
+        / np.timedelta64(1, 'D')
     )
 
     # Add the time since the last processing step which exists to now
@@ -953,7 +953,7 @@ def add_calculation_columns(all_assays_df):
             pd.to_datetime(current_time, format='%Y-%m-%d %H:%M:%S')
             - all_assays_df.ffill(axis=1).iloc[:, 4]
         ).where(all_assays_df['jira_status'] == 'On hold')
-    / np.timedelta64(1, 'D')
+        / np.timedelta64(1, 'D')
     )
 
     return all_assays_df

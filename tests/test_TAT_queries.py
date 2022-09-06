@@ -89,29 +89,53 @@ def test_create_run_dict_add_assay():
 
 
 def test_find_earliest_002_job():
-    jobs_list = [{
-        'id': 'job-G9V9gKj45Bk0xjfQ4V27jkjj',
-        'describe': {'id': 'job-G9V9gKj45Bk0xjfQ4V27jkjj',
-        'name': 'athena_v1.2.2',
-        'created': 1650629562910}},
-        {'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjg',
-        'describe': {'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjg',
-        'name': 'generate_bed_for_athena',
-        'created': 1650629562579}},
-        {'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjf',
-        'describe': {'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjf',
-        'name': 'eggd_vcf2xls_nirvana',
-        'created': 1650629562494}},
-        {'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjb',
-        'describe': {'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjb',
-        'name': 'generate_bed_for_vcf2xls',
-        'created': 1650629562026}},
-        {'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjZ',
-        'describe': {'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjZ',
-        'name': 'eggd_vcf_annotator_v1.1.0',
-        'created': 1650629561577}},
-        {'id': 'job-G9V9gK845BkPk639Bz5PvBxJ',
-        'describe': {'id': 'job-G9V9gK845BkPk639Bz5PvBxJ',
-        'name': 'athena_v1.2.2',
-        'created': 1650629560735}
-   }]
+    jobs_list = [
+        {
+            'id': 'job-G9V9gKj45Bk0xjfQ4V27jkjj',
+            'describe': {
+                'id': 'job-G9V9gKj45Bk0xjfQ4V27jkjj',
+                'name': 'athena_v1.2.2',
+                'created': 1650629562910
+            }
+        },
+        {
+            'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjg',
+            'describe': {
+                'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjg',
+                'name': 'generate_bed_for_athena',
+                'created': 1650629562579
+            }
+        },
+        {
+            'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjf',
+            'describe': {
+                'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjf',
+                'name': 'eggd_vcf2xls_nirvana',
+                'created': 1650629562494
+            }
+        },
+        {
+            'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjb',
+            'describe': {
+                'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjb',
+                'name': 'generate_bed_for_vcf2xls',
+                'created': 1650629562026
+            }
+        },
+        {
+            'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjZ',
+            'describe': {
+                'id': 'job-G9V9gKQ45Bk0xjfQ4V27jkjZ',
+                'name': 'eggd_vcf_annotator_v1.1.0',
+                'created': 1650629561577
+            }
+        },
+        {
+            'id': 'job-G9V9gK845BkPk639Bz5PvBxJ',
+            'describe': {
+                'id': 'job-G9V9gK845BkPk639Bz5PvBxJ',
+                'name': 'athena_v1.2.2',
+                'created': 1650629560735
+            }
+        }
+    ]

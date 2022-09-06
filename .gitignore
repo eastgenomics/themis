@@ -1,9 +1,9 @@
 *.json
 *.html
-!templates/*
+!TAT_audit/templates/*
 *.log
 *.Rhistory
 *.csv
 *.csv#
 *.pyc
-/tests/__pycache__/*
+TAT_audit/tests/__pycache__/*

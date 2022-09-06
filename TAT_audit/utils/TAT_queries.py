@@ -54,7 +54,7 @@ LOG_FORMAT = (
 # Set level to debug, format with date and time and re-write file each time
 logging.basicConfig(
     filename=f'{CURRENT_DIR}/TAT_queries_debug.log',
-    level=logging.DEBUG,
+    level=logging.INFO,
     format=LOG_FORMAT,
     filemode='w'
 )
@@ -80,15 +80,15 @@ begin_date_of_audit = today_date - x_weeks
 
 def login() -> None:
     """
-        Logs into DNAnexus
-        Parameters
-        ----------
-        token : str
-            authorisation token for DNAnexus, from settings.py
-        Raises
-        ------
-        Error
-            Raised when DNAnexus user authentification check fails
+    Logs into DNAnexus
+    Parameters
+    ----------
+    token : str
+        authorisation token for DNAnexus, from settings.py
+    Raises
+    ------
+    Error
+        Raised when DNAnexus user authentification check fails
     """
 
     DX_SECURITY_CONTEXT = {
@@ -109,7 +109,7 @@ def login() -> None:
 def get_002_projects_in_period(assay_type):
     """
     Gets all the 002 projects ending with the relevant assay type from DNAnexus
-    That have been created in the last X number of weeks
+    that have been created in the last X number of weeks
     Parameters
     ----------
     assay_type : str
@@ -216,11 +216,12 @@ def find_files_in_folder(folder_name, assay_type, log_file_bug):
         list response from dxpy of files from that folder
     """
     if assay_type == 'SNP':
-        # The files are within the named folder
+        # Files on MiSeq are manually uploaded (not with dx-streaming-upload)
+        # So the files are within the named folder
         folder_to_search = f'/{folder_name}/'
         file_name = "*"
     else:
-        # The files are within the sub-folder runs
+        # Files are within named folder but within sub-folder runs
         folder_to_search = f'/{folder_name}/runs'
         file_name = "*.lane.all.log"
 
@@ -277,13 +278,11 @@ def add_log_file_time(run_dict, assay_type):
         for run_name in run_dict.keys():
             distance = get_distance(folder_name, run_name)
             if distance <= 2:
-
                 log_file_info = find_files_in_folder(
                     folder_name, assay_type, False
                 )
-
-                # If mismatches between names, create dict with info
                 if distance > 0:
+                    # If mismatches between names, create dict with info
                     typo_folder_info = {
                         'folder_name': folder_name,
                         'project_name_002': run_name,
@@ -499,7 +498,6 @@ def create_info_dict(assay_type):
     """
     Creates a nested dict with all relevant info for an assay type
     using the other functions
-    run
     Parameters
     ----------
     assay_type : str
@@ -531,8 +529,8 @@ def create_info_dict(assay_type):
 def get_jira_info(queue_id):
     """
     Get the info from Jira API. As can't change size of response and seems to
-    Be limited to 50, loop over each page of response to get all tickets
-    Until response is empty
+    be limited to 50, loop over each page of response to get all tickets
+    until response is empty
     Parameters
     ----------
     queue_id :  int
@@ -542,7 +540,7 @@ def get_jira_info(queue_id):
     response_data :  list
         list of dicts with response from Jira API request
     """
-    url = (
+    base_url = (
         f"https://{JIRA_NAME}.atlassian.net/rest/servicedeskapi/servicedesk/"
         f"4/queue/{queue_id}/issue"
     )
@@ -555,7 +553,7 @@ def get_jira_info(queue_id):
     while new_data:
         queue_response = requests.request(
             "GET",
-            url=f"{url}?start={start}",
+            url=f"{base_url}?start={start}",
             headers=headers,
             auth=auth
         )
@@ -590,8 +588,8 @@ def get_distance(string1, string2):
 
 def get_closest_match_in_dict(ticket_name, my_dict):
     """
-    Checks for run names in the dict that are only off by 1 character
-    In the Jira ticket name
+    Checks for run names in the dict that are only off by 2 characters
+    in the Jira ticket name
 
     Parameters
     ----------
@@ -661,7 +659,7 @@ def query_specific_ticket(ticket_id):
 def get_status_change_time(ticket_data):
     """
     Queries the individual Jira ticket to get the correct resolution time
-    Since when querying all tickets in a queue it is not correct
+    since when querying all tickets in a queue it is not correct
     Parameters
     ----------
     ticket_data :  dict
@@ -689,7 +687,7 @@ def get_status_change_time(ticket_data):
 def add_jira_info_closed_issues(all_assays_dict, closed_response):
     """
     Adds the Jira ticket resolution time and final status of runs in the
-    Closed Sequencing runs queue
+    closed sequencing runs queue
     Parameters
     ----------
     all_assays_dict :  collections.defaultdict(dict)
@@ -715,12 +713,15 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
             f"{start_date} {start_time}", '%Y-%m-%d %H:%M:%S'
         )
         jira_status = issue['fields']['status']['name']
-        # If this matches run name in our dict (or is off by 1 char)
+        # If this matches run name in our dict (or is off by 2 chars)
         # Get relevant run name key in dict
         # Add in final Jira status and the time of resolution in datetime
         closest_dict_key, typo_ticket_info = (
             get_closest_match_in_dict(ticket_name, all_assays_dict)
         )
+
+        if typo_ticket_info:
+            typo_tickets.append(typo_ticket_info)
 
         if closest_dict_key:
             # Jira resolution time is incorrect so query the ticket
@@ -734,65 +735,64 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
                 res_time_str
             )
         else:
-            try:
-                assay_type_value = (
-                    issue['fields']['customfield_10070'][0]['value']
-                )
-                if assay_type_value == 'SNP Genotyping':
-                    assay_type = 'SNP'
+            # No key in our dict found (no 002 project exists for it)
+            # Get relevant info
+            # Try and get the key which stores the assay type
+            # If 'SNP Genotyping' change to 'SNP'
+            # Otherwise if key does not exist, set to Unknown
+            assay_type_field = issue.get('fields').get('customfield_10070')
+            if assay_type_field:
+                assay_type_val = assay_type_field[0].get('value')
+                assay_type = assay_type_val.replace(' Genotyping', '')
+            else:
+                assay_type = 'Unknown'
+
+            # If ticket not in dict (has no 002 project)
+            # Check it's within audit time + assays we are interested in
+            if (
+                assay_type in ASSAY_TYPES
+                and start_date >= begin_date_of_audit.strftime('%Y-%m-%d')
+            ):
+                # If reports have been released for the run
+                # Get the time ticket changed to 'All samples released'
+                if jira_status == 'All samples released':
+                    ticket_data = query_specific_ticket(ticket_id)
+                    res_time_str = get_status_change_time(ticket_data)
+                    res_time = dt.datetime.strptime(
+                        res_time_str, '%Y-%m-%d %H:%M:%S'
+                    )
+
+                    # Get TAT in days as float
+                    turnaround_time_days = (
+                        res_time - date_time_created
+                    ).days
+                    remainder = round(
+                        ((res_time - date_time_created).seconds)
+                        / 86400, 1
+                    )
+                    turnaround_time = turnaround_time_days + remainder
+
+                    runs_no_002_proj.append({
+                        'run_name': ticket_name,
+                        'assay_type': assay_type,
+                        'jira_ticket_created': date_time_created,
+                        'jira_ticket_resolved': res_time_str,
+                        'estimated_TAT': turnaround_time
+                    })
                 else:
-                    assay_type = assay_type_value
-
-                # Ticket not in dict (has no 002 project)
-                # Check its within audit time + has all samples released
-                if start_date >= begin_date_of_audit.strftime('%Y-%m-%d'):
-                    if jira_status == 'All samples released':
-                        ticket_data = query_specific_ticket(ticket_id)
-                        res_time_str = get_status_change_time(ticket_data)
-                        res_time = dt.datetime.strptime(
-                            res_time_str, '%Y-%m-%d %H:%M:%S'
-                        )
-
-                        if assay_type in ASSAY_TYPES:
-                            # Get TAT in days as float
-                            turnaround_time_days = (
-                                res_time - date_time_created
-                            ).days
-                            remainder = round(
-                                ((res_time - date_time_created).seconds)
-                                / 86400, 1
-                            )
-                            turnaround_time = turnaround_time_days + remainder
-
-                            runs_no_002_proj.append({
-                                'run_name': ticket_name,
-                                'assay_type': assay_type,
-                                'jira_ticket_created': date_time_created,
-                                'jira_ticket_resolved': res_time_str,
-                                'estimated_TAT': turnaround_time
-                            })
-                    else:
-                        # Data not released, add to cancelled list
-                        not_released_statuses = [
-                            "Data cannot be processed",
-                            "Data cannot be released",
-                            "Data not received"
-                        ]
-                        if (
-                            jira_status in not_released_statuses
-                            and assay_type in ASSAY_TYPES
-                        ):
-                            cancelled_list.append({
-                                'run_name': ticket_name,
-                                'assay_type': assay_type,
-                                'date_jira_ticket_created': start_time,
-                                'reason_not_released': jira_status
-                            })
-            except Exception:
-                pass
-
-        if typo_ticket_info:
-            typo_tickets.append(typo_ticket_info)
+                    # Data not released, add to cancelled list
+                    not_released_statuses = [
+                        "Data cannot be processed",
+                        "Data cannot be released",
+                        "Data not received"
+                    ]
+                    if jira_status in not_released_statuses:
+                        cancelled_list.append({
+                            'run_name': ticket_name,
+                            'assay_type': assay_type,
+                            'date_jira_ticket_created': date_time_created,
+                            'reason_not_released': jira_status
+                        })
 
     return all_assays_dict, typo_tickets, runs_no_002_proj, cancelled_list
 
@@ -800,7 +800,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
 def add_jira_info_open_issues(all_assays_dict, open_jira_response):
     """
     Adds the Jira ticket current status for those open and the current time
-    To the all_assays_dict
+    to the all_assays_dict
     Parameters
     ----------
     all_assays_dict :  collections.defaultdict(dict)
@@ -896,7 +896,7 @@ def create_all_assays_df(all_assays_dict):
 def add_calculation_columns(all_assays_df):
     """
     Adds columns to the df for log file to earliest 002 job
-    And bioinfo processing time
+    and bioinfo processing time
     Parameters
     ----------
     all_assays_df :  pd.DataFrame()
@@ -908,7 +908,7 @@ def add_calculation_columns(all_assays_df):
     """
     current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # Add new column for type between log file and earliest 002 job
+    # Add new column for time between log file and earliest 002 job
     all_assays_df['upload_to_first_002_job'] = (
         (all_assays_df['earliest_002_job'] - all_assays_df['upload_time'])
         / np.timedelta64(1, 'D')
@@ -984,7 +984,7 @@ def extract_assay_df(all_assays_df, assay_type):
 def create_TAT_fig(assay_df, assay_type):
     """
     Creates stacked bar for each run of that assay type
-    With relevant time periods on bar
+    with relevant time periods on bar
     Parameters
     ----------
     assay_df :  pd.DataFrame()
@@ -1083,7 +1083,7 @@ def create_TAT_fig(assay_df, assay_type):
         font_family='Helvetica',
     )
 
-    html_fig = fig.to_html(full_html=False, include_plotlyjs='cdn')
+    html_fig = fig.to_html(full_html=False, include_plotlyjs=False)
 
     return html_fig
 
@@ -1100,7 +1100,7 @@ def make_stats_table(assay_df):
     stats_table : str
         dataframe as a HTML string to pass to DataTables
     """
-    # Count runs to include as compliant that are less than 3
+    # Count runs to include as compliant that are less than 3 days TAT
     # Count runs to include overall
     # Add current turnaround for urgent samples released runs
     # To be included in compliance
@@ -1150,7 +1150,7 @@ def make_stats_table(assay_df):
 def find_runs_for_manual_review(assay_df):
     """
     Finds any runs that should be manually checked because certain metrics
-    Could not be extracted by the script
+    could not be extracted by the script
     Parameters
     ----------
     assay_df :  pd.DataFrame()

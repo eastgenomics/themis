@@ -227,7 +227,7 @@ def find_files_in_folder(folder_name, assay_type, log_file_bug):
     # If issues uploading to StagingArea
     # The real log file is in processed/ folder
     if log_file_bug:
-        folder_to_search=f'/processed/{folder_name}/runs'
+        folder_to_search = f'/processed/{folder_name}/runs'
 
     log_file_info = list(
         dx.find_data_objects(
@@ -302,7 +302,8 @@ def add_log_file_time(run_dict, assay_type):
                             for data in log_file_info
                         ) / 1000
                         upload_time = time.strftime(
-                            '%Y-%m-%d %H:%M:%S', time.localtime(min_file_upload)
+                            '%Y-%m-%d %H:%M:%S',
+                            time.localtime(min_file_upload)
                         )
 
                         run_dict[run_name]['upload_time'] = upload_time
@@ -323,7 +324,7 @@ def add_log_file_time(run_dict, assay_type):
                             run_dict[run_name]['upload_time'] = upload_time
 
                         # Else, if log file upload is after earliest 002 job
-                        # Go into the /processed folder and get log time instead
+                        # Go into the processed folder + get log time instead
                         else:
                             log_file_info = find_files_in_folder(
                                 run_name, assay_type, True
@@ -364,10 +365,10 @@ def find_jobs_in_project(project_id):
     jobs = list(dx.search.find_jobs(
         project=project_id,
         describe={
-        'fields': {
-            'id': True, 'name': True, 'created': True
+            'fields': {
+                'id': True, 'name': True, 'created': True
+            }
         }
-    }
     ))
 
     return jobs
@@ -393,8 +394,8 @@ def find_earliest_002_job(run_dict):
         project_id = run_dict[run]['project_id']
         jobs = find_jobs_in_project(project_id)
 
-        if jobs:
         # Get the earliest created time of the jobs
+        if jobs:
             min_job = (
                 min(data['describe']['created'] for data in jobs) / 1000
             )
@@ -476,7 +477,9 @@ def add_successful_multiqc_time(run_dict):
                     ) / 1000
                 )
             else:
-                multiqc_fin = multi_qc_jobs[0]['describe']['stoppedRunning'] / 1000
+                multiqc_fin = (
+                    multi_qc_jobs[0]['describe']['stoppedRunning'] / 1000
+                )
 
             multi_qc_completed = (
                 time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(multiqc_fin))
@@ -611,7 +614,7 @@ def get_closest_match_in_dict(ticket_name, my_dict):
         # Get the distance between the names
         # If 1 or 0 get the closest key in the dict
         distance = get_distance(ticket_name, key)
-        if distance <=2:
+        if distance <= 2:
             closest_key_in_dict = key
             if distance > 0:
                 typo_ticket_info = {
@@ -752,9 +755,12 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
 
                         if assay_type in ASSAY_TYPES:
                             # Get TAT in days as float
-                            turnaround_time_days = (res_time - date_time_created).days
+                            turnaround_time_days = (
+                                res_time - date_time_created
+                            ).days
                             remainder = round(
-                                ((res_time - date_time_created).seconds) / 86400, 1
+                                ((res_time - date_time_created).seconds)
+                                / 86400, 1
                             )
                             turnaround_time = turnaround_time_days + remainder
 
@@ -768,7 +774,8 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
                     else:
                         # Data not released, add to cancelled list
                         not_released_statuses = [
-                            "Data cannot be processed", "Data cannot be released",
+                            "Data cannot be processed",
+                            "Data cannot be released",
                             "Data not received"
                         ]
                         if (
@@ -865,8 +872,8 @@ def create_all_assays_df(all_assays_dict):
     """
     # Convert dict to df with run names as column
     all_assays_df = pd.DataFrame(
-        all_assays_dict.values()).assign(run_name = all_assays_dict.keys()
-    )
+        all_assays_dict.values()
+    ).assign(run_name=all_assays_dict.keys())
 
     # Reorder columns
     all_assays_df = all_assays_df[[
@@ -916,7 +923,9 @@ def add_calculation_columns(all_assays_df):
 
     # Add new column for time from MultiQC end to Jira resolution
     all_assays_df['processing_end_to_release'] = (
-        (all_assays_df['jira_resolved'] - all_assays_df['multiQC_finished']).where(
+        (
+            all_assays_df['jira_resolved'] - all_assays_df['multiQC_finished']
+        ).where(
             all_assays_df['jira_status'] == "All samples released"
         ) / np.timedelta64(1, 'D')
     )
@@ -929,19 +938,23 @@ def add_calculation_columns(all_assays_df):
     )
 
     # Add the time since MultiQC to now for open tickets with urgents released
-    all_assays_df['urgents_time'] = ((
-        pd.to_datetime(current_time, format='%Y-%m-%d %H:%M:%S')
-        - all_assays_df['multiQC_finished']
-    ).where(all_assays_df['jira_status'] == 'Urgent samples released')
-    / np.timedelta64(1, 'D'))
+    all_assays_df['urgents_time'] = (
+        (
+            pd.to_datetime(current_time, format='%Y-%m-%d %H:%M:%S')
+            - all_assays_df['multiQC_finished']
+        ).where(all_assays_df['jira_status'] == 'Urgent samples released')
+    / np.timedelta64(1, 'D')
+    )
 
     # Add the time since the last processing step which exists to now
     # For open tickets that are on hold
-    all_assays_df['on_hold_time'] = ((
-        pd.to_datetime(current_time, format='%Y-%m-%d %H:%M:%S')
-        - all_assays_df.ffill(axis=1).iloc[:, 4]
-    ).where(all_assays_df['jira_status'] == 'On hold')
-    / np.timedelta64(1, 'D'))
+    all_assays_df['on_hold_time'] = (
+        (
+            pd.to_datetime(current_time, format='%Y-%m-%d %H:%M:%S')
+            - all_assays_df.ffill(axis=1).iloc[:, 4]
+        ).where(all_assays_df['jira_status'] == 'On hold')
+    / np.timedelta64(1, 'D')
+    )
 
     return all_assays_df
 
@@ -1092,9 +1105,9 @@ def make_stats_table(assay_df):
     # Add current turnaround for urgent samples released runs
     # To be included in compliance
     compliant_runs = (
-        assay_df.loc[assay_df['upload_to_release'] <=3, 'upload_to_release']
+        assay_df.loc[assay_df['upload_to_release'] <= 3, 'upload_to_release']
     ).count() + (
-        assay_df.loc[assay_df['urgents_time'] <=3, 'urgents_time'].count()
+        assay_df.loc[assay_df['urgents_time'] <= 3, 'urgents_time'].count()
     )
     relevant_run_count = assay_df[
         assay_df.upload_to_release.notna() | assay_df.urgents_time.notna()
@@ -1151,8 +1164,10 @@ def find_runs_for_manual_review(assay_df):
 
     # If no Jira status and no current Jira status found flag
     manual_review_dict['no_jira_tix'] = list(
-        assay_df.loc[(assay_df['jira_status'].isna())
-        & (assay_df['jira_status'].isna())]['run_name']
+        assay_df.loc[
+            (assay_df['jira_status'].isna())
+            & (assay_df['jira_status'].isna())
+        ]['run_name']
     )
 
     # If days between log file and 002 job is negative flag
@@ -1275,7 +1290,8 @@ def main():
 
     logger.info("Adding objects into HTML template")
     filename = (
-        f"turnaround_times_previous_{NO_OF_AUDIT_WEEKS}_weeks_{formatted_today_date}.html"
+        f"turnaround_times_previous_{NO_OF_AUDIT_WEEKS}"
+        f"_weeks_{formatted_today_date}.html"
     )
 
     # Render all the things to go in the template

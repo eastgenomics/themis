@@ -10,42 +10,60 @@ sys.path.append(os.path.abspath(
     os.path.join(os.path.realpath(__file__), '../../')
 ))
 
+
 def test_get_distance() -> None:
     ticket_name = '220901_A01303_0094_BHGNNSDRX2_TSO500'
     run_name = '220901_A01303_0093_BHGNN5DRX2_TSO500'
 
     assert tatq.get_distance(ticket_name, run_name) == 2
 
+
 def test_create_run_dict_add_assay():
-    CEN_response = [{
-        'id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
-        'level': 'CONTRIBUTE',
-        'permissionSources': ['XXX'],
-        'public': False,
-        'describe': {'id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
-        'name': '002_220825_A01295_0122_BH7WG5DRX2_CEN',
-        'created': 1661526337000}},
-        {'id': 'project-GFzp36j4b2B200PVBbXv4792',
-        'level': 'CONTRIBUTE',
-        'permissionSources': ['XXX'],
-        'public': False,
-        'describe': {'id': 'project-GFzp36j4b2B200PVBbXv4792',
-        'name': '002_220817_A01295_0120_BH7MWYDRX2_CEN',
-        'created': 1660920219000}},
-        {'id': 'project-GF62QG045V8k6qX5F5gXXJV7',
-        'level': 'CONTRIBUTE',
-        'permissionSources': ['XXX'],
-        'public': False,
-        'describe': {'id': 'project-GF62QG045V8k6qX5F5gXXJV7',
-        'name': '002_220706_A01303_0080_BH53VCDRX2_CEN',
-        'created': 1657546800000}},
-        {'id': 'project-G9B06xQ4543zy86jFVPGBq30',
-        'level': 'CONTRIBUTE',
-        'permissionSources': ['XXX'],
-        'public': False,
-        'describe': {'id': 'project-G9B06xQ4543zy86jFVPGBq30',
-        'name': '002_220407_A01295_0080_AH333YDRX2_CEN',
-        'created': 1649673078000}}
+    CEN_response = [
+        {
+            'id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
+            'level': 'CONTRIBUTE',
+            'permissionSources': ['XXX'],
+            'public': False,
+            'describe': {
+                'id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
+                'name': '002_220825_A01295_0122_BH7WG5DRX2_CEN',
+                'created': 1661526337000
+            }
+        },
+        {
+            'id': 'project-GFzp36j4b2B200PVBbXv4792',
+            'level': 'CONTRIBUTE',
+            'permissionSources': ['XXX'],
+            'public': False,
+            'describe': {
+                'id': 'project-GFzp36j4b2B200PVBbXv4792',
+                'name': '002_220817_A01295_0120_BH7MWYDRX2_CEN',
+                'created': 1660920219000
+            }
+        },
+        {
+            'id': 'project-GF62QG045V8k6qX5F5gXXJV7',
+            'level': 'CONTRIBUTE',
+            'permissionSources': ['XXX'],
+            'public': False,
+            'describe': {
+                'id': 'project-GF62QG045V8k6qX5F5gXXJV7',
+                'name': '002_220706_A01303_0080_BH53VCDRX2_CEN',
+                'created': 1657546800000
+            }
+        },
+        {
+            'id': 'project-G9B06xQ4543zy86jFVPGBq30',
+            'level': 'CONTRIBUTE',
+            'permissionSources': ['XXX'],
+            'public': False,
+            'describe': {
+                'id': 'project-G9B06xQ4543zy86jFVPGBq30',
+                'name': '002_220407_A01295_0080_AH333YDRX2_CEN',
+                'created': 1649673078000
+            }
+        }
     ]
 
     CEN_dict = tatq.create_run_dict_add_assay('CEN', CEN_response)
@@ -68,6 +86,7 @@ def test_create_run_dict_add_assay():
     assert CEN_dict['220407_A01295_0080_AH333YDRX2']['project_id'] == (
         'project-G9B06xQ4543zy86jFVPGBq30'
     ), "Project name not split correctly"
+
 
 def test_find_earliest_002_job():
     jobs_list = [{

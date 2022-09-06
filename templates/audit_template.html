@@ -117,24 +117,6 @@
                 </div>
             {% endif %}
 
-        {% if cancelled_runs_1 %}
-            <div style="padding-top: 30px; padding-bottom: 30px;">
-                <h5>Runs that were not completed:</h5>
-
-                {% for item in cancelled_runs_1 %}
-                    <p><b>{{ item.run_name }}</b></p>
-                    <ul>
-                        <li>
-                            Date Jira ticket created: {{ item.date_jira_ticket_created }}
-                        </li>
-                        <li>
-                            Reason run not released: {{ item.reason_not_released }}
-                        </li>
-                    </ul>
-                {% endfor %}
-            </div>
-        {% endif %}
-
         {% if new_runs %}
             {% for item in new_runs %}
                 {% if item.assay_type == "CEN" %}
@@ -152,6 +134,25 @@
                 </div>
                 {% endif %}
             {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'CEN' %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        {% endfor %}
         {% endif %}
 
         {% if runs_no_002 %}
@@ -221,6 +222,7 @@
         {% endfor %}
         {% endfor %}
         {% endif %}
+        
 
         <div style="padding-top: 30px; padding-bottom: 20px;">
             <h4>MYE Runs</h4>
@@ -289,24 +291,6 @@
             </div>
         {% endif %}
 
-        {% if cancelled_runs_2 %}
-            <div style="padding-top: 20px; padding-bottom: 30px;">
-                <h5>Runs that were not completed:</h5>
-
-                {% for item in cancelled_runs_2 %}
-                    <p><b>{{ item.run_name }}</b></p>
-                    <ul>
-                    <li>
-                    Date Jira ticket created: {{ item.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                    Reason run not released: {{ item.reason_not_released }}
-                    </li>
-                </ul>
-                {% endfor %}
-            </div>
-        {% endif %}
-
         {% if new_runs %}
             {% for item in new_runs %}
                 {% if item.assay_type == "MYE" %}
@@ -324,6 +308,25 @@
                 </div>
                 {% endif %}
             {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'MYE' %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        {% endfor %}
         {% endif %}
 
         {% if runs_no_002 %}
@@ -462,24 +465,6 @@
                 </div>
             {% endif %}
 
-        {% if cancelled_runs_3 %}
-            <div style="padding-top: 20px; padding-bottom: 30px;">
-                <h5>Runs that were not completed:</h5>
-
-                {% for item in cancelled_runs_3 %}
-                    <p><b>{{ item.run_name }}</b></p>
-                    <ul>
-                    <li>
-                    Date Jira ticket created: {{ item.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                    Reason run not released: {{ item.reason_not_released }}
-                    </li>
-                </ul>
-                {% endfor %}
-            </div>
-        {% endif %}
-
         {% if new_runs %}
             {% for item in new_runs %}
                 {% if item.assay_type == "TSO500" %}
@@ -497,6 +482,25 @@
                 </div>
                 {% endif %}
             {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'TSO500' %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        {% endfor %}
         {% endif %}
 
         {% if runs_no_002 %}
@@ -635,24 +639,6 @@
             </div>
         {% endif %}
 
-        {% if cancelled_runs_4 %}
-            <div style="padding-top: 20px; padding-bottom: 30px;">
-                <h5>Runs that were not completed:</h5>
-
-                {% for item in cancelled_runs_4 %}
-                    <p><b>{{ item.run_name }}</b></p>
-                    <ul>
-                    <li>
-                    Date Jira ticket created: {{ item.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                    Reason run not released: {{ item.reason_not_released }}
-                    </li>
-                </ul>
-                {% endfor %}
-            </div>
-        {% endif %}
-
         {% if new_runs %}
             {% for item in new_runs %}
                 {% if item.assay_type == "TWE" %}
@@ -670,6 +656,25 @@
                 </div>
                 {% endif %}
             {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'TWE' %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        {% endfor %}
         {% endif %}
 
         {% if runs_no_002 %}
@@ -808,25 +813,6 @@
             </div>
         {% endif %}
 
-        {% if cancelled_runs_5 %}
-            <div style="padding-top: 20px; padding-bottom: 30px;">
-                <h5>Runs that were not completed:</h5>
-
-                {% for item in cancelled_runs_5 %}
-
-                    <p><b>{{ item.run_name }}</b></p>
-                    <ul>
-                    <li>
-                    Date Jira ticket created: {{ item.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                    Reason run not released: {{ item.reason_not_released }}
-                    </li>
-                    </ul>
-                {% endfor %}
-            </div>
-        {% endif %}
-
         {% if new_runs %}
             {% for item in new_runs %}
                 {% if item.assay_type == "SNP" %}
@@ -844,6 +830,25 @@
                 </div>
                 {% endif %}
             {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'SNP' %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        {% endfor %}
         {% endif %}
 
         {% if runs_no_002 %}
@@ -913,7 +918,7 @@
         {% endfor %}
         {% endfor %}
         {% endif %}
-
+    
     </div>
 
     <script>

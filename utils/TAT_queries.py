@@ -18,6 +18,8 @@ from requests.auth import HTTPBasicAuth
 
 pd.options.mode.chained_assignment = None
 
+# Add in option to change no of weeks to audit as first command line arg
+# Defaults to 26 (6 months)
 parser = argparse.ArgumentParser(description='Audit settings')
 parser.add_argument(
     '--no_of_audit_weeks',
@@ -27,6 +29,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# Set audit number of weeks (used to get relevant dates + in plot titles)
 NO_OF_AUDIT_WEEKS = args.no_of_audit_weeks
 
 # Get tokens etc from credentials file
@@ -61,19 +64,17 @@ logger = logging.getLogger("main log")
 
 # Jira API things
 auth = HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
-
 headers = {
    "Accept": "application/json"
 }
 
-# Audit settings and relevant dates (used in plot titles)
-#NO_OF_AUDIT_WEEKS = 26
-
+# Assay types we want to audit
 ASSAY_TYPES = ['TWE', 'CEN', 'MYE', 'TSO500', 'SNP']
 
+# Working out relevant dates for audit
 today_date = dt.date.today()
 formatted_today_date = today_date.strftime('%y%m%d')
-x_weeks = dt.timedelta(weeks = NO_OF_AUDIT_WEEKS)
+x_weeks = dt.timedelta(weeks=NO_OF_AUDIT_WEEKS)
 begin_date_of_audit = today_date - x_weeks
 
 
@@ -108,7 +109,7 @@ def login() -> None:
 def get_002_projects_in_period(assay_type):
     """
     Gets all the 002 projects ending with the relevant assay type from DNAnexus
-    That have been created in the last X weeks
+    That have been created in the last X number of weeks
     Parameters
     ----------
     assay_type : str
@@ -116,7 +117,7 @@ def get_002_projects_in_period(assay_type):
     Returns
     -------
     assay_response : list
-        list of dicts
+        list of dicts, each with info for a project
     """
     # Search projs in last X weeks starting with 002, ending with assay type
     # Return only relevant describe fields
@@ -137,7 +138,7 @@ def get_002_projects_in_period(assay_type):
 
 def create_run_dict_add_assay(assay_type, assay_response):
     """
-    Adds the time the 002 project was created for that run to a dict
+    Adds the run name, DX project ID and assay type for each run to dict
     Parameters
     ----------
     assay_type : str
@@ -147,7 +148,7 @@ def create_run_dict_add_assay(assay_type, assay_response):
     Returns
     -------
     run_dict : collections.defaultdict(dict)
-        dictionary where key is run name and dict inside with relevant info
+        dictionary where key is run name and dict inside has relevant info
         for that run
     """
     run_dict = defaultdict(dict)
@@ -158,10 +159,12 @@ def create_run_dict_add_assay(assay_type, assay_response):
     # Add key assay_type with the str name of the assay type
     for project in assay_response:
         run_name = (
-            project['describe']['name']
-        ).removeprefix('002_').removesuffix(f'_{assay_type}')
+            project['describe']['name'].removeprefix('002_').removesuffix(
+                f'_{assay_type}'
+            )
+        )
         # Check if the date of the run is after the begin date of the audit
-        # Because 002 project may have been made days after actual run
+        # Because 002 project may have been made after actual run date
         if run_name.split('_')[0] >= begin_date_of_audit.strftime('%y%m%d'):
             run_dict[run_name]['project_id'] = project['id']
             run_dict[run_name]['assay_type'] = assay_type
@@ -172,9 +175,8 @@ def create_run_dict_add_assay(assay_type, assay_response):
 def get_staging_folders():
     """
     Gets the names of all of the folders in Staging Area
-    Parameters
-    ----------
-    None
+    to be used for matching later
+
     Returns
     -------
     staging_folders : list
@@ -206,7 +208,7 @@ def find_files_in_folder(folder_name, assay_type, log_file_bug):
     assay_type : str
         the assay service e.g. 'CEN'
     log_file_bug : boolean True or False
-        whether the log file is affected by streaming bug
+        whether the log file upload is affected by bug
 
     Returns
     -------
@@ -214,7 +216,7 @@ def find_files_in_folder(folder_name, assay_type, log_file_bug):
         list response from dxpy of files from that folder
     """
     if assay_type == 'SNP':
-        # The files are within the name folder
+        # The files are within the named folder
         folder_to_search = f'/{folder_name}/'
         file_name = "*"
     else:
@@ -430,10 +432,10 @@ def find_multiqc_job(project_id):
         name='*MultiQC*',
         name_mode='glob',
         describe={
-        'fields': {
-            'id': True, 'project': True, 'name': True,
-            'executableName': True, 'stoppedRunning': True
-        }
+            'fields': {
+                'id': True, 'project': True, 'name': True,
+                'executableName': True, 'stoppedRunning': True
+            }
         }
     ))
 
@@ -442,8 +444,7 @@ def find_multiqc_job(project_id):
 
 def add_successful_multiqc_time(run_dict):
     """
-    Adds the time the multiQC job finished in the relevant 002 proj for that
-    run
+    Adds the time the multiQC job finished in the relevant 002 proj for run
 
     Parameters
     ----------
@@ -467,7 +468,7 @@ def add_successful_multiqc_time(run_dict):
         # If more than 1 job, take the finished time as the latest one
         # If only 1 job just get the finished time
         if multi_qc_jobs:
-            if len(multi_qc_jobs) >1:
+            if len(multi_qc_jobs) > 1:
                 multiqc_fin = (
                     max(
                         data['describe']['stoppedRunning']
@@ -517,7 +518,9 @@ def create_info_dict(assay_type):
     assay_run_dict = add_successful_multiqc_time(assay_run_dict)
     find_earliest_002_job(assay_run_dict)
 
-    assay_run_dict, typo_run_folders = add_log_file_time(assay_run_dict, assay_type)
+    assay_run_dict, typo_run_folders = add_log_file_time(
+        assay_run_dict, assay_type
+    )
 
     return assay_run_dict, typo_run_folders
 
@@ -533,7 +536,7 @@ def get_jira_info(queue_id):
         int of the ID for the relevant servicedesk queue
     Returns
     -------
-    data :  list
+    response_data :  list
         list of dicts with response from Jira API request
     """
     url = (
@@ -541,7 +544,7 @@ def get_jira_info(queue_id):
         f"4/queue/{queue_id}/issue"
     )
 
-    data = []
+    response_data = []
     new_data = True
     start = 0
     page_size = 50
@@ -555,10 +558,10 @@ def get_jira_info(queue_id):
         )
 
         new_data = json.loads(queue_response.text)['values']
-        data += new_data
+        response_data += new_data
         start += page_size
 
-    return data
+    return response_data
 
 
 def get_distance(string1, string2):
@@ -571,7 +574,7 @@ def get_distance(string1, string2):
     string1 : str
         the first string
     string2 : str
-         string2
+         the second string
     Returns
     -------
     distance : int
@@ -622,7 +625,8 @@ def get_closest_match_in_dict(ticket_name, my_dict):
 
 def query_specific_ticket(ticket_id):
     """
-    Query a specific Jira ticket to get accurate status change time
+    Query a specific Jira ticket to get accurate status change to
+    'All samples released' time
 
     Parameters
     ----------
@@ -651,20 +655,19 @@ def query_specific_ticket(ticket_id):
     return ticket_data
 
 
-def get_status_change_time(ticket_id):
+def get_status_change_time(ticket_data):
     """
     Queries the individual Jira ticket to get the correct resolution time
     Since when querying all tickets in a queue it is not correct
     Parameters
     ----------
-    ticket_id :  int
-        the ID of the Jira ticket
+    ticket_data :  dict
+        dict of info about the ticket
     Returns
     -------
     res_time_str :  str
         the time of Jira resolution as e.g. "2022-08-10 12:54"
     """
-    ticket_data = query_specific_ticket(ticket_id)
     status = ticket_data['currentStatus']['status']
     if status == 'All samples released':
         time_of_release = (
@@ -687,7 +690,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
     Parameters
     ----------
     all_assays_dict :  collections.defaultdict(dict)
-        dictionary where all the assay types are merged. Each key is run name
+        dictionary containing runs for all assay types. Each key is run name
         with all the relevant audit info
     closed_response : list
         API response as list of dicts from Jira for closed sequencing runs
@@ -698,6 +701,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
     """
     typo_tickets = []
     runs_no_002_proj = []
+    cancelled_list = []
     # Summary of the ticket should be the run name
     for issue in closed_response:
         ticket_name = issue['fields']['summary']
@@ -707,18 +711,19 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
         date_time_created = dt.datetime.strptime(
             f"{start_date} {start_time}", '%Y-%m-%d %H:%M:%S'
         )
-
+        jira_status = issue['fields']['status']['name']
         # If this matches run name in our dict (or is off by 1 char)
         # Get relevant run name key in dict
         # Add in final Jira status and the time of resolution in datetime
         closest_dict_key, typo_ticket_info = (
             get_closest_match_in_dict(ticket_name, all_assays_dict)
         )
+
         if closest_dict_key:
-            jira_status = issue['fields']['status']['name']
             # Jira resolution time is incorrect so query the ticket
-            # For more info
-            res_time_str = get_status_change_time(ticket_id)
+            # For accurate info
+            ticket_data = query_specific_ticket(ticket_id)
+            res_time_str = get_status_change_time(ticket_data)
             all_assays_dict[closest_dict_key]['jira_status'] = (
                 jira_status
             )
@@ -726,40 +731,63 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
                 res_time_str
             )
         else:
-            status = issue['fields']['status']['name']
-            if (
-                start_date >= begin_date_of_audit.strftime('%Y-%m-%d')
-                and status == 'All samples released'
-            ):
-                assay_type_value = issue['fields']['customfield_10070'][0]['value']
-                res_time_str = get_status_change_time(ticket_id)
-                res_time = dt.datetime.strptime(
-                    res_time_str, '%Y-%m-%d %H:%M:%S'
+            try:
+                assay_type_value = (
+                    issue['fields']['customfield_10070'][0]['value']
                 )
-
                 if assay_type_value == 'SNP Genotyping':
                     assay_type = 'SNP'
                 else:
                     assay_type = assay_type_value
-                if assay_type in ASSAY_TYPES:
-                    turnaround_time_days = (res_time - date_time_created).days
-                    remainder = round(
-                        ((res_time - date_time_created).seconds) / 86400, 1
-                    )
-                    turnaround_time = turnaround_time_days + remainder
 
-                    runs_no_002_proj.append({
-                        'run_name': ticket_name,
-                        'assay_type': assay_type,
-                        'jira_ticket_created': date_time_created,
-                        'jira_ticket_resolved': res_time_str,
-                        'estimated_TAT': turnaround_time
-                    })
+                # Ticket not in dict (has no 002 project)
+                # Check its within audit time + has all samples released
+                if start_date >= begin_date_of_audit.strftime('%Y-%m-%d'):
+                    if jira_status == 'All samples released':
+                        ticket_data = query_specific_ticket(ticket_id)
+                        res_time_str = get_status_change_time(ticket_data)
+                        res_time = dt.datetime.strptime(
+                            res_time_str, '%Y-%m-%d %H:%M:%S'
+                        )
+
+                        if assay_type in ASSAY_TYPES:
+                            # Get TAT in days as float
+                            turnaround_time_days = (res_time - date_time_created).days
+                            remainder = round(
+                                ((res_time - date_time_created).seconds) / 86400, 1
+                            )
+                            turnaround_time = turnaround_time_days + remainder
+
+                            runs_no_002_proj.append({
+                                'run_name': ticket_name,
+                                'assay_type': assay_type,
+                                'jira_ticket_created': date_time_created,
+                                'jira_ticket_resolved': res_time_str,
+                                'estimated_TAT': turnaround_time
+                            })
+                    else:
+                        # Data not released, add to cancelled list
+                        not_released_statuses = [
+                            "Data cannot be processed", "Data cannot be released",
+                            "Data not received"
+                        ]
+                        if (
+                            jira_status in not_released_statuses
+                            and assay_type in ASSAY_TYPES
+                        ):
+                            cancelled_list.append({
+                                'run_name': ticket_name,
+                                'assay_type': assay_type,
+                                'date_jira_ticket_created': start_time,
+                                'reason_not_released': jira_status
+                            })
+            except:
+                pass
 
         if typo_ticket_info:
             typo_tickets.append(typo_ticket_info)
 
-    return all_assays_dict, typo_tickets, runs_no_002_proj
+    return all_assays_dict, typo_tickets, runs_no_002_proj, cancelled_list
 
 
 def add_jira_info_open_issues(all_assays_dict, open_jira_response):
@@ -869,10 +897,10 @@ def add_calculation_columns(all_assays_df):
     Returns
     -------
     all_assays_df : pd.DataFrame()
-        dataframe with a row for each run and extra columns
+        dataframe with a row for each run and extra calculation columns
     """
-
     current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
     # Add new column for type between log file and earliest 002 job
     all_assays_df['upload_to_first_002_job'] = (
         (all_assays_df['earliest_002_job'] - all_assays_df['upload_time'])
@@ -920,7 +948,7 @@ def add_calculation_columns(all_assays_df):
 
 def extract_assay_df(all_assays_df, assay_type):
     """
-    Gets relevant rows from the total df
+    Gets relevant rows for an assay type from the total df
     Parameters
     ----------
     all_assays_df :  pd.DataFrame()
@@ -1061,34 +1089,34 @@ def make_stats_table(assay_df):
     """
     # Count runs to include as compliant that are less than 3
     # Count runs to include overall
-    compliant_runs = assay_df.loc[
-        assay_df['upload_to_release'] <=3, 'upload_to_release'
-        ].count() + (
-            assay_df.loc[assay_df['urgents_time'] <=3, 'urgents_time'].count()
-        )
+    # Add current turnaround for urgent samples released runs
+    # To be included in compliance
+    compliant_runs = (
+        assay_df.loc[assay_df['upload_to_release'] <=3, 'upload_to_release']
+    ).count() + (
+        assay_df.loc[assay_df['urgents_time'] <=3, 'urgents_time'].count()
+    )
     relevant_run_count = assay_df[
         assay_df.upload_to_release.notna() | assay_df.urgents_time.notna()
     ].shape[0]
 
     compliance_percentage = (compliant_runs / relevant_run_count) * 100
 
-    stats_df = pd.DataFrame(
-        {
-            'Mean turnaround time': assay_df['upload_to_release'].mean(),
-            'Median turnaround time': assay_df['upload_to_release'].median(),
-            'Mean upload to first 002 job time': (
-                assay_df['upload_to_first_002_job'].mean()
-            ),
-            'Mean pipeline running time': assay_df['processing_time'].mean(),
-            'Mean processing end to release time': (
-                assay_df['processing_end_to_release'].mean()
-            ),
-            'Compliance with audit standards': (
-                f"({compliant_runs}/{relevant_run_count}) "
-                f"{round(compliance_percentage, 2)}%"
-            )
-        }, index=[assay_df.index.values[-1]]
-    ).T.reset_index()
+    stats_df = pd.DataFrame({
+        'Mean turnaround time': assay_df['upload_to_release'].mean(),
+        'Median turnaround time': assay_df['upload_to_release'].median(),
+        'Mean upload to first 002 job time': (
+            assay_df['upload_to_first_002_job'].mean()
+        ),
+        'Mean pipeline running time': assay_df['processing_time'].mean(),
+        'Mean processing end to release time': (
+            assay_df['processing_end_to_release'].mean()
+        ),
+        'Compliance with audit standards': (
+            f"({compliant_runs}/{relevant_run_count}) "
+            f"{round(compliance_percentage, 2)}%"
+        )
+    }, index=[assay_df.index.values[-1]]).T.reset_index()
 
     stats_df.rename(
         columns={
@@ -1118,8 +1146,6 @@ def find_runs_for_manual_review(assay_df):
     -------
     manual_review_dict : dict
         dict with issue as key and any runs with that issue as value
-        if dict values empty passes as empty dict to be checked in HTML to
-        Decide whether to show 'Runs to be manually reviewed' text
     """
     manual_review_dict = defaultdict(dict)
 
@@ -1156,6 +1182,7 @@ def find_runs_for_manual_review(assay_df):
 
     # If there are runs to be flagged in dict, pass
     # Or if all vals empty pass empty dict so can check in Jinja2 if defined
+    # To decide whether to show 'Runs to be manually reviewed' text
     if any(manual_review_dict.values()):
         pass
     else:
@@ -1164,50 +1191,7 @@ def find_runs_for_manual_review(assay_df):
     return manual_review_dict
 
 
-def find_cancelled_runs(closed_runs_response, assay_type):
-    """
-    Finds runs that were not processed or released or received to be flagged
-    Parameters
-    ----------
-    closed_runs_response : list
-        API response as list of dicts from Jira for closed sequencing runs
-    assay_type : str
-        e.g. 'CEN'
-    Returns
-    -------
-    cancelled_list : list
-        list of dicts containing run name, date jira tix created +
-        status of the ticket to show why cancelled
-    """
-    cancelled_list = []
-
-    # In helpdesk the SNP runs are 'SNP Genotyping'
-    if assay_type == 'SNP':
-        assay_helpdesk_value = 'SNP Genotyping'
-    else:
-        assay_helpdesk_value = assay_type
-
-    for issue in closed_runs_response:
-        run_name = issue['fields']['summary']
-        start_time = issue['fields']['created'].split("T")[0]
-        if start_time >= begin_date_of_audit.strftime('%Y-%m-%d'):
-            fields_of_interest = [
-                "Data cannot be processed", "Data cannot be released",
-                "Data not received"
-            ]
-            status = issue['fields']['status']['name']
-            assay = issue['fields']['customfield_10070'][0]['value']
-            if status in fields_of_interest and assay == assay_helpdesk_value:
-                cancelled_list.append({
-                    'run_name': run_name,
-                    'date_jira_ticket_created': start_time,
-                    'reason_not_released': status
-                })
-
-    return cancelled_list
-
-
-def create_assay_objects(all_assays_df, assay_type, closed_runs_response):
+def create_assay_objects(all_assays_df, assay_type):
     """
     Create the stats table, find issues and make fig for each assay
     Parameters
@@ -1216,8 +1200,6 @@ def create_assay_objects(all_assays_df, assay_type, closed_runs_response):
         dataframe with a row for each run with all audit metrics
     assay_type : str
         service e.g. 'CEN'
-    closed_runs_response : list
-        API response as list of dicts from Jira for closed sequencing runs
     Returns
     -------
     assay_stats : str
@@ -1233,11 +1215,8 @@ def create_assay_objects(all_assays_df, assay_type, closed_runs_response):
     assay_stats = make_stats_table(assay_df)
     assay_issues = find_runs_for_manual_review(assay_df)
     assay_fig = create_TAT_fig(assay_df, assay_type)
-    assay_cancelled_runs = find_cancelled_runs(
-        closed_runs_response, assay_type
-    )
 
-    return assay_stats, assay_issues, assay_fig, assay_cancelled_runs
+    return assay_stats, assay_issues, assay_fig
 
 
 def main():
@@ -1255,7 +1234,7 @@ def main():
 
     logger.info("Getting + adding JIRA ticket info for closed seq runs")
     closed_runs_response = get_jira_info(35)
-    all_assays_dict, closed_typo_tickets, runs_no_002_proj = (
+    all_assays_dict, closed_typo_tickets, runs_no_002_proj, cancelled_runs = (
         add_jira_info_closed_issues(
             all_assays_dict, closed_runs_response
         )
@@ -1281,30 +1260,20 @@ def main():
     )
 
     logger.info("Generating objects for each assay")
-    CEN_stats, CEN_issues, CEN_fig, CEN_cancelled = create_assay_objects(
-        all_assays_df, 'CEN', closed_runs_response
+    CEN_stats, CEN_issues, CEN_fig = create_assay_objects(all_assays_df, 'CEN')
+    MYE_stats, MYE_issues, MYE_fig = create_assay_objects(all_assays_df, 'MYE')
+    TSO500_stats, TSO500_issues, TSO500_fig = (
+        create_assay_objects(all_assays_df, 'TSO500')
     )
-    MYE_stats, MYE_issues, MYE_fig, MYE_cancelled = create_assay_objects(
-        all_assays_df, 'MYE', closed_runs_response
-    )
-    TSO500_stats, TSO500_issues, TSO500_fig, TSO500_cancelled = (
-        create_assay_objects(
-            all_assays_df, 'TSO500', closed_runs_response
-        )
-    )
-    TWE_stats, TWE_issues, TWE_fig, TWE_cancelled = create_assay_objects(
-        all_assays_df, 'TWE', closed_runs_response
-    )
-    SNP_stats, SNP_issues, SNP_fig, SNP_cancelled = create_assay_objects(
-        all_assays_df, 'SNP', closed_runs_response
-    )
+    TWE_stats, TWE_issues, TWE_fig = create_assay_objects(all_assays_df, 'TWE')
+    SNP_stats, SNP_issues, SNP_fig = create_assay_objects(all_assays_df, 'SNP')
 
     # Load Jinja2 template
     # Add the charts, tables and issues into the template
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("audit_template.html")
 
-    logger.info("Adding all the info to HTML template")
+    logger.info("Adding objects into HTML template")
     filename = (
         f"turnaround_times_previous_{NO_OF_AUDIT_WEEKS}_weeks_{formatted_today_date}.html"
     )
@@ -1314,28 +1283,24 @@ def main():
         chart_1=CEN_fig,
         averages_1=CEN_stats,
         runs_to_review_1=CEN_issues,
-        cancelled_runs_1=CEN_cancelled,
         chart_2=MYE_fig,
         averages_2=MYE_stats,
         runs_to_review_2=MYE_issues,
-        cancelled_runs_2=MYE_cancelled,
         chart_3=TSO500_fig,
         averages_3=TSO500_stats,
         runs_to_review_3=TSO500_issues,
-        cancelled_runs_3=TSO500_cancelled,
         chart_4=TWE_fig,
         averages_4=TWE_stats,
         runs_to_review_4=TWE_issues,
-        cancelled_runs_4=TWE_cancelled,
         chart_5=SNP_fig,
         averages_5=SNP_stats,
         runs_to_review_5=SNP_issues,
-        cancelled_runs_5=SNP_cancelled,
         new_runs=new_runs_list,
         runs_no_002=runs_no_002_proj,
         open_ticket_typos=open_typo_tickets,
         closed_ticket_typos=closed_typo_tickets,
-        typo_folders=typo_folders_list
+        typo_folders=typo_folders_list,
+        cancelled_runs=cancelled_runs
     )
 
     logger.info("Writing final report file")

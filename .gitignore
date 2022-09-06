@@ -6,4 +6,4 @@
 *.csv
 *.csv#
 *.pyc
-tests/*
+/tests/__pycache__/*

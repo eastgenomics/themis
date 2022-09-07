@@ -217,10 +217,11 @@ def find_files_in_folder(folder_name, assay_type, log_file_bug):
     """
     if assay_type == 'SNP':
         # Files on MiSeq are manually uploaded (not with dx-streaming-upload)
-        # So the files are within the named folder
+        # So for SNP runs the files are within the named folder
         folder_to_search = f'/{folder_name}/'
         file_name = "*"
-    else:
+    else: 
+        # For other assay types
         # Files are within named folder but within sub-folder runs
         folder_to_search = f'/{folder_name}/runs'
         file_name = "*.lane.all.log"

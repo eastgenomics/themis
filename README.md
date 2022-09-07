@@ -1,6 +1,6 @@
 # themis
 
-Repository for code related to automated auditing.
+Repository for code related to bioinformatics internal auditing.
 
 
 |  Folder   |   Summary   |

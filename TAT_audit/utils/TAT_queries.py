@@ -220,7 +220,7 @@ def find_files_in_folder(folder_name, assay_type, log_file_bug):
         # So for SNP runs the files are within the named folder
         folder_to_search = f'/{folder_name}/'
         file_name = "*"
-    else: 
+    else:
         # For other assay types
         # Files are within named folder but within sub-folder runs
         folder_to_search = f'/{folder_name}/runs'
@@ -287,12 +287,11 @@ def add_log_file_time(run_dict, assay_type):
                     typo_folder_info = {
                         'folder_name': folder_name,
                         'project_name_002': run_name,
-                        'assay_type': run_dict[run_name]['assay_type']
                     }
+                    typo_run_folders[assay_type].append(typo_folder_info)
 
                 # If files are found
                 if log_file_info:
-
                     # If SNP run, files uploaded manually to staging area
                     # So get time first file was uploaded (sometimes
                     # people add random files later so can't use last file)
@@ -340,10 +339,6 @@ def add_log_file_time(run_dict, assay_type):
                                 )
                             ))
                             run_dict[run_name]['upload_time'] = upload_time
-
-    # If there are typos add them to defaultdict
-    if typo_folder_info:
-        typo_run_folders[assay_type].append(typo_folder_info)
 
     return run_dict, typo_run_folders
 
@@ -518,7 +513,7 @@ def create_info_dict(assay_type):
         assay_type, assay_response
     )
     assay_run_dict = add_successful_multiqc_time(assay_run_dict)
-    find_earliest_002_job(assay_run_dict)
+    assay_run_dict = find_earliest_002_job(assay_run_dict)
 
     assay_run_dict, typo_run_folders = add_log_file_time(
         assay_run_dict, assay_type
@@ -739,7 +734,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
             # No key in our dict found (no 002 project exists for it)
             # Get relevant info
             # Try and get the key which stores the assay type
-            # If 'SNP Genotyping' change to 'SNP'
+            # If 'SNP Genotyping' -> 'SNP' to check against our list of assays
             # Otherwise if key does not exist, set to Unknown
             assay_type_field = issue.get('fields').get('customfield_10070')
             if assay_type_field:
@@ -830,6 +825,8 @@ def add_jira_info_open_issues(all_assays_dict, open_jira_response):
         closest_dict_key, typo_ticket_info = (
             get_closest_match_in_dict(ticket_name, all_assays_dict)
         )
+        if typo_ticket_info:
+            typo_tickets.append(typo_ticket_info)
         if closest_dict_key:
             all_assays_dict[closest_dict_key]['jira_status'] = (
                 jira_status
@@ -839,10 +836,7 @@ def add_jira_info_open_issues(all_assays_dict, open_jira_response):
         else:
             start_time = issue['fields']['created'].split("T")[0]
             assay_type = issue['fields']['customfield_10070'][0]['value']
-            if assay_type == 'SNP Genotyping':
-                run_type = 'SNP'
-            else:
-                run_type = assay_type
+            run_type = assay_type.replace(' Genotyping', '')
 
             if start_time >= begin_date_of_audit.strftime('%Y-%m-%d'):
                 new_runs_list.append({
@@ -851,9 +845,6 @@ def add_jira_info_open_issues(all_assays_dict, open_jira_response):
                     'date_jira_ticket_created': start_time,
                     'current_status': jira_status
                 })
-
-        if typo_ticket_info:
-            typo_tickets.append(typo_ticket_info)
 
     return all_assays_dict, new_runs_list, typo_tickets
 

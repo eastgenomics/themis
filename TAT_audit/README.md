@@ -38,7 +38,7 @@ The script also:
 - Shows where there were mismatches (within 2 differences) between the Jira ticket name and the 002 project name or the 002 project name and the Staging Area run folder name
 
 ## Usage
-Run the script via:
+Run the script to query the last 26 weeks (6 months) via:
 
 ```
 python TAT_queries.py

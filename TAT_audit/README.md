@@ -22,7 +22,8 @@ Config variables should be passed in a `credentials.json` file. This should be p
 ## Description
 The script works by:
 - Querying DNAnexus to find all of the 002 projects for each assay in the past specified number of weeks
-- Finding the time the log file was uploaded in Staging Area for that run (or the first file uploaded in Staging Area if a SNP run, since files on the MiSeq are manually uploaded, not with dx-streaming-upload)
+- Finding the time the log file was uploaded in Staging Area for that run (or the first file uploaded in the Staging Area folder if a SNP run)
+    - This is because for SNP runs files from the MiSeq are manually uploaded rather than with dx-streaming-upload
 - Finding the time the first job was started in the 002 project and the time the last MultiQC job was completed
 - Finding the relevant Jira ticket for the run (in both the Jira open and closed sequencing run ticket queues)
 - If a ticket is at status 'All samples released' it queries the specific ticket to find when the ticket was resolved. If at 'Urgent samples released' it calculates the time at this status from the last MultiQC job to the time the script is run. If at 'On hold' it calculates this time from the last processing step to the time the script is run

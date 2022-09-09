@@ -137,14 +137,14 @@ def get_002_projects_in_period(assay_type):
     return assay_response
 
 
-def create_run_dict_add_assay(assay_type, assay_response):
+def create_run_dict_add_assay(assay_type, assay_dx_response):
     """
     Adds the run name, DX project ID and assay type for each run to dict
     Parameters
     ----------
     assay_type : str
         e.g. 'CEN'
-    assay_response : list
+    assay_dx_response : list
         list of dicts from get_002_projects_in_period() function
     Returns
     -------
@@ -158,7 +158,7 @@ def create_run_dict_add_assay(assay_type, assay_response):
     # For key with relevant run name
     # Add key project ID with project dx_id as value
     # Add key assay_type with the str name of the assay type
-    for project in assay_response:
+    for project in assay_dx_response:
         run_name = (
             project['describe']['name'].removeprefix('002_').removesuffix(
                 f'_{assay_type}'
@@ -198,40 +198,60 @@ def get_staging_folders():
     return staging_folders
 
 
-def find_files_in_folder(folder_name, assay_type, log_file_bug):
+def determine_folder_to_search(run_name, assay_type, log_file_bug):
+    """
+    _summary_
+
+    Parameters
+    ----------
+    folder_name : str
+        name of the run
+    assay_type : str
+        e.g. 'CEN'
+    log_file_bug : boolean True or False
+        whether the log file upload is affected by bug
+    Returns
+    -------
+    file_names : str
+        names of files to look for in the folder
+    folder_to_search : str
+        the folder to search in
+    """
+    if assay_type == 'SNP':
+        # Files on MiSeq are manually uploaded (not with dx-streaming-upload)
+        # So for SNP runs the files are within the named folder
+        folder_to_search = f'/{run_name}/'
+        file_names = "*"
+    else:
+        # For other assay types
+        # Files are within named folder but within sub-folder runs
+        folder_to_search = f'/{run_name}/runs'
+        file_names = "*.lane.all.log"
+
+    # If issues uploading to StagingArea
+    # The real log file is in processed/ folder
+    if log_file_bug:
+        folder_to_search = f'/processed/{run_name}/runs'
+
+    return file_names, folder_to_search
+
+
+def find_files_or_log_in_folder(file_name, folder_to_search):
     """
     Find the files in the relevant Staging_Area52 folder
 
     Parameters
     ----------
-    folder_name : str
+    file_name : str
         the run name to look for as a folder
-    assay_type : str
-        the assay service e.g. 'CEN'
-    log_file_bug : boolean True or False
-        whether the log file upload is affected by bug
+    folder_to_search : str
+        the staging area folder to search in
 
     Returns
     -------
     log_file_info : list of dicts
         list response from dxpy of files from that folder
     """
-    if assay_type == 'SNP':
-        # Files on MiSeq are manually uploaded (not with dx-streaming-upload)
-        # So for SNP runs the files are within the named folder
-        folder_to_search = f'/{folder_name}/'
-        file_name = "*"
-    else:
-        # For other assay types
-        # Files are within named folder but within sub-folder runs
-        folder_to_search = f'/{folder_name}/runs'
-        file_name = "*.lane.all.log"
-
-    # If issues uploading to StagingArea
-    # The real log file is in processed/ folder
-    if log_file_bug:
-        folder_to_search = f'/processed/{folder_name}/runs'
-
     log_file_info = list(
         dx.find_data_objects(
             project=STAGING_AREA_PROJ_ID,
@@ -252,7 +272,55 @@ def find_files_in_folder(folder_name, assay_type, log_file_bug):
     return log_file_info
 
 
-def add_log_file_time(run_dict, assay_type):
+def find_earliest_file_upload(files_in_folder):
+    """
+    Finds the time the earliest file was uploaded in the folder
+
+    Parameters
+    ----------
+    files_in_folder : list
+        list of dicts where each dict represents a file
+
+    Returns
+    -------
+    upload_time : str
+        timestamp the earliest file was uploaded
+    """
+    min_file_upload = min(
+        data['describe']['created']
+        for data in files_in_folder
+    ) / 1000
+    upload_time = time.strftime(
+        '%Y-%m-%d %H:%M:%S',
+        time.localtime(min_file_upload)
+    )
+
+    return upload_time
+
+
+def find_log_file_time(log_file_info):
+    """
+    Finds the time the log was was created
+
+    Parameters
+    ----------
+    log_file_info : list containing one dict containing log file info
+        _description_
+
+    Returns
+    -------
+    upload_time : str
+        timestamp for created time of the log file
+    """
+    # For non-SNP run, get time in epoch the .lane.all.log file was created
+    # convert to str
+    log_time = log_file_info[0]['describe']['created'] / 1000
+    upload_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(log_time))
+
+    return upload_time
+
+
+def add_upload_time(run_dict, assay_type):
     """
     Adds the time the log file was created for that run to a dict and
     returns any mismatched names between run folders + 002 proj names
@@ -280,8 +348,11 @@ def add_log_file_time(run_dict, assay_type):
         for run_name in run_dict.keys():
             distance = get_distance(folder_name, run_name)
             if distance <= 2:
-                log_file_info = find_files_in_folder(
+                file_names, folder_to_search = determine_folder_to_search(
                     folder_name, assay_type, False
+                )
+                files_in_folder = find_files_or_log_in_folder(
+                    file_names, folder_to_search
                 )
                 if distance > 0:
                     # If mismatches between names, create dict with info
@@ -291,59 +362,44 @@ def add_log_file_time(run_dict, assay_type):
                     }
                     typo_run_folders[assay_type].append(typo_folder_info)
 
-                # If files are found
-                if log_file_info:
+                if files_in_folder:
                     # If SNP run, files uploaded manually to staging area
                     # So get time first file was uploaded (sometimes
                     # people add random files later so can't use last file)
                     if assay_type == 'SNP':
-                        min_file_upload = min(
-                            data['describe']['created']
-                            for data in log_file_info
-                        ) / 1000
-                        upload_time = time.strftime(
-                            '%Y-%m-%d %H:%M:%S',
-                            time.localtime(min_file_upload)
+                        upload_time = find_earliest_file_upload(
+                            files_in_folder
                         )
-
                         run_dict[run_name]['upload_time'] = upload_time
 
                     else:
-                        # For non-SNP run, get the time in epoch
-                        # that the .lane.all.log file was created
-                        log_time = (
-                            log_file_info[0]['describe']['created'] / 1000
-                        )
-                        upload_time = time.strftime(
-                            '%Y-%m-%d %H:%M:%S', time.localtime(log_time)
-                        )
-
+                        # Non-SNP run so get the log file time
+                        log_upload = find_log_file_time(files_in_folder)
+                        # Get the earliest 002 job
                         # If log file was uploaded before the first 002 job
                         # Add in log file upload time
                         first_job = run_dict[run_name].get('earliest_002_job')
                         if first_job:
-                            if upload_time < first_job:
-                                run_dict[run_name]['upload_time'] = upload_time
-
-                            # Else, if log file upload is after earliest 002 job
-                            # Go into the processed folder + get log time instead
+                            if log_upload < first_job:
+                                upload_time = log_upload
                             else:
-                                log_file_info = find_files_in_folder(
-                                    run_name, assay_type, True
+                                file_names, folder_to_search = (
+                                    determine_folder_to_search(
+                                        run_name, assay_type, True
+                                    )
+                                )
+                                log_file_info = find_files_or_log_in_folder(
+                                    file_names, folder_to_search
                                 )
                                 if log_file_info:
-                                    actual_log_time = (
-                                        log_file_info[0]['describe']['created']
-                                        / 1000
+                                    upload_time = find_log_file_time(
+                                        log_file_info
                                     )
-                                    upload_time = (time.strftime(
-                                        '%Y-%m-%d %H:%M:%S', time.localtime(
-                                            actual_log_time
-                                        )
-                                    ))
-                                    run_dict[run_name]['upload_time'] = upload_time
                         else:
-                            run_dict[run_name]['upload_time'] = upload_time
+                            # No first job available to check against
+                            upload_time = log_upload
+
+                        run_dict[run_name]['upload_time'] = upload_time
 
     return run_dict, typo_run_folders
 
@@ -420,8 +476,8 @@ def add_earliest_002_job(run_dict):
     """
     # For run, use proj ID for 002 project and get all the jobs in the proj
     for run in run_dict:
-        project_id = run_dict[run]['project_id']
-        jobs = find_jobs_in_project(project_id)
+        run_project_id = run_dict[run]['project_id']
+        jobs = find_jobs_in_project(run_project_id)
         first_job = find_earliest_job(jobs)
 
         # For key with relevant run name
@@ -432,7 +488,7 @@ def add_earliest_002_job(run_dict):
     return run_dict
 
 
-def find_multiqc_job(project_id):
+def find_multiqc_jobs(project_id):
     """
     Find MultiQC jobs in the 002 project
 
@@ -520,7 +576,7 @@ def add_successful_multiqc_time(run_dict):
     # As both eggd_MultiQC and MultiQC_v1.1.2 used
     for run in run_dict:
         project_id = run_dict[run]['project_id']
-        multi_qc_jobs = find_multiqc_job(project_id)
+        multi_qc_jobs = find_multiqc_jobs(project_id)
         multi_qc_completed = find_last_multiqc_job(multi_qc_jobs)
 
         # If time found
@@ -556,7 +612,7 @@ def create_info_dict(assay_type):
     assay_run_dict = add_successful_multiqc_time(assay_run_dict)
     assay_run_dict = add_earliest_002_job(assay_run_dict)
 
-    assay_run_dict, typo_run_folders = add_log_file_time(
+    assay_run_dict, typo_run_folders = add_upload_time(
         assay_run_dict, assay_type
     )
 
@@ -707,6 +763,7 @@ def get_status_change_time(ticket_data):
         the time of Jira resolution as e.g. "2022-08-10 12:54"
     """
     status = ticket_data['currentStatus']['status']
+    res_time_str = None
     if status == 'All samples released':
         time_of_release = (
             ticket_data['currentStatus']['statusDate']['epochMillis'] / 1000
@@ -768,9 +825,10 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
             all_assays_dict[closest_dict_key]['jira_status'] = (
                 jira_status
             )
-            all_assays_dict[closest_dict_key]['jira_resolved'] = (
-                res_time_str
-            )
+            if res_time_str:
+                all_assays_dict[closest_dict_key]['jira_resolved'] = (
+                    res_time_str
+                )
         else:
             # No key in our dict found (no 002 project exists for it)
             # Get relevant info
@@ -980,12 +1038,14 @@ def add_calculation_columns(all_assays_df):
         ) / np.timedelta64(1, 'D')
     )
 
-    # Add the time since the last processing step which exists to now
-    # For open tickets that are on hold
+    # Get the time from the most recent processing step by forward filling
+    # from columns until 'muliQC_finished' column
+    # If this results in a string, convert to NA
     all_assays_df['last_processing_step'] = pd.to_datetime(
         all_assays_df.ffill(axis=1).iloc[:,4], errors='coerce'
     )
-
+    # Add the time since the last processing step which exists to current time
+    # For open tickets that are on hold
     all_assays_df['on_hold_time'] = (
         (pd_current_time - all_assays_df['last_processing_step']).where(
             all_assays_df['jira_status'] == 'On hold'

@@ -899,7 +899,7 @@ def add_calculation_columns(all_assays_df):
         dataframe with a row for each run and extra calculation columns
     """
     current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
+    pd_current_time = pd.Timestamp(current_time)
     # Add new column for time between log file and earliest 002 job
     all_assays_df['upload_to_first_002_job'] = (
         (all_assays_df['earliest_002_job'] - all_assays_df['upload_time'])
@@ -925,27 +925,30 @@ def add_calculation_columns(all_assays_df):
     # Add new column for time from log file creation to Jira resolution
     all_assays_df['upload_to_release'] = (
         (all_assays_df['jira_resolved'] - all_assays_df['upload_time']).where(
-            all_assays_df['jira_status'] == "All samples released"
+            (all_assays_df['jira_status'] == "All samples released")
+            & (all_assays_df['upload_to_first_002_job'] >= 0)
+            & (all_assays_df['processing_time'] >= 0)
+            & (all_assays_df['processing_end_to_release'] >= 0)
         ) / np.timedelta64(1, 'D')
     )
 
     # Add the time since MultiQC to now for open tickets with urgents released
     all_assays_df['urgents_time'] = (
-        (
-            pd.to_datetime(current_time, format='%Y-%m-%d %H:%M:%S')
-            - all_assays_df['multiQC_finished']
-        ).where(all_assays_df['jira_status'] == 'Urgent samples released')
-        / np.timedelta64(1, 'D')
+        (pd_current_time - all_assays_df['multiQC_finished']).where(
+            all_assays_df['jira_status'] == 'Urgent samples released'
+        ) / np.timedelta64(1, 'D')
     )
 
     # Add the time since the last processing step which exists to now
     # For open tickets that are on hold
+    all_assays_df['last_processing_step'] = pd.to_datetime(
+        all_assays_df.ffill(axis=1).iloc[:,4], errors='coerce'
+    )
+
     all_assays_df['on_hold_time'] = (
-        (
-            pd.to_datetime(current_time, format='%Y-%m-%d %H:%M:%S')
-            - all_assays_df.ffill(axis=1).iloc[:, 4]
-        ).where(all_assays_df['jira_status'] == 'On hold')
-        / np.timedelta64(1, 'D')
+        (pd_current_time - all_assays_df['last_processing_step']).where(
+            all_assays_df['jira_status'] == 'On hold'
+        ) / np.timedelta64(1, 'D')
     )
 
     return all_assays_df
@@ -1021,28 +1024,25 @@ def create_TAT_fig(assay_df, assay_type):
         )
     )
 
-    if assay_df['jira_status'].isnull().values.all():
-        pass
-    else:
-        if "Urgent samples released" in assay_df.jira_status.values:
-            fig.add_trace(
-                go.Bar(
-                    x=assay_df["run_name"],
-                    y=assay_df["urgents_time"],
-                    name="Urgent samples released",
-                    marker_color='#FFA15A'
-                )
+    if "Urgent samples released" in assay_df.jira_status.values:
+        fig.add_trace(
+            go.Bar(
+                x=assay_df["run_name"],
+                y=assay_df["urgents_time"],
+                name="Urgent samples released",
+                marker_color='#FFA15A'
             )
+        )
 
-        if "On hold" in assay_df.jira_status.values:
-            fig.add_trace(
-                go.Bar(
-                    x=assay_df["run_name"],
-                    y=assay_df["on_hold_time"],
-                    name="On hold",
-                    marker_color='#FECB52'
-                )
+    if "On hold" in assay_df.jira_status.values:
+        fig.add_trace(
+            go.Bar(
+                x=assay_df["run_name"],
+                y=assay_df["on_hold_time"],
+                name="On hold",
+                marker_color='#FECB52'
             )
+        )
 
     fig.add_hline(y=3, line_dash="dash")
 
@@ -1060,7 +1060,7 @@ def create_TAT_fig(assay_df, assay_type):
 
     # Update relevant aspects of chart
     fig.update_layout(
-        barmode='stack',
+        barmode='relative',
         title={
             'text': f"{assay_type} Turnaround Times {begin_date_of_audit} -"
                     f" {today_date}",
@@ -1093,28 +1093,39 @@ def make_stats_table(assay_df):
         dataframe as a HTML string to pass to DataTables
     """
     # Count runs to include as compliant that are less than 3 days TAT
+    # And don't have any issues in each step timings
     # Count runs to include overall
     # Add current turnaround for urgent samples released runs
     # To be included in compliance
     compliant_runs = (
-        assay_df.loc[assay_df['upload_to_release'] <= 3, 'upload_to_release']
-    ).count() + (
-        assay_df.loc[assay_df['urgents_time'] <= 3, 'urgents_time'].count()
-    )
-    relevant_run_count = assay_df[
-        assay_df.upload_to_release.notna() | assay_df.urgents_time.notna()
+        assay_df.loc[
+            (assay_df['upload_to_release'] <= 3)
+            & (assay_df['upload_to_first_002_job'] >= 0)
+            & (assay_df['processing_time'] >= 0)
+            & (assay_df['processing_end_to_release'] >= 0)
+        ]
+    ).shape[0]
+
+    relevant_run_count = assay_df.loc[
+        (assay_df['upload_to_first_002_job'] >= 0)
+        & (assay_df['processing_time'] >= 0)
+        & (assay_df['processing_end_to_release'] >=0)
+        & (
+            assay_df['upload_to_release'].notna()
+            | assay_df['urgents_time'].notna()
+        )
     ].shape[0]
 
     compliance_percentage = (compliant_runs / relevant_run_count) * 100
 
     stats_df = pd.DataFrame({
-        'Mean turnaround time': assay_df['upload_to_release'].mean(),
-        'Median turnaround time': assay_df['upload_to_release'].median(),
-        'Mean upload to first 002 job time': (
+        'Mean overall turnaround': assay_df['upload_to_release'].mean(),
+        'Median overall turnaround': assay_df['upload_to_release'].median(),
+        'Mean upload to processing start': (
             assay_df['upload_to_first_002_job'].mean()
         ),
-        'Mean pipeline running time': assay_df['processing_time'].mean(),
-        'Mean processing end to release time': (
+        'Mean pipeline running': assay_df['processing_time'].mean(),
+        'Mean processing end to release': (
             assay_df['processing_end_to_release'].mean()
         ),
         'Compliance with audit standards': (
@@ -1125,7 +1136,7 @@ def make_stats_table(assay_df):
 
     stats_df.rename(
         columns={
-            "index": "Metric", stats_df.columns[1]: "Days"
+            "index": "Metric", stats_df.columns[1]: "Time (days)"
         }, inplace=True
     )
 

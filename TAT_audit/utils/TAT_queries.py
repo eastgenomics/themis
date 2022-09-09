@@ -1,4 +1,5 @@
 import argparse
+import beepy
 import datetime as dt
 import dxpy as dx
 import json
@@ -319,25 +320,29 @@ def add_log_file_time(run_dict, assay_type):
 
                         # If log file was uploaded before the first 002 job
                         # Add in log file upload time
-                        if upload_time < run_dict[run_name]['earliest_002_job']:
-                            run_dict[run_name]['upload_time'] = upload_time
+                        first_job = run_dict[run_name].get('earliest_002_job')
+                        if first_job:
+                            if upload_time < first_job:
+                                run_dict[run_name]['upload_time'] = upload_time
 
-                        # Else, if log file upload is after earliest 002 job
-                        # Go into the processed folder + get log time instead
-                        else:
-                            log_file_info = find_files_in_folder(
-                                run_name, assay_type, True
-                            )
-
-                            actual_log_time = (
-                                log_file_info[0]['describe']['created']
-                                / 1000
-                            )
-                            upload_time = (time.strftime(
-                                '%Y-%m-%d %H:%M:%S', time.localtime(
-                                    actual_log_time
+                            # Else, if log file upload is after earliest 002 job
+                            # Go into the processed folder + get log time instead
+                            else:
+                                log_file_info = find_files_in_folder(
+                                    run_name, assay_type, True
                                 )
-                            ))
+                                if log_file_info:
+                                    actual_log_time = (
+                                        log_file_info[0]['describe']['created']
+                                        / 1000
+                                    )
+                                    upload_time = (time.strftime(
+                                        '%Y-%m-%d %H:%M:%S', time.localtime(
+                                            actual_log_time
+                                        )
+                                    ))
+                                    run_dict[run_name]['upload_time'] = upload_time
+                        else:
                             run_dict[run_name]['upload_time'] = upload_time
 
     return run_dict, typo_run_folders
@@ -369,7 +374,36 @@ def find_jobs_in_project(project_id):
     return jobs
 
 
-def find_earliest_002_job(run_dict):
+def find_earliest_job(jobs):
+    """
+    Finds and returns the earliest job created time (as str) from a list of
+    job dicts in a project
+
+    Parameters
+    ----------
+    jobs : list
+        list of dicts
+
+    Returns
+    -------
+    first_job : str
+        timestamp of first job in that project
+    """
+    if jobs:
+        min_job = (
+            min(data['describe']['created'] for data in jobs) / 1000
+        )
+        first_job = (
+            time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(min_job))
+        )
+
+    else:
+        first_job = None
+
+    return first_job
+
+
+def add_earliest_002_job(run_dict):
     """
     Adds the time the earliest job was run in the relevant 002 project for
     that run
@@ -388,22 +422,12 @@ def find_earliest_002_job(run_dict):
     for run in run_dict:
         project_id = run_dict[run]['project_id']
         jobs = find_jobs_in_project(project_id)
-
-        # Get the earliest created time of the jobs
-        if jobs:
-            min_job = (
-                min(data['describe']['created'] for data in jobs) / 1000
-            )
-            first_job = (
-                time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(min_job))
-            )
-
-        else:
-            first_job = None
+        first_job = find_earliest_job(jobs)
 
         # For key with relevant run name
         # Add earliest_002_job key with time of earliest job in datetime format
-        run_dict[run]['earliest_002_job'] = first_job
+        if first_job:
+            run_dict[run]['earliest_002_job'] = first_job
 
     return run_dict
 
@@ -438,6 +462,43 @@ def find_multiqc_job(project_id):
     return multi_qc_jobs
 
 
+def find_last_multiqc_job(multi_qc_jobs):
+    """
+    Gets the time the last successful MultiQC job completed
+
+    Parameters
+    ----------
+    multi_qc_jobs : list
+        list of dicts of MultiQC executions in that project
+
+    Returns
+    -------
+    multi_qc_completed : str or None
+        the timestamp as str the multiQC job completed or None if no MQC job
+    """
+    multi_qc_completed = None
+    if multi_qc_jobs:
+        # If more than one MultiQC job, get latest finish time
+        if len(multi_qc_jobs) > 1:
+            multiqc_fin = (
+                max(
+                    data['describe']['stoppedRunning']
+                    for data in multi_qc_jobs
+                ) / 1000
+            )
+        # Otherwise just get the time
+        else:
+            multiqc_fin = (
+                multi_qc_jobs[0]['describe']['stoppedRunning'] / 1000
+            )
+
+        multi_qc_completed = (
+            time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(multiqc_fin))
+        )
+
+    return multi_qc_completed
+
+
 def add_successful_multiqc_time(run_dict):
     """
     Adds the time the multiQC job finished in the relevant 002 proj for run
@@ -460,32 +521,12 @@ def add_successful_multiqc_time(run_dict):
     for run in run_dict:
         project_id = run_dict[run]['project_id']
         multi_qc_jobs = find_multiqc_job(project_id)
+        multi_qc_completed = find_last_multiqc_job(multi_qc_jobs)
 
-        # If more than 1 job, take the finished time as the latest one
-        # If only 1 job just get the finished time
-        if multi_qc_jobs:
-            if len(multi_qc_jobs) > 1:
-                multiqc_fin = (
-                    max(
-                        data['describe']['stoppedRunning']
-                        for data in multi_qc_jobs
-                    ) / 1000
-                )
-            else:
-                multiqc_fin = (
-                    multi_qc_jobs[0]['describe']['stoppedRunning'] / 1000
-                )
-
-            multi_qc_completed = (
-                time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(multiqc_fin))
-            )
-
-        else:
-            multi_qc_completed = None
-
-        # If no jobs, set finished time to None
+        # If time found
         # For key with relevant run name, add multiQC_finished value to dict
-        run_dict[run]['multiQC_finished'] = multi_qc_completed
+        if multi_qc_completed:
+            run_dict[run]['multiQC_finished'] = multi_qc_completed
 
     return run_dict
 
@@ -513,7 +554,7 @@ def create_info_dict(assay_type):
         assay_type, assay_response
     )
     assay_run_dict = add_successful_multiqc_time(assay_run_dict)
-    assay_run_dict = find_earliest_002_job(assay_run_dict)
+    assay_run_dict = add_earliest_002_job(assay_run_dict)
 
     assay_run_dict, typo_run_folders = add_log_file_time(
         assay_run_dict, assay_type
@@ -1167,10 +1208,7 @@ def find_runs_for_manual_review(assay_df):
 
     # If no Jira status and no current Jira status found flag
     manual_review_dict['no_jira_tix'] = list(
-        assay_df.loc[
-            (assay_df['jira_status'].isna())
-            & (assay_df['jira_status'].isna())
-        ]['run_name']
+        assay_df.loc[(assay_df['jira_status'].isna())]['run_name']
     )
 
     # If days between log file and 002 job is negative flag
@@ -1325,6 +1363,7 @@ def main():
     logger.info("Writing final report file")
     with open(filename, mode="w", encoding="utf-8") as message:
         message.write(content)
+    beepy.beep(sound="ping")
 
 
 if __name__ == "__main__":

@@ -77,6 +77,8 @@ today_date = dt.date.today()
 formatted_today_date = today_date.strftime('%y%m%d')
 x_weeks = dt.timedelta(weeks=NO_OF_AUDIT_WEEKS)
 begin_date_of_audit = today_date - x_weeks
+current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+pd_current_time = pd.Timestamp(current_time)
 
 
 def login() -> None:
@@ -808,8 +810,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
         )
         jira_status = issue['fields']['status']['name']
         # If this matches run name in our dict (or is off by 2 chars)
-        # Get relevant run name key in dict
-        # Add in final Jira status and the time of resolution in datetime
+        # Get relevant run name key in dict + return any with mismatches
         closest_dict_key, typo_ticket_info = (
             get_closest_match_in_dict(ticket_name, all_assays_dict)
         )
@@ -821,10 +822,9 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
             # Jira resolution time is incorrect so query the ticket
             # For accurate info
             ticket_data = query_specific_ticket(ticket_id)
+            all_assays_dict[closest_dict_key]['jira_status'] = jira_status
+            # If resolved add time of resolution in datetime
             res_time_str = get_status_change_time(ticket_data)
-            all_assays_dict[closest_dict_key]['jira_status'] = (
-                jira_status
-            )
             if res_time_str:
                 all_assays_dict[closest_dict_key]['jira_resolved'] = (
                     res_time_str
@@ -834,7 +834,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
             # Get relevant info
             # Try and get the key which stores the assay type
             # If 'SNP Genotyping' -> 'SNP' to check against our list of assays
-            # Otherwise if key does not exist, set to Unknown
+            # Otherwise if key does not exist, set assay type to Unknown
             assay_type_field = issue.get('fields').get('customfield_10070')
             if assay_type_field:
                 assay_type_val = assay_type_field[0].get('value')
@@ -984,7 +984,7 @@ def create_all_assays_df(all_assays_dict):
     return all_assays_df
 
 
-def add_calculation_columns(all_assays_df):
+def add_calculation_columns(all_assays_df, current_time):
     """
     Adds columns to the df for log file to earliest 002 job
     and bioinfo processing time
@@ -997,8 +997,6 @@ def add_calculation_columns(all_assays_df):
     all_assays_df : pd.DataFrame()
         dataframe with a row for each run and extra calculation columns
     """
-    current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    pd_current_time = pd.Timestamp(current_time)
     # Add new column for time between log file and earliest 002 job
     all_assays_df['upload_to_first_002_job'] = (
         (all_assays_df['earliest_002_job'] - all_assays_df['upload_time'])
@@ -1367,7 +1365,7 @@ def main():
     logger.info("Creating df for all assays")
     all_assays_df = create_all_assays_df(all_assays_dict)
     logger.info("Adding calculation columns")
-    add_calculation_columns(all_assays_df)
+    add_calculation_columns(all_assays_df, pd_current_time)
 
     all_assays_df.to_csv(
         f'audit_info_{NO_OF_AUDIT_WEEKS}_weeks_{formatted_today_date}.csv',

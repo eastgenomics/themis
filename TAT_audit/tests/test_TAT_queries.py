@@ -1,17 +1,19 @@
+import numpy as np
 import os
+import pandas as pd
 import pytest
 import sys
 
 from pathlib import Path
 from utils import TAT_queries as tatq
-
+from tests import TEST_DATA_DIR
 
 sys.path.append(os.path.abspath(
     os.path.join(os.path.realpath(__file__), '../../')
 ))
 
 
-def test_get_distance() -> None:
+def test_get_distance():
     ticket_name = '220901_A01303_0094_BHGNNSDRX2_TSO500'
     run_name = '220901_A01303_0093_BHGNN5DRX2_TSO500'
 
@@ -101,6 +103,10 @@ def test_create_run_dict_add_assay():
         }
     }, "Dictionary created incorrectly"
 
+    TSO500_response = []
+    TSO500_dict = tatq.create_run_dict_add_assay('TSO500', TSO500_response)
+    assert TSO500_dict == {}, "Run dictionary not empty when reponse is empty"
+
 
 def test_find_earliest_002_job():
     jobs_list = [
@@ -153,13 +159,13 @@ def test_find_earliest_002_job():
             }
         }
     ]
-    jobs_list_2 = []
 
     earliest_job = tatq.find_earliest_job(jobs_list)
-    earliest_job2 = tatq.find_earliest_job(jobs_list_2)
-
     assert earliest_job == '2022-04-22 13:12:40', 'Earliest 002 job incorrect'
     assert isinstance(earliest_job, str), 'Earliest 002 job is not string type'
+
+    jobs_list_2 = []
+    earliest_job2 = tatq.find_earliest_job(jobs_list_2)
     assert earliest_job2 is None, "Earliest job not None when response is empty"
 
 
@@ -338,36 +344,65 @@ def test_get_status_change_time():
     }
 
     status_change_time = tatq.get_status_change_time(ticket_data)
-    assert status_change_time == '2022-05-13 14:00:31'
+    assert status_change_time == '2022-05-13 14:00:31', (
+        "Ticket status time not extracted correctly"
+    )
 
 
 def test_determine_folder_to_search():
     file_names, folder_to_search = tatq.determine_folder_to_search(
         '220908_A01303_0096_BHGNJKDRX2', 'TSO500', False
     )
-    assert file_names == "*.lane.all.log"
-    assert folder_to_search == '/220908_A01303_0096_BHGNJKDRX2/runs'
+    assert file_names == "*.lane.all.log", (
+        "Files to look for is not .lane.all.log when assay type not SNP"
+        " and bug is set to false"
+    )
+    assert folder_to_search == '/220908_A01303_0096_BHGNJKDRX2/runs', (
+        "Folder to search is incorrect (not /runs) when assay type not SNP and"
+        " bug is set to false"
+    )
 
     file_names2, folder_to_search2 = tatq.determine_folder_to_search(
         '220321_M03595_0374_000000000-KBH6H', 'SNP', False
     )
 
-    assert file_names2 == "*"
-    assert folder_to_search2 == '/220321_M03595_0374_000000000-KBH6H/'
+    assert file_names2 == "*", (
+        "Files to look for is not all files when assay type SNP and"
+        " bug is set to false"
+    )
+    assert folder_to_search2 == '/220321_M03595_0374_000000000-KBH6H/', (
+        "Folder to search is incorrect (not /run name/) when assay type SNP"
+        " and bug set to false"
+    )
 
     file_names3, folder_to_search3 = tatq.determine_folder_to_search(
         '220321_M03595_0374_000000000-KBH6H', 'SNP', True
     )
 
-    assert file_names3 == "*"
-    assert folder_to_search3 == '/processed/220321_M03595_0374_000000000-KBH6H/runs'
+    assert file_names3 == "*", (
+        "Files to look for not all when assay type SNP and bug set to true"
+    )
+    assert folder_to_search3 == (
+        '/processed/220321_M03595_0374_000000000-KBH6H/runs'
+    ), (
+            "Folder to search is incorrect (not in processed folder) when"
+            " assay type is SNP and bug set to true"
+        )
 
     file_names4, folder_to_search4 = tatq.determine_folder_to_search(
         '220825_A01295_0122_BH7WG5DRX2', 'CEN', True
     )
 
-    assert file_names4 == "*.lane.all.log"
-    assert folder_to_search4 == '/processed/220825_A01295_0122_BH7WG5DRX2/runs'
+    assert file_names4 == "*.lane.all.log", (
+        "Files to look for not .lane.all.log when assay type CEN and bug"
+        " set to true"
+    )
+    assert folder_to_search4 == (
+        '/processed/220825_A01295_0122_BH7WG5DRX2/runs'
+    ), (
+            "Folder to search incorrect (not in processed) when assay type"
+            " CEN and bug is set to true"
+        )
 
 
 def test_find_log_file_time():
@@ -384,7 +419,7 @@ def test_find_log_file_time():
     ]
 
     upload_time = tatq.find_log_file_time(log_file_info)
-    assert upload_time == '2022-09-09 06:54:10'
+    assert upload_time == '2022-09-09 06:54:10', "Log file time not correct"
 
 
 def test_find_earliest_file_upload():
@@ -446,4 +481,81 @@ def test_find_earliest_file_upload():
     ]
 
     upload_time = tatq.find_earliest_file_upload(files_in_folder)
-    assert upload_time == '2022-03-23 13:05:19'
+    assert upload_time == '2022-03-23 13:05:19', (
+        "Earliest file upload time is incorrect"
+    )
+
+
+def test_get_closest_match_in_dict():
+    CEN_dict = {
+        '220825_A01295_0122_BH7WG5DRX2': {
+            'project_id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
+            'assay_type': 'CEN'
+        },
+        '220817_A01295_0120_BH7MWYDRX2': {
+            'project_id': 'project-GFzp36j4b2B200PVBbXv4792',
+            'assay_type': 'CEN'
+        },
+        '220706_A01303_0080_BH53VCDRX2': {
+            'project_id': 'project-GF62QG045V8k6qX5F5gXXJV7',
+            'assay_type': 'CEN'
+        },
+        '220407_A01295_0080_AH333YDRX2': {
+            'project_id': 'project-G9B06xQ4543zy86jFVPGBq30',
+            'assay_type': 'CEN'
+        }
+    }
+
+    closest_match, typo_ticket_info = tatq.get_closest_match_in_dict(
+        '220825_A01295_0122_BH7WG5DR', CEN_dict
+    )
+    assert closest_match == '220825_A01295_0122_BH7WG5DRX2', (
+        "Closest match of string to dictionary is incorrect when name differs"
+        " by 2"
+    )
+    assert typo_ticket_info == {
+        'jira_ticket_name': '220825_A01295_0122_BH7WG5DR',
+        'project_name_002': '220825_A01295_0122_BH7WG5DRX2',
+        'assay_type': 'CEN'
+    }, "Typo ticket added to dictionary incorrectly"
+
+    closest_match2, typo_ticket_info2 = tatq.get_closest_match_in_dict(
+        '220706_A01303_0080_BH53VCDRX2', CEN_dict
+    )
+
+    assert closest_match2 == '220706_A01303_0080_BH53VCDRX2', (
+        "Closest match of string to dictionary incorrect when names the same"
+    )
+    assert typo_ticket_info2 is None, (
+        "Typo ticket info added when ticket name and run name from dictionary"
+        " are the same"
+    )
+
+    closest_match3, typo_ticket_info3 = tatq.get_closest_match_in_dict(
+        '220706_A02405_0082_BH53VCDRX2', CEN_dict
+    )
+
+    assert closest_match3 is None, (
+        "Closest match in dictionary found when run name differs by more than"
+        " 2 characters"
+    )
+    assert typo_ticket_info3 is None, (
+        "Typo ticket name added to dict even though no matching ticket found"
+    )
+
+
+def test_add_calculation_columns():
+    test_csv = os.path.join(TEST_DATA_DIR, "all_assays_df_for_testing.csv")
+    test_df = pd.read_csv(test_csv, sep=',')
+    cols_to_convert = [
+        'upload_time', 'earliest_002_job', 'multiQC_finished', 'jira_resolved'
+    ]
+
+    # Convert cols to pandas datetime type
+    test_df[cols_to_convert] = test_df[cols_to_convert].apply(
+        pd.to_datetime, format='%Y-%m-%d %H:%M:%S'
+    )
+    test_csv_cal = tatq.add_calculation_columns(test_df, '2022-09-09 17:00:01')
+
+    assert pd.isnull(test_csv_cal.at[0, 'last_processing_step'])
+    test_csv_cal.to_csv('test_output.csv', sep=',')

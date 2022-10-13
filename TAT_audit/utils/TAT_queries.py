@@ -520,9 +520,9 @@ def find_multiqc_jobs(project_id):
     return multi_qc_jobs
 
 
-def find_last_multiqc_job(multi_qc_jobs):
+def get_relevant_multiqc_job(multi_qc_jobs):
     """
-    Gets the time the last successful MultiQC job completed
+    Gets the time the successful MultiQC job completed
 
     Parameters
     ----------
@@ -532,18 +532,36 @@ def find_last_multiqc_job(multi_qc_jobs):
     Returns
     -------
     multi_qc_completed : str or None
-        the timestamp as str the multiQC job completed or None if no MQC job
+        the timestamp of the 1st multiQC job completed or None if no MQC job
+    last_multiqc : str or None
+        the timestamp as str of the last multiQC job or None if there was only
+        1 or no MQC job
     """
     multi_qc_completed = None
+    last_multiqc = None
     if multi_qc_jobs:
-        # If more than one MultiQC job, get latest finish time
+        # If more than one MultiQC job, get earliest finish time
         if len(multi_qc_jobs) > 1:
             multiqc_fin = (
+                min(
+                    data['describe']['stoppedRunning']
+                    for data in multi_qc_jobs
+                ) / 1000
+            )
+
+            last_multiqc_job = (
                 max(
                     data['describe']['stoppedRunning']
                     for data in multi_qc_jobs
                 ) / 1000
             )
+
+            last_multiqc = (
+                time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(
+                    last_multiqc_job
+                ))
+            )
+
         # Otherwise just get the time
         else:
             multiqc_fin = (
@@ -554,7 +572,7 @@ def find_last_multiqc_job(multi_qc_jobs):
             time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(multiqc_fin))
         )
 
-    return multi_qc_completed
+    return multi_qc_completed, last_multiqc
 
 
 def add_successful_multiqc_time(run_dict):
@@ -579,12 +597,14 @@ def add_successful_multiqc_time(run_dict):
     for run in run_dict:
         project_id = run_dict[run]['project_id']
         multi_qc_jobs = find_multiqc_jobs(project_id)
-        multi_qc_completed = find_last_multiqc_job(multi_qc_jobs)
+        multi_qc_completed, last_multiqc_job = get_relevant_multiqc_job(
+            multi_qc_jobs
+        )
 
-        # If time found
         # For key with relevant run name, add multiQC_finished value to dict
-        if multi_qc_completed:
-            run_dict[run]['multiQC_finished'] = multi_qc_completed
+        # For the first one and if there were >1 MultiQC job
+        run_dict[run]['multiQC_finished'] = multi_qc_completed
+        run_dict[run]['last_multiQC_finished'] = last_multiqc_job
 
     return run_dict
 
@@ -857,7 +877,7 @@ def add_jira_info_closed_issues(all_assays_dict, closed_response):
                         res_time_str, '%Y-%m-%d %H:%M:%S'
                     )
 
-                    # Get TAT in days as float
+                    # Get est TAT in days as float
                     turnaround_time_days = (
                         res_time - date_time_created
                     ).days
@@ -907,12 +927,12 @@ def add_jira_info_open_issues(all_assays_dict, open_jira_response):
     -------
     all_assays_dict :  collections.defaultdict(dict)
         dict with the current Jira status and current time added
-    new_runs_list : list
+    open_runs_list : list
         list of dicts for open runs that don't have a 002 project yet
     typo_tickets : list
         list of dicts with info on proj names which differ to tickets
     """
-    new_runs_list = []
+    open_runs_list = []
     typo_tickets = []
     # Summary of the ticket should be the run name
     for issue in open_jira_response:
@@ -938,14 +958,14 @@ def add_jira_info_open_issues(all_assays_dict, open_jira_response):
             run_type = assay_type.replace(' Genotyping', '')
 
             if start_time >= begin_date_of_audit.strftime('%Y-%m-%d'):
-                new_runs_list.append({
+                open_runs_list.append({
                     'run_name': ticket_name,
                     'assay_type': run_type,
                     'date_jira_ticket_created': start_time,
                     'current_status': jira_status
                 })
 
-    return all_assays_dict, new_runs_list, typo_tickets
+    return all_assays_dict, open_runs_list, typo_tickets
 
 
 def create_all_assays_df(all_assays_dict):
@@ -969,11 +989,12 @@ def create_all_assays_df(all_assays_dict):
     # Reorder columns
     all_assays_df = all_assays_df[[
         'assay_type', 'run_name', 'upload_time', 'earliest_002_job',
-        'multiQC_finished', 'jira_status', 'jira_resolved'
+        'multiQC_finished', 'last_multiQC_finished',  'jira_status', 'jira_resolved'
     ]]
 
     cols_to_convert = [
-        'upload_time', 'earliest_002_job', 'multiQC_finished', 'jira_resolved'
+        'upload_time', 'earliest_002_job', 'multiQC_finished',
+        'last_multiQC_finished', 'jira_resolved'
     ]
 
     # Convert cols to pandas datetime type
@@ -1047,6 +1068,16 @@ def add_calculation_columns(all_assays_df, current_time):
     all_assays_df['on_hold_time'] = (
         (pd_current_time - all_assays_df['last_processing_step']).where(
             all_assays_df['jira_status'] == 'On hold'
+        ) / np.timedelta64(1, 'D')
+    )
+
+    # Add new column for time from last MultiQC end to Jira resolution
+    all_assays_df['final_multiqc_to_release'] = (
+        (
+            all_assays_df['jira_resolved']
+            - all_assays_df['last_multiQC_finished']
+        ).where(
+            all_assays_df['jira_status'] == "All samples released"
         ) / np.timedelta64(1, 'D')
     )
 
@@ -1274,9 +1305,9 @@ def find_runs_for_manual_review(assay_df):
         assay_df.loc[(assay_df['upload_to_first_002_job'] < 0)]['run_name']
     )
 
-    # If days between processing end + release is negative flag
+    # If days between final multiQC + release is negative flag
     manual_review_dict['reports_before_multiqc'] = list(
-        assay_df.loc[(assay_df['processing_end_to_release'] < 0)]['run_name']
+        assay_df.loc[(assay_df['final_multiqc_to_release'] < 0)]['run_name']
     )
 
     # If related log file was never found flag
@@ -1356,7 +1387,7 @@ def main():
 
     logger.info("Getting + adding JIRA ticket info for open seq runs")
     open_jira_response = get_jira_info(34)
-    all_assays_dict, new_runs_list, open_typo_tickets = (
+    all_assays_dict, open_runs_list, open_typo_tickets = (
         add_jira_info_open_issues(
             all_assays_dict, open_jira_response
         )
@@ -1410,7 +1441,7 @@ def main():
         chart_5=SNP_fig,
         averages_5=SNP_stats,
         runs_to_review_5=SNP_issues,
-        new_runs=new_runs_list,
+        open_runs=open_runs_list,
         runs_no_002=runs_no_002_proj,
         open_ticket_typos=open_typo_tickets,
         closed_ticket_typos=closed_typo_tickets,

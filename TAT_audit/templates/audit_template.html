@@ -121,11 +121,11 @@
                 </div>
             {% endif %}
 
-        {% if new_runs %}
-        {% if "CEN" in new_runs|map(attribute="assay_type") %}
+        {% if open_runs %}
+        {% if "CEN" in open_runs|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>New runs with no 002 project:</h5>
-            {% for item in new_runs %}
+            <h5>Open runs with no 002 project:</h5>
+            {% for item in open_runs %}
                 {% if item.assay_type == "CEN" %}
                         <p><b>{{ item.run_name }}</b></p>
                         <ul>
@@ -309,11 +309,11 @@
             </div>
         {% endif %}
 
-        {% if new_runs %}
-        {% if "MYE" in new_runs|map(attribute="assay_type") %}
+        {% if open_runs %}
+        {% if "MYE" in open_runs|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>New runs with no 002 project:</h5>
-            {% for item in new_runs %}
+            <h5>Open runs with no 002 project:</h5>
+            {% for item in open_runs %}
                 {% if item.assay_type == "MYE" %}
                         <p><b>{{ item.run_name }}</b></p>
                         <ul>
@@ -497,11 +497,11 @@
                 </div>
             {% endif %}
 
-        {% if new_runs %}
-        {% if "TSO500" in new_runs|map(attribute="assay_type") %}
+        {% if open_runs %}
+        {% if "TSO500" in open_runs|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>New runs with no 002 project:</h5>
-            {% for item in new_runs %}
+            <h5>Open runs with no 002 project:</h5>
+            {% for item in open_runs %}
                 {% if item.assay_type == "TSO500" %}
                         <p><b>{{ item.run_name }}</b></p>
                         <ul>
@@ -685,11 +685,11 @@
             </div>
         {% endif %}
 
-        {% if new_runs %}
-        {% if "TWE" in new_runs|map(attribute="assay_type") %}
+        {% if open_runs %}
+        {% if "TWE" in open_runs|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>New runs with no 002 project:</h5>
-            {% for item in new_runs %}
+            <h5>Open runs with no 002 project:</h5>
+            {% for item in open_runs %}
                 {% if item.assay_type == "TWE" %}
                         <p><b>{{ item.run_name }}</b></p>
                         <ul>
@@ -873,11 +873,11 @@
             </div>
         {% endif %}
 
-        {% if new_runs %}
-        {% if "SNP" in new_runs|map(attribute="assay_type") %}
+        {% if open_runs %}
+        {% if "SNP" in open_runs|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>New runs with no 002 project:</h5>
-            {% for item in new_runs %}
+            <h5>Open runs with no 002 project:</h5>
+            {% for item in open_runs %}
                 {% if item.assay_type == "SNP" %}
                         <p><b>{{ item.run_name }}</b></p>
                         <ul>

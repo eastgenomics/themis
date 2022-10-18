@@ -33,8 +33,10 @@ args = parser.parse_args()
 # Set audit number of weeks (used to get relevant dates + in plot titles)
 NO_OF_AUDIT_WEEKS = args.no_of_audit_weeks
 
+ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
+
 # Get tokens etc from credentials file
-with open("credentials.json", "r") as json_file:
+with open(os.path.join(ROOT_DIR, "credentials.json"), "r") as json_file:
     CREDENTIALS = json.load(json_file)
 
 DX_TOKEN = CREDENTIALS.get('DX_TOKEN')
@@ -54,7 +56,7 @@ LOG_FORMAT = (
 
 # Set level to debug, format with date and time and re-write file each time
 logging.basicConfig(
-    filename=f'{CURRENT_DIR}/TAT_queries_debug.log',
+    filename=os.path.join(ROOT_DIR, 'TAT_queries_debug.log'),
     level=logging.INFO,
     format=LOG_FORMAT,
     filemode='w'
@@ -202,7 +204,7 @@ def get_staging_folders():
 
 def determine_folder_to_search(run_name, assay_type, log_file_bug):
     """
-    _summary_
+    Determine which folder in StagingArea_52 to search
 
     Parameters
     ----------
@@ -1415,7 +1417,9 @@ def main():
 
     # Load Jinja2 template
     # Add the charts, tables and issues into the template
-    environment = Environment(loader=FileSystemLoader("templates/"))
+    environment = Environment(loader=FileSystemLoader(
+        os.path.join(ROOT_DIR, "templates"))
+    )
     template = environment.get_template("audit_template.html")
 
     logger.info("Adding objects into HTML template")

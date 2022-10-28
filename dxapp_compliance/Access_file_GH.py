@@ -1,5 +1,6 @@
 import base64
 import json
+from xmlrpc.server import DocXMLRPCRequestHandler
 import requests
 import os
 from ghapi.all import *
@@ -80,12 +81,11 @@ class app_compliance:
             print(f"Incorrect multiple regions - {region_list}")
 
         # Find source for app and check compliance
-        app_code_decoded, set_e_boolean, manual_compiling = self.get_src_file(
+        app_code_decoded, set_e_boolean, manual_compiling, dxapp_boolean, dxapp_or_applet = self.get_src_file(
             app,
             file_content=dxjson_content,
             organisation_name=self.ORGANISATION,
             github_token=self.GITHUB_TOKEN)
-
         dict_relevant_cols = {'name': data.get('name'),
                               'title': data.get('title'),
                               'description': data.get('summary'),
@@ -100,12 +100,16 @@ class app_compliance:
                               'src_file': app_code_decoded,
                               'set_e': set_e_boolean,
                               'manual_compiling': manual_compiling,
+                              'dxapp_boolean': dxapp_boolean,
+                              'dxapp_or_applet': dxapp_or_applet,
                               }
 
-        df_compliance = pd.DataFrame.from_dict(dict_relevant_cols, orient='index')
+        df_compliance = pd.DataFrame.from_dict(dict_relevant_cols,
+                                               orient='index')
         df_compliance = df_compliance.transpose()
-        # fixes error with value error for length differences
-
+        # fixes value error for length differences
+        print(df_compliance)
+        print("THIS^")
         return df_compliance
 
     # Set up new Github API method
@@ -150,8 +154,8 @@ class app_compliance:
         total_num_repos = org_details['public_repos'] + org_details['total_private_repos']
         print(total_num_repos)
         per_page_num = 30
-        # pages_total = ceil(total_num_repos/per_page_num) #production line
-        pages_total = 1  # test line
+        # pages_total = ceil(total_num_repos/per_page_num)  # production line
+        pages_total = 1  # testing line
         all_repos = []
 
         for page in range(1, pages_total+1):
@@ -194,7 +198,7 @@ class app_compliance:
             repo_name = repo['name']
             file_path = 'dxapp.json'
 
-            #Checks to find dxapp.json which determines if repo is an app.
+            # Checks to find dxapp.json which determines if repo is an app.
             try:
                 contents = api.repos.get_content(owner, repo_name, file_path)
             except HTTP404NotFoundError:
@@ -264,6 +268,8 @@ class app_compliance:
             manual_compiling (boolean):
                 boolean of whether manual compiling is used in the src file
                 i.e. "make install".
+            dxapp_boolean (boolean):
+                boolean of if the dxapp/applet is an app.
         """
         repos_apps = []
         repos_apps_content = []
@@ -287,6 +293,7 @@ class app_compliance:
 
         repos_apps.append(file_content)
         if contents:
+            print(contents)
             for content in contents:
                 # print(content)
                 if (content['type'] == 'file' and
@@ -309,8 +316,6 @@ class app_compliance:
                         # print(f"decoded {app_code_decoded}")
                         if "set -e" in app_code_decoded:
                             print("SET -E FOUND")
-                            #TODO: CAPTURE THIS INTO A PANDAS DF OR SOMETHING
-                            #TODO: Check if the app is installing everything new or using an existing resources
                             set_e_boolean = True
                         else:
                             set_e_boolean = False
@@ -319,23 +324,31 @@ class app_compliance:
                             # print(app_code_decoded)
                         else:
                             manual_compiling = False
+                        if "version:" in app_code_decoded:
+                            print("VERSION PRESENT")
+                            # Therefore, must be a dxapp.json
+                            dxapp_boolean = True
+                            dxapp_or_applet = "app"
+                        else:
+                            dxapp_boolean = False
+                            dxapp_or_applet = "applet"
+
                     else:
                         print("Other encoding used.")
-            # print(contents)
         # if len(list_of_repos) != len(repos_apps_content):
-        #     print("Error missing repos") # Add to orchestrator
+        #     print("Error missing repos") #TODO Add to orchestrator
 
-        return app_code_decoded, set_e_boolean, manual_compiling
+        return app_code_decoded, set_e_boolean, manual_compiling, dxapp_boolean, dxapp_or_applet
 
 
-    def compliance_stats(self, df):
+    def compliance_stats(self, overall_compliance_df):
         """
         compliance_stats
         Calculates stats for overall compliance of each app.
 
         Parameters
         ----------
-            df (dataframe):
+            overall_compliance_df (dataframe):
                 dataframe of app/applet dxapp.json contents.
         Returns
         -------
@@ -429,8 +442,15 @@ class app_compliance:
 
         return overall_compliance_df
 
+
 class plotting:
-    def interpreter_distribution(self, df):
+    """
+     In progress.
+    """
+    def __init__(self):
+        pass
+
+    def interpreter_distribution(df):
         """
         interpreter_distribution _summary_
 
@@ -441,7 +461,7 @@ class plotting:
         fig2 = px.bar(df.interpreter)
         fig2.show()
 
-    def bash_py(self, df):
+    def bash_py(df):
         """
         bash_py: Uses plotly to plot the distribution of bash and python apps.
 
@@ -456,7 +476,7 @@ class plotting:
         fig2 = px.bar(dfout)
         fig2.show()
 
-    def bash_version(self, df):
+    def bash_version(df):
         """
         bash_py: Uses plotly to plot the distribution of bash and python apps.
 
@@ -476,13 +496,12 @@ class plotting:
                       labels={
                               "unique_versions": "Ubuntu version",
                               "counts": "Count",
-                              "unique_versions": "Ubuntu version",
                               },
                       title="Version of Ubuntu by bash apps"
                       )
         fig2.show()
 
-    def new_plot(self, df):
+    def new_plot(df):
         """
         new_plot _summary_
 
@@ -514,15 +533,18 @@ class plotting:
 def main():
     # Initialise class with shorthand
     app_c = app_compliance()
-    list_of_repos = app_c.get_list_of_repositories(app_c.ORGANISATION, app_c.GITHUB_TOKEN)
+    list_of_repos = app_c.get_list_of_repositories(app_c.ORGANISATION,
+                                                   app_c.GITHUB_TOKEN)
     print(f"Number of items: {len(list_of_repos)}")
-    list_apps, list_of_json_contents = app_c.select_apps(list_of_repos, app_c.GITHUB_TOKEN)
-    compliance_df = app_c.orchestrate_app_compliance(list_apps, list_of_json_contents)
+    list_apps, list_of_json_contents = app_c.select_apps(list_of_repos,
+                                                         app_c.GITHUB_TOKEN)
+    compliance_df = app_c.orchestrate_app_compliance(list_apps,
+                                                     list_of_json_contents)
     print(compliance_df)
     print(compliance_df.columns)
     print(compliance_df.size)
-    # plotting.bash_py(compliance_df)
-    plotting.bash_version(compliance_df)
+    plotting.bash_py(df = compliance_df)
+    # plotting.bash_version(compliance_df)
     # plotting.interpreter_distribution(compliance_df)
     # direct1, direct2 = app_c.get_src_file(list_of_repos=list_apps,
     #                                       organisation_name=ORGANISATION,

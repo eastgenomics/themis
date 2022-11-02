@@ -7,3 +7,4 @@
 *.csv#
 *.pyc
 TAT_audit/tests/__pycache__/*
+*.coverage

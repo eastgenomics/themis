@@ -141,7 +141,9 @@ def get_002_projects_in_period(assay_type):
     return assay_response
 
 
-def create_run_dict_add_assay(assay_type, assay_dx_response):
+def create_run_dict_add_assay(
+    assay_type, assay_dx_response, begin_date_of_audit
+):
     """
     Adds the run name, DX project ID and assay type for each run to dict
     Parameters

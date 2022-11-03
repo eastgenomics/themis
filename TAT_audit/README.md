@@ -46,7 +46,7 @@ The script also:
     - The 002 project name and the Staging Area run folder name
 
 ## Usage
-Run the script to query the last X (number supplied in credentials.json) number of months from today via:
+Run the script to query the last X (int supplied in credentials.json) number of months from today via:
 
 ```
 python TAT_queries.py

@@ -6,7 +6,6 @@ import json
 import Levenshtein
 import logging
 import numpy as np
-import os
 import pandas as pd
 import plotly.graph_objects as go
 import requests
@@ -15,6 +14,7 @@ import time
 
 from collections import defaultdict
 from jinja2 import Environment, FileSystemLoader
+from pathlib import Path
 from requests.auth import HTTPBasicAuth
 
 pd.options.mode.chained_assignment = None
@@ -33,10 +33,10 @@ args = parser.parse_args()
 # Set audit number of weeks (used to get relevant dates + in plot titles)
 NO_OF_AUDIT_WEEKS = args.no_of_audit_weeks
 
-ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
+ROOT_DIR = Path(__file__).absolute().parents[1]
 
 # Get tokens etc from credentials file
-with open(os.path.join(ROOT_DIR, "credentials.json"), "r") as json_file:
+with open((ROOT_DIR.joinpath("credentials.json")), "r") as json_file:
     CREDENTIALS = json.load(json_file)
 
 DX_TOKEN = CREDENTIALS.get('DX_TOKEN')
@@ -44,9 +44,6 @@ JIRA_EMAIL = CREDENTIALS.get('JIRA_EMAIL')
 JIRA_TOKEN = CREDENTIALS.get('JIRA_TOKEN')
 STAGING_AREA_PROJ_ID = CREDENTIALS.get('STAGING_AREA_PROJ_ID')
 JIRA_NAME = CREDENTIALS.get('JIRA_NAME')
-
-# Get path the script is run in
-CURRENT_DIR = os.path.abspath(os.getcwd())
 
 # Create and configure logger
 LOG_FORMAT = (
@@ -56,7 +53,7 @@ LOG_FORMAT = (
 
 # Set level to debug, format with date and time and re-write file each time
 logging.basicConfig(
-    filename=os.path.join(ROOT_DIR, 'TAT_queries_debug.log'),
+    filename=ROOT_DIR.joinpath('TAT_queries_debug.log'),
     level=logging.INFO,
     format=LOG_FORMAT,
     filemode='w'
@@ -633,7 +630,7 @@ def create_info_dict(assay_type):
     # Do all the steps for the assay type
     assay_response = get_002_projects_in_period(assay_type)
     assay_run_dict = create_run_dict_add_assay(
-        assay_type, assay_response
+        assay_type, assay_response, begin_date_of_audit
     )
     assay_run_dict = add_successful_multiqc_time(assay_run_dict)
     assay_run_dict = add_earliest_002_job(assay_run_dict)
@@ -1420,8 +1417,8 @@ def main():
     # Load Jinja2 template
     # Add the charts, tables and issues into the template
     environment = Environment(loader=FileSystemLoader(
-        os.path.join(ROOT_DIR, "templates"))
-    )
+        ROOT_DIR.joinpath("templates")
+    ))
     template = environment.get_template("audit_template.html")
 
     logger.info("Adding objects into HTML template")

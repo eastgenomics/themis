@@ -7,7 +7,6 @@ import json
 import Levenshtein
 import logging
 import numpy as np
-import os
 import pandas as pd
 import plotly.graph_objects as go
 import requests
@@ -17,10 +16,11 @@ import time
 from collections import defaultdict
 from dateutil.relativedelta import relativedelta
 from jinja2 import Environment, FileSystemLoader
+from pathlib import Path
 from requests.auth import HTTPBasicAuth
 
 pd.options.mode.chained_assignment = None
-ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
+ROOT_DIR = Path(__file__).absolute().parents[1]
 
 # Command line args set up for determining audit period
 parser = argparse.ArgumentParser(description='Audit settings')
@@ -54,7 +54,7 @@ LOG_FORMAT = (
 
 # Set level to debug, format with date and time and re-write file each time
 logging.basicConfig(
-    filename=os.path.join(ROOT_DIR, 'TAT_queries_debug.log'),
+    filename=ROOT_DIR.joinpath('TAT_queries_debug.log'),
     level=logging.INFO,
     format=LOG_FORMAT,
     filemode='w'
@@ -131,12 +131,12 @@ def load_credential_info():
     staging_proj_id : str
         the DNAnexus project ID for Staging_Area52
     default_months : int
-        the default number of months to go audit from today if no CLI args
+        the default number of months to audit previous to today if no CLI args
         are given
     """
     # Get tokens etc from credentials file
     with open(
-        os.path.join(ROOT_DIR, "credentials.json"), "r", encoding='utf8'
+        ROOT_DIR.joinpath("credentials.json"), "r", encoding='utf8'
     ) as json_file:
         credentials = json.load(json_file)
 
@@ -1558,8 +1558,8 @@ def main():
     # Load Jinja2 template
     # Add the charts, tables and issues into the template
     environment = Environment(loader=FileSystemLoader(
-        os.path.join(ROOT_DIR, "templates"))
-    )
+        ROOT_DIR.joinpath("templates")
+    ))
     template = environment.get_template("audit_template.html")
 
     logger.info("Adding objects into HTML template")

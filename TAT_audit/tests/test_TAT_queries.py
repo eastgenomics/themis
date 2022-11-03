@@ -184,8 +184,8 @@ class TestFindEarliestJob():
     def test_find_earliest_002_job(self):
         earliest_job = tatq.find_earliest_job(self.jobs_list)
 
-        assert earliest_job == (
-            '2022-04-22 13:12:40', 'Earliest 002 job incorrect'
+        assert earliest_job == '2022-04-22 13:12:40', (
+            'Earliest 002 job incorrect'
         )
         assert isinstance(earliest_job, str), (
             'Earliest 002 job is not string type'
@@ -397,7 +397,7 @@ class TestDetermineFolderToSearch():
             " and bug is set to false"
         )
         assert folder_to_search == '/220908_A01303_0096_BHGNJKDRX2/runs', (
-            "Folder to search is incorrect (not /runs) when assay type not SNP
+            "Folder to search is incorrect (not /runs) when assay type not SNP"
             " and bug is set to false"
         )
 

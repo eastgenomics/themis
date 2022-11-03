@@ -1,6 +1,5 @@
 import base64
 import json
-from xmlrpc.server import DocXMLRPCRequestHandler
 import requests
 import os
 from ghapi.all import *
@@ -117,10 +116,10 @@ class app_compliance:
         else:
             set_e_boolean = False
         if "make install" in src_file_contents:
-            manual_compiling = True
+            no_manual_compiling = False
             # print(src_file_contents)
         else:
-            manual_compiling = False
+            no_manual_compiling = True
         # interpreter compliance info.
         if data.get('runSpec', {}).get('interpreter', '') == 'bash':
             bash_boolean = True
@@ -183,13 +182,13 @@ class app_compliance:
         # name compliance info.
         name = data.get('name')
         title = data.get('title')
-        if name == None:
+        if name is None:
             eggd_name_boolean = False
         elif name.startswith('eggd'):
             eggd_name_boolean = True
         else:
             eggd_name_boolean = False
-        if title == None:
+        if title is None:
             eggd_title_boolean = False
         elif title.startswith('eggd'):
             eggd_title_boolean = True
@@ -210,7 +209,7 @@ class app_compliance:
                            'correct_regional_option': correct_regional_boolean,
                            'num_of_region_options': region_options_num,
                            'set_e': set_e_boolean,
-                           'manual_compiling': manual_compiling,
+                           'no_manual_compiling': no_manual_compiling,
                            'dxapp_boolean': app_boolean,
                            'dxapp_or_applet': app_or_applet,
                            'eggd_name_boolean': eggd_name_boolean,
@@ -272,8 +271,8 @@ class app_compliance:
         total_num_repos = org_details['public_repos'] + org_details['total_private_repos']
         print(total_num_repos)
         per_page_num = 30
-        # pages_total = ceil(total_num_repos/per_page_num)  # production line
-        pages_total = 1  # testing line
+        pages_total = ceil(total_num_repos/per_page_num)  # production line
+        # pages_total = 1  # testing line
         all_repos = []
 
         for page in range(1, pages_total+1):
@@ -546,22 +545,32 @@ class app_compliance:
         ----------
             compliance_df (_type_): _description_
         """
+        list_of_compliance_scores = []
         for index, row in compliance_df.iterrows():
             print(row)
             no_compliant = 0
             print(row['interpreter'])
             if 'bash' in row['interpreter']:
-                total_performa = 11
-            else:
                 total_performa = 10
+            else:
+                total_performa = 9
             for column in row:
-                if column == True:
+                if column is Int:
+                    if column >= 2:
+                        pass
+                    if column == 1:
+                        no_compliant += 1
+                    if column == 0:
+                        pass
+                if column is True:
                     print(column)
                     no_compliant += 1
                 else:
                     pass
             print(no_compliant)
-            print(f"Percent Compliance {round((no_compliant/total_performa)*100, 2)}%")
+            compliance_score = f"{round((no_compliant/total_performa)*100, 1)}%"
+            list_of_compliance_scores.append(compliance_score)
+        compliance_df['compliance_score'] = list_of_compliance_scores
 
 
     def convert_to_html(self, dataframe):

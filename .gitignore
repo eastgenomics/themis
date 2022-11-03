@@ -2,3 +2,10 @@ CREDENTIALS.json
 old_code.py
 /_pycache_/
 /_pycache_/*
+*.csv
+*.json
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.csv#

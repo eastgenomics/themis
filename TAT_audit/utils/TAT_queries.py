@@ -91,7 +91,7 @@ def determine_start_and_end_date():
     default_begin_date_str = default_begin_date.strftime('%Y-%m-%d')
 
     # Check both start and end date are entered
-    if len([x for x in (args.start_date,args.end_date) if x is not None]) == 1:
+    if (not args.start_date) ^ (not args.end_date):
         parser.error('--start_date and --end_date must be given together')
 
     # Set start and end to be either the default or entered dates

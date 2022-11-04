@@ -41,83 +41,85 @@ class TestGetDistance():
         )
 
 
-class TestCreateRunDictAndAssay():
-    CEN_response = [
-        {
-            'id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
-            'level': 'CONTRIBUTE',
-            'permissionSources': ['XXX'],
-            'public': False,
-            'describe': {
+class TestCreateRunDictAddAssay():
+        CEN_response = [
+            {
                 'id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
-                'name': '002_220825_A01295_0122_BH7WG5DRX2_CEN',
-                'created': 1661526337000
-            }
-        },
-        {
-            'id': 'project-GFzp36j4b2B200PVBbXv4792',
-            'level': 'CONTRIBUTE',
-            'permissionSources': ['XXX'],
-            'public': False,
-            'describe': {
+                'level': 'CONTRIBUTE',
+                'permissionSources': ['XXX'],
+                'public': False,
+                'describe': {
+                    'id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
+                    'name': '002_220825_A01295_0122_BH7WG5DRX2_CEN',
+                    'created': 1661526337000
+                }
+            },
+            {
                 'id': 'project-GFzp36j4b2B200PVBbXv4792',
-                'name': '002_220817_A01295_0120_BH7MWYDRX2_CEN',
-                'created': 1660920219000
-            }
-        },
-        {
-            'id': 'project-GF62QG045V8k6qX5F5gXXJV7',
-            'level': 'CONTRIBUTE',
-            'permissionSources': ['XXX'],
-            'public': False,
-            'describe': {
+                'level': 'CONTRIBUTE',
+                'permissionSources': ['XXX'],
+                'public': False,
+                'describe': {
+                    'id': 'project-GFzp36j4b2B200PVBbXv4792',
+                    'name': '002_220817_A01295_0120_BH7MWYDRX2_CEN',
+                    'created': 1660920219000
+                }
+            },
+            {
                 'id': 'project-GF62QG045V8k6qX5F5gXXJV7',
-                'name': '002_220706_A01303_0080_BH53VCDRX2_CEN',
-                'created': 1657546800000
-            }
-        },
-        {
-            'id': 'project-G9B06xQ4543zy86jFVPGBq30',
-            'level': 'CONTRIBUTE',
-            'permissionSources': ['XXX'],
-            'public': False,
-            'describe': {
+                'level': 'CONTRIBUTE',
+                'permissionSources': ['XXX'],
+                'public': False,
+                'describe': {
+                    'id': 'project-GF62QG045V8k6qX5F5gXXJV7',
+                    'name': '002_220706_A01303_0080_BH53VCDRX2_CEN',
+                    'created': 1657546800000
+                }
+            },
+            {
                 'id': 'project-G9B06xQ4543zy86jFVPGBq30',
-                'name': '002_220407_A01295_0080_AH333YDRX2_CEN',
-                'created': 1649673078000
+                'level': 'CONTRIBUTE',
+                'permissionSources': ['XXX'],
+                'public': False,
+                'describe': {
+                    'id': 'project-G9B06xQ4543zy86jFVPGBq30',
+                    'name': '002_220407_A01295_0080_AH333YDRX2_CEN',
+                    'created': 1649673078000
+                }
             }
-        }
-    ]
+        ]
 
-    TSO500_response = []
+        TSO500_response = []
 
-    def test_create_run_dict_add_assay(self):
-        tatq.audit_start_obj = dt.datetime(2022, 4, 1)
-        tatq.audit_end_obj = dt.datetime(2022, 9, 1)
-        CEN_dict = tatq.create_run_dict_add_assay(
-            'CEN', self.CEN_response
-        )
-
-        assert CEN_dict == {
-            '220825_A01295_0122_BH7WG5DRX2': {
-                'project_id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
-                'assay_type': 'CEN'
-            },
-            '220817_A01295_0120_BH7MWYDRX2': {
-                'project_id': 'project-GFzp36j4b2B200PVBbXv4792',
-                'assay_type': 'CEN'
-            },
-            '220706_A01303_0080_BH53VCDRX2': {
-                'project_id': 'project-GF62QG045V8k6qX5F5gXXJV7',
-                'assay_type': 'CEN'
-            },
-            '220407_A01295_0080_AH333YDRX2': {
-                'project_id': 'project-G9B06xQ4543zy86jFVPGBq30',
-                'assay_type': 'CEN'
-            }
+        def test_create_run_dict_add_assay(self):
+            tatq.audit_start_obj = dt.datetime(2022, 4, 1)
+            tatq.audit_end_obj = dt.datetime(2022, 9, 1)
+            CEN_dict = tatq.create_run_dict_add_assay(
+                'CEN', self.CEN_response
+            )
+            assert CEN_dict == {
+                '220825_A01295_0122_BH7WG5DRX2': {
+                    'project_id': 'project-GG4K2Q848FV2JpX3J4x7yGkx',
+                    'assay_type': 'CEN'
+                },
+                '220817_A01295_0120_BH7MWYDRX2': {
+                    'project_id': 'project-GFzp36j4b2B200PVBbXv4792',
+                    'assay_type': 'CEN'
+                },
+                '220706_A01303_0080_BH53VCDRX2': {
+                    'project_id': 'project-GF62QG045V8k6qX5F5gXXJV7',
+                    'assay_type': 'CEN'
+                },
+                '220407_A01295_0080_AH333YDRX2': {
+                    'project_id': 'project-G9B06xQ4543zy86jFVPGBq30',
+                    'assay_type': 'CEN'
+                }
         }, "Dictionary created incorrectly"
 
+
     def test_create_run_dict_add_assay_2(self):
+        tatq.audit_start_obj = dt.datetime(2022, 4, 1)
+        tatq.audit_end_obj = dt.datetime(2022, 9, 1)
         TSO500_dict = tatq.create_run_dict_add_assay(
             'TSO500', self.TSO500_response
         )
@@ -386,8 +388,8 @@ class TestGetStatusChangeTime():
             "Ticket status time not extracted correctly"
         )
 
-class TestDetermineFolderToSearch():
 
+class TestDetermineFolderToSearch():
     def test_determine_folder_to_search(self):
         file_names, folder_to_search = tatq.determine_folder_to_search(
             '220908_A01303_0096_BHGNJKDRX2', 'TSO500', False
@@ -459,6 +461,7 @@ class TestLogFileTime():
             }
         }
     ]
+
 
     def test_find_log_file_time(self):
         upload_time = tatq.find_log_file_time(self.log_file_info)
@@ -549,6 +552,7 @@ class TestGetClosestMatchInDict():
             'assay_type': 'CEN'
         }
     }
+
     def test_get_closest_match_in_dict(self):
         closest_match, typo_ticket_info = tatq.get_closest_match_in_dict(
             '220825_A01295_0122_BH7WG5DR', self.CEN_dict
@@ -607,7 +611,8 @@ class TestAddCalculationColumns():
     )
 
     def test_add_calculation_columns(self):
-        test_csv_cal = tatq.add_calculation_columns(self.test_df)
+        test_csv_cal = tatq.add_calculation_columns(
+            self.test_df, pd.Timestamp('2022-10-01 12:01:59')
+        )
 
         assert pd.isnull(test_csv_cal.at[0, 'last_processing_step'])
-        #test_csv_cal.to_csv('test_output.csv', sep=',')

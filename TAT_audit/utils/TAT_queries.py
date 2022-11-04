@@ -45,6 +45,7 @@ parser.add_argument(
     )
 )
 
+
 # Create and configure logger
 LOG_FORMAT = (
     "%(asctime)s — %(name)s — %(levelname)s"

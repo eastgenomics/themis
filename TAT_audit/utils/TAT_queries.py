@@ -64,10 +64,14 @@ logging.basicConfig(
 logger = logging.getLogger("main log")
 
 
-def determine_start_and_end_date():
+def determine_start_and_end_date(no_of_months):
     """
     Determine the start and end dates of the audit based on CLI arguments
-
+    Parameters
+    ----------
+    no_of_months : int
+        number of months to audit from today by default if no args (taken
+        from config)
     Returns
     -------
     audit_begin_date : str
@@ -87,7 +91,7 @@ def determine_start_and_end_date():
     # (today and X months before)
     today_date = dt.date.today()
     today_str = today_date.strftime('%Y-%m-%d')
-    default_begin_date = today_date + relativedelta(months=-6)
+    default_begin_date = today_date + relativedelta(months=-no_of_months)
     default_begin_date_str = default_begin_date.strftime('%Y-%m-%d')
 
     # Check both start and end date are entered
@@ -163,7 +167,7 @@ class QueryPlotFunctions:
         (
             self.audit_start, self.audit_end, self.audit_start_obj,
             self.audit_end_obj
-        ) = determine_start_and_end_date()
+        ) = determine_start_and_end_date(self.default_months)
         self.current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.pd_current_time = pd.Timestamp(self.current_time)
 

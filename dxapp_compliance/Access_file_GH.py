@@ -11,6 +11,11 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 import plotly as py
 import plotly.express as px
 
+## TODO: Add logging to the report.
+## TODO: Add stats to parts of the html report and use bootrap to style it.
+## TODO: Add summary stats table to report
+
+
 def get_template_render():
     """
     Render jinja2 template with provided variables.
@@ -54,25 +59,25 @@ class app_compliance:
         # Set credentials
         self.GITHUB_TOKEN, self.ORGANISATION = get_credentials()
 
-    def split_filename(self, filename):
-        filename_split = filename.split("/")
-        print(filename_split)
-        file_path = f"{filename_split[-2]}/{filename_split[-1]}"
-
-        return file_path
 
     def check_file_compliance(self, app, dxjson_content):
         """
-        check_file_compliance Checks file contents (dxapp.json)
-        for compliance with audit app standards.
+        check_file_compliance
 
-        Args:
+        This checks the compliance of each app/applet against the performa guidelines.
+        This includes checking compliance using the dxapp.json file.
+        (dxapp.json = the app/applet settings file)
+
+        Parameters
+        ----------
             dxjson_content (dict):
                 contents of the dxapp.json file for the app.
 
         Returns:
             compliance_df (pandas dataframe):
-                dataframe of compliance results for the app.
+                dataframe of compliance booleans for the app/applet.
+            df_details (pandas dataframe):
+                dataframe of compliance details for the app/applet.
         """
         data = dxjson_content
 
@@ -85,16 +90,19 @@ class app_compliance:
         else:
             print(f"Incorrect multiple regions - {region_list}")
 
-        # Find source for app and check compliance
-        src_file_contents = self.get_src_file(
+        # Find source for app/applet and check compliance
+        src_file_contents, release_date, release_version = self.get_src_file(
             app,
             dxjson_content=dxjson_content,
             organisation_name=self.ORGANISATION,
             github_token=self.GITHUB_TOKEN)
 
         # Find compliance for app
-        set_e_boolean, manual_compiling, app_boolean, app_or_applet = None, None, None, None
+        # Initialise variables - prevents not referenced before assignment error
+        set_e_boolean, manual_compiling = None, None
+        app_boolean, app_or_applet = None, None
         auth_devs_boolean, auth_users_boolean = None, None
+
         if 'version' in dxjson_content.keys():
             app_or_applet = "app"
             app_boolean = True
@@ -105,13 +113,12 @@ class app_compliance:
             print("applet found")
         else:
             print(f"App or applet not clear. See app/applet here {app}")
-            # Likely still applet? So set to applet/false.
+            # Likely still applet - So set to applet/false.
             app_or_applet = "applet"
             app_boolean = False
 
         # src file compliance info.
         if "set -e" in src_file_contents:
-            # print("SET -E FOUND")
             set_e_boolean = True
         else:
             set_e_boolean = False
@@ -122,8 +129,6 @@ class app_compliance:
             no_manual_compiling = True
         # interpreter compliance info.
         if data.get('runSpec', {}).get('interpreter', '') == 'bash':
-            bash_boolean = True
-            python_boolean = False
             dist_version = float(data.get('runSpec', {}).get('release', ''))
             print(dist_version)
             if dist_version >= 20:
@@ -131,8 +136,6 @@ class app_compliance:
             else:
                 uptodate_ubuntu = False
         elif 'python' in data.get('runSpec', {}).get('interpreter', ''):
-            python_boolean = True
-            bash_boolean = False
             uptodate_ubuntu = "NA"
         else:
             print("interpreter not found")
@@ -202,8 +205,6 @@ class app_compliance:
                            'authorised_users': auth_users_boolean,
                            'authorised_devs': auth_devs_boolean,
                            'interpreter': data.get('runSpec', {}).get('interpreter', ''),
-                           #'interpreter_bash': bash_boolean,
-                           #'interpreter_python': python_boolean,
                            'uptodate_ubuntu': uptodate_ubuntu,
                            'timeout_policy': timeout_policy,
                            'correct_regional_option': correct_regional_boolean,
@@ -241,9 +242,7 @@ class app_compliance:
         df_details = pd.DataFrame.from_dict(details_dict,
                                             orient='index')
         df_details = df_details.transpose()
-        # fixes value error for length differences
-        print(f"Complaince: {df_compliance}")
-        print(f"details: {df_details}")
+        # transpose fixes value error for length differences
 
         return df_compliance, df_details
 
@@ -255,13 +254,13 @@ class app_compliance:
         ----------
         self:
             self
-        org_username: str
+        org_username (str):
             the username of the organisation to get the list of repositories for.
-        github_token: str
+        github_token (str):
             the github token to authenticate with.
         Returns
         -------
-        all_repos: list
+        all_repos (list):
             a list of all the repositories for the given organisation.
         """
         # https://api.github.com/orgs/ORG/repos
@@ -279,7 +278,6 @@ class app_compliance:
             response = api.repos.list_for_org(org=org_username,
                                               per_page = per_page_num,
                                               page = page)
-            # print(response)
             response_repos = [repo for repo in response]
             all_repos = all_repos + response_repos
 
@@ -288,7 +286,8 @@ class app_compliance:
 
     def select_apps(self, list_of_repos, github_token=None):
         """
-        Select apps from list of repositories and extract dxapp.json contents.
+        Select apps/applets from list of repositories
+        and extracts the dxapp.json contents.
 
         Parameters
         ----------
@@ -319,7 +318,7 @@ class app_compliance:
             try:
                 contents = api.repos.get_content(owner, repo_name, file_path)
             except HTTP404NotFoundError:
-                print('REPO is not an app. Error: error 404 - not found')
+                print(f'{repo_name} is not an app.')
                 continue
 
             # Append app to list of apps
@@ -335,9 +334,9 @@ class app_compliance:
                 repos_apps_content.append(app_decoded)
 
             else:
-                print("Other encoding used.")
+                print(f"Other encoding used. {file_content_encoding}")
 
-        print(len(repos_apps))
+        print(f"{len(repos_apps)} app repositories found.")
 
         return repos_apps, repos_apps_content
 
@@ -356,32 +355,37 @@ class app_compliance:
             dataframe of list of repositories with json contents
         """
 
-        df = pd.DataFrame.from_records(list_of_json_contents)
+        dataframe = pd.DataFrame.from_records(list_of_json_contents)
 
-        return df
+        return dataframe
 
 
     def get_src_file(self, app, organisation_name, dxjson_content, github_token=None):
         """
         get_src_file
-        This function gets the source script for a given app.
+        This function gets the source script for a given app/applet.
 
-        Args:
+        Parameters
+        ----------
             app (GithubAPI app object):
-                Github API app object used for extracting app info.
+                Github API app object used for extracting app/applet info.
             organisation_name (str):
-                the username of the organisation the app is in.
+                the username of the organisation the app/applet is in.
             dxjson_content (dict):
-                contents of the dxapp.json file for the app.
+                contents of the dxapp.json file for the app/applet.
             github_token (str, optional):
                 Authentication token for github.
                 Defaults to None. Therefore showing just public info.
 
         Returns:
             src_content_decoded (str):
-                the source code for the app decoded.
+                the source code for the app/applet decoded.
+        In development:
+            returning the last commit date for the app/applet.
+            To be used for checking if the app/applet was recently updated.
         """
         repos_apps = []
+        src_code_content = None
         src_content_decoded = ""
         api = GhApi(token=github_token)
         contents = None
@@ -413,6 +417,7 @@ class app_compliance:
 
                     except HTTP404NotFoundError:
                         # log error
+                        print("No src file found. 404 ERROR")
                         pass
                     src_code_content = app_src_file['content']
                     code_content_encoding = app_src_file.get('encoding')
@@ -420,73 +425,23 @@ class app_compliance:
                         src_content_decoded = base64.b64decode(src_code_content).decode()
                     else:
                         print("Other encoding used.")
+        print(organisation_name)
+        print(repo_name)
+        print(github_token)
+        # In progress - getting latest release date
+        last_release_date = None
+        last_release_date = self.get_latest_release(organisation_name, repo_name, github_token)
 
-        return src_content_decoded
-
-
-    def check_compliance(self, src_file, src_file_encoding, dxjson_content):
-        """
-        check_compliance
-        This function checks the compliance of a given app.
-
-        Args:
-            src_file (str):
-                contents of src file.
-            src_file_encoding (str):
-                the encoding of the src file.
-            dxjson_content (dict):
-                contents of the dxapp.json file for the app.
-
-        Returns:
-            compliance (boolean):
-                boolean of whether the app is compliant.
-        """
-        set_e_boolean, manual_compiling, app_boolean, app_or_applet = None, None, None, None
-        # print(dxjson_content.keys())
-        if 'version' in dxjson_content.keys():
-            app_or_applet = "app"
-            app_boolean = True
-            print("app FOUND")
-        elif "_v" in app.get('name'):
-            app_or_applet = "applet"
-            app_boolean = False
-            print("applet found")
-        else:
-            print(f"App or applet not clear.")
-            # Likely still applet? So set to applet/false.
-            app_or_applet = "applet"
-            app_boolean = False
-
-        # src file info
-        if "set -e" in app_code_decoded:
-            # print("SET -E FOUND")
-            set_e_boolean = True
-        else:
-            set_e_boolean = False
-        if "make install" in app_code_decoded:
-            manual_compiling = True
-            # print(app_code_decoded)
-        else:
-            manual_compiling = False
+        return src_content_decoded, last_release_date, release_version
 
 
-
-        # Check compliance
-        if app_boolean:
-            if set_e_boolean and not manual_compiling:
-                compliance = True
-            else:
-                compliance = False
-        else:
-            compliance = None
-
-        return compliance_df, details_df
-
-
-    def compliance_stats(self, compliance_df):
+    def summary_compliance_stats(self, compliance_df):
         """
         compliance_stats
-        Calculates stats for overall compliance of each app.
+        Calculates stats for overall compliance of each app/applet.
+        In progress, requires more work.
+        Purpose: make a small summary table
+        for overall compliance of each category.
 
         Parameters
         ----------
@@ -539,17 +494,22 @@ class app_compliance:
 
     def compliance_stats(self, compliance_df):
         """
-        compliance_stats _summary_
+        compliance_stats
+        Finds the % compliance with the EastGLH guidelines for each app/applet.
 
         Parameters
         ----------
-            compliance_df (_type_): _description_
+            compliance_df (pandas dataframe):
+                dataframe of compliance booleans for each app/applet.
+        Returns
+        -------
+            compliance_df (pandas dataframe):
+                dataframe of compliance booleans for each app/applet.
+                with added compliance % column.
         """
         list_of_compliance_scores = []
-        for index, row in compliance_df.iterrows():
-            print(row)
+        for _, row in compliance_df.iterrows():
             no_compliant = 0
-            print(row['interpreter'])
             if 'bash' in row['interpreter']:
                 total_performa = 10
             else:
@@ -563,14 +523,13 @@ class app_compliance:
                     if column == 0:
                         pass
                 if column is True:
-                    print(column)
                     no_compliant += 1
                 else:
                     pass
-            print(no_compliant)
             compliance_score = f"{round((no_compliant/total_performa)*100, 1)}%"
             list_of_compliance_scores.append(compliance_score)
         compliance_df['compliance_score'] = list_of_compliance_scores
+        return compliance_df
 
 
     def convert_to_html(self, dataframe):
@@ -593,19 +552,54 @@ class app_compliance:
         return df_html
 
 
+    def get_latest_release(self, organisation_name, repo_name, token):
+        """
+        Get latest release of app/applet repo.
+        In progress - getting latest release date
+
+        Parameters
+        ----------
+            organisation_name (str):
+                name of organisation of app/applet.
+            repo_name (str):
+                name of repo to get latest release of.
+            token (str):
+                github token for accessing repo via API.
+        Returns
+        -------
+            contents (json):
+                json API response of latest release endpoint.
+        """
+        api = GhApi(token=token)
+        # get latest release endpoint json.
+        try:
+            contents = api.repos.get_latest_release(organisation_name,
+                                                    repo_name)
+            last_release_date = contents['published_at'].split("T")[0]
+        except HTTP404NotFoundError:
+            # log error?
+            print("No release found. ERROR")
+            last_release_date = None
+
+        return last_release_date
+
+
     def orchestrate_app_compliance(self, list_apps, list_of_json_contents):
         """
-        orchestrate_app_compliance _summary_
+        orchestrate_app_compliance
+        This calls the functions to get the compliance and then creates the dfs.
 
         Parameters
         ----------
             list_of_json_contents (list):
-                list of json contents of apps
+                list of json contents of apps/applets
 
         Returns
         -------
             compliance_df (dataframe)
-                df of apps with compliance stats.
+                df of apps/applets with compliance stats.
+            details_df (dataframe)
+                df of apps/applets with detailed information.
         """
         if len(list_apps) != len(list_of_json_contents):
             print("Error missing repos")
@@ -721,6 +715,35 @@ class plotting:
         #TODO: Add a bar chart for other compliance stats.
 
 
+def docstings_forGITAI():
+    """
+    check_compliance
+    This function checks the compliance of a given app.
+    Parameters
+    ----------
+        src_file (str):
+            contents of src file.
+        src_file_encoding (str):
+            the encoding of the src file.
+        dxjson_content (dict):
+            contents of the dxapp.json file for the app.
+    Returns:
+        compliance (boolean):
+            boolean of whether the app is compliant.
+    """
+    """
+                app_code_decoded (str):
+                    contents of src file decoded
+                set_e_boolean (boolean)
+                    boolean of whether set -e is used in the src file
+                manual_compiling (boolean):
+                    boolean of whether manual compiling is used in the src file
+                    i.e. "make install".
+                dxapp_boolean (boolean):
+                    boolean of if the dxapp/applet is an app.
+    """
+
+
 def main():
     # Initialise class with shorthand
     app_c = app_compliance()
@@ -734,23 +757,9 @@ def main():
     print(compliance_df)
     print(compliance_df.columns)
     print(compliance_df.size)
-    app_c.compliance_stats(compliance_df)
+    compliance_df = app_c.compliance_stats(compliance_df)
     compliance_df.to_csv('compliance_df.csv')
     details_df.to_csv('details_df.csv')
-    # plotting.bash_py(df = compliance_df)
-    # plotting.bash_version(compliance_df)
-    # plotting.interpreter_distribution(compliance_df)
-    # direct1, direct2 = app_c.get_src_file(list_of_repos=list_apps,
-    #                                       organisation_name=ORGANISATION,
-    #                                       github_token=GITHUB_TOKEN)
-
-    # print(direct2)
-
-    # for index, item in enumerate(list_apps):
-    #     print(item['name'])
-
-    # print(overall_compliance_df)
-    # app_c.compliance_stats(compliance_df)
     #TODO: Convert to html table and add to report using datatables
     #TODO: Add stats to parts of the html report and use bootrap to style it.
     #TODO: Add logging to the report.

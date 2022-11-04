@@ -143,28 +143,6 @@
         {% endif %}
         {% endif %}
 
-        {% if cancelled_runs %}
-        {% if "CEN" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'CEN' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.reason_not_released }}
-                    </li>
-                </ul>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
         {% if runs_no_002 %}
         {% if "CEN" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
@@ -193,12 +171,13 @@
         {% if closed_ticket_typos %}
         {% if "CEN" in closed_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between 002 project name and Jira ticket (closed tickets)</h5>
+        <h5>Mismatches between run folder name and Jira ticket (closed tickets)</h5>
         {% for item in closed_ticket_typos %}
             {% if item.assay_type == "CEN" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
         {% endfor %}
@@ -209,12 +188,13 @@
         {% if open_ticket_typos %}
         {% if "CEN" in open_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between 002 project name and Jira ticket (open tickets)</h5>
+            <h5>Mismatches between run folder name and Jira ticket (open tickets)</h5>
             {% for item in open_ticket_typos %}
             {% if item.assay_type == "CEN" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
             {% endfor %}
@@ -239,6 +219,28 @@
         {% endif %}
         {% endfor %}
         {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% if "CEN" in cancelled_runs|map(attribute="assay_type") %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'CEN' %}
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+                <br>
+            {% endif %}
+        {% endfor %}
+        </div>
+        {% endif %}
         {% endif %}
 
 
@@ -290,7 +292,7 @@
                 {% endif %}
 
                 {% if runs_to_review_2.no_002_found %}
-                    <p><b>No 002 job was found:</b></p> 
+                    <p><b>No 002 job was found:</b></p>
                     <ul>
                         {% for entry in runs_to_review_2.no_002_found  %}
                             <li>{{ entry }}</li>
@@ -331,28 +333,6 @@
         {% endif %}
         {% endif %}
 
-        {% if cancelled_runs %}
-        {% if "MYE" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'MYE' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.reason_not_released }}
-                    </li>
-                </ul>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
         {% if runs_no_002 %}
         {% if "MYE" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
@@ -381,12 +361,13 @@
         {% if closed_ticket_typos %}
         {% if "MYE" in closed_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between 002 project name and Jira ticket (closed tickets)</h5>
+        <h5>Mismatches between run folder name and Jira ticket (closed tickets)</h5>
         {% for item in closed_ticket_typos %}
             {% if item.assay_type == "MYE" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
         {% endfor %}
@@ -397,12 +378,13 @@
         {% if open_ticket_typos %}
         {% if "MYE" in open_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between 002 project name and Jira ticket (open tickets)</h5>
+            <h5>Mismatches between run folder name and Jira ticket (open tickets)</h5>
             {% for item in open_ticket_typos %}
             {% if item.assay_type == "MYE" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
             {% endfor %}
@@ -427,6 +409,28 @@
         {% endif %}
         {% endfor %}
         {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% if "MYE" in cancelled_runs|map(attribute="assay_type") %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'MYE' %}
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+                <br>
+            {% endif %}
+        {% endfor %}
+        </div>
+        {% endif %}
         {% endif %}
 
         <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -478,7 +482,7 @@
                 {% endif %}
 
                 {% if runs_to_review_3.no_002_found %}
-                    <p><b>No 002 job was found:</b></p> 
+                    <p><b>No 002 job was found:</b></p>
                     <ul>
                         {% for entry in runs_to_review_3.no_002_found  %}
                             <li>{{ entry }}</li>
@@ -519,28 +523,6 @@
         {% endif %}
         {% endif %}
 
-        {% if cancelled_runs %}
-        {% if "TSO500" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'TSO500' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.reason_not_released }}
-                    </li>
-                </ul>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
         {% if runs_no_002 %}
         {% if "TSO500" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
@@ -569,12 +551,13 @@
         {% if closed_ticket_typos %}
         {% if "TSO500" in closed_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between 002 project name and Jira ticket (closed tickets)</h5>
+        <h5>Mismatches between run folder name and Jira ticket (closed tickets)</h5>
         {% for item in closed_ticket_typos %}
             {% if item.assay_type == "TSO500" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
         {% endfor %}
@@ -585,12 +568,13 @@
         {% if open_ticket_typos %}
         {% if "TSO500" in open_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between 002 project name and Jira ticket (open tickets)</h5>
+            <h5>Mismatches between run folder name and Jira ticket (open tickets)</h5>
             {% for item in open_ticket_typos %}
             {% if item.assay_type == "TSO500" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
             {% endfor %}
@@ -615,6 +599,28 @@
         {% endif %}
         {% endfor %}
         {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% if "TSO500" in cancelled_runs|map(attribute="assay_type") %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'TSO500' %}
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+                <br>
+            {% endif %}
+        {% endfor %}
+        </div>
+        {% endif %}
         {% endif %}
 
         <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -707,28 +713,6 @@
         {% endif %}
         {% endif %}
 
-        {% if cancelled_runs %}
-        {% if "TWE" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'TWE' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.reason_not_released }}
-                    </li>
-                </ul>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
         {% if runs_no_002 %}
         {% if "TWE" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
@@ -757,12 +741,13 @@
         {% if closed_ticket_typos %}
         {% if "TWE" in closed_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between 002 project name and Jira ticket (closed tickets)</h5>
+        <h5>Mismatches between run folder name and Jira ticket (closed tickets)</h5>
         {% for item in closed_ticket_typos %}
             {% if item.assay_type == "TWE" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
         {% endfor %}
@@ -773,12 +758,13 @@
         {% if open_ticket_typos %}
         {% if "TWE" in open_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between 002 project name and Jira ticket (open tickets)</h5>
+            <h5>Mismatches between run folder name and Jira ticket (open tickets)</h5>
             {% for item in open_ticket_typos %}
             {% if item.assay_type == "TWE" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
             {% endfor %}
@@ -803,6 +789,28 @@
         {% endif %}
         {% endfor %}
         {% endfor %}
+        {% endif %}
+
+        {% if cancelled_runs %}
+        {% if "TWE" in cancelled_runs|map(attribute="assay_type") %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'TWE' %}
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+                <br>
+            {% endif %}
+        {% endfor %}
+        </div>
+        {% endif %}
         {% endif %}
 
         <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -854,7 +862,7 @@
                 {% endif %}
 
                 {% if runs_to_review_5.no_002_found %}
-                    <p><b>No 002 job was found:</b></p> 
+                    <p><b>No 002 job was found:</b></p>
                     <ul>
                         {% for entry in runs_to_review_5.no_002_found  %}
                             <li>{{ entry }}</li>
@@ -895,28 +903,6 @@
         {% endif %}
         {% endif %}
 
-        {% if cancelled_runs %}
-        {% if "SNP" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'SNP' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.reason_not_released }}
-                    </li>
-                </ul>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
         {% if runs_no_002 %}
         {% if "SNP" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
@@ -945,12 +931,13 @@
         {% if closed_ticket_typos %}
         {% if "SNP" in closed_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between 002 project name and Jira ticket (closed tickets)</h5>
+        <h5>Mismatches between run folder name and Jira ticket (closed tickets)</h5>
         {% for item in closed_ticket_typos %}
             {% if item.assay_type == "SNP" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
         {% endfor %}
@@ -961,12 +948,13 @@
         {% if open_ticket_typos %}
         {% if "SNP" in open_ticket_typos|map(attribute="assay_type") %}
         <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between 002 project name and Jira ticket (open tickets)</h5>
+            <h5>Mismatches between run folder name and Jira ticket (open tickets)</h5>
             {% for item in open_ticket_typos %}
             {% if item.assay_type == "SNP" %}
                 <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
                 <br>
-                <b>002 project name:</b> {{ item.project_name_002 }}
+                <b>Run folder name:</b> {{ item.run_name }}
+                <br>
                 <br>
             {% endif %}
             {% endfor %}
@@ -992,7 +980,29 @@
         {% endfor %}
         {% endfor %}
         {% endif %}
-    
+
+        {% if cancelled_runs %}
+        {% if "SNP" in cancelled_runs|map(attribute="assay_type") %}
+        <div style="padding-top: 30px; padding-bottom: 30px;">
+            <h5>Runs that were not completed:</h5>
+        {% for run in cancelled_runs %}
+            {% if run.assay_type == 'SNP' %}
+                <p><b>{{ run.run_name }}</b></p>
+                <ul>
+                    <li>
+                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
+                    </li>
+                    <li>
+                        Reason run not released: {{ run.reason_not_released }}
+                    </li>
+                </ul>
+                <br>
+            {% endif %}
+        {% endfor %}
+        </div>
+        {% endif %}
+        {% endif %}
+
     </div>
 
     <script>

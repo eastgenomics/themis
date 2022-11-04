@@ -437,7 +437,7 @@ class QueryPlotFunctions:
             e.g. 'CEN'
         Returns
         -------
-        run_dict : collections.defaultdict(dict)
+        updated_dict : collections.defaultdict(dict)
             dictionary where key is run name with dict inside and upload_time
             added
         typo_run_folders : defaultdict(list)
@@ -452,6 +452,9 @@ class QueryPlotFunctions:
             for run_name in run_dict.keys():
                 distance = self.get_distance(folder_name, run_name)
                 if distance <= 2:
+                    # Add nested key with the run folder name
+                    run_dict[run_name]['run_folder_name'] = folder_name
+
                     file_names, folder_to_search = (
                         self.determine_folder_to_search(
                             folder_name, assay_type, False
@@ -513,7 +516,18 @@ class QueryPlotFunctions:
 
                             run_dict[run_name]['upload_time'] = upload_time
 
-        return run_dict, typo_run_folders
+        # Create new dict, where the key for the run name is taken from
+        # the run folder, instead of being the run name extracted
+        # from the 002 project name
+        updated_dict = defaultdict(dict)
+        for run_name in run_dict:
+            if run_dict[run_name]['run_folder_name']:
+                folder_name = run_dict[run_name]['run_folder_name']
+                updated_dict[folder_name] = run_dict[run_name]
+            else:
+                updated_dict[run_name] = run_dict[run_name]
+
+        return updated_dict, typo_run_folders
 
 
     def find_jobs_in_project(self, project_id):
@@ -843,16 +857,16 @@ class QueryPlotFunctions:
         """
         typo_ticket_info = None
         closest_key_in_dict = None
-        for key in my_dict.keys():
+        for run_name in my_dict.keys():
             # Get the distance between the names
             # If 1 or 0 get the closest key in the dict
-            distance = self.get_distance(ticket_name, key)
+            distance = self.get_distance(ticket_name, run_name)
             if distance <= 2:
-                closest_key_in_dict = key
+                closest_key_in_dict = run_name
                 if distance > 0:
                     typo_ticket_info = {
                         'jira_ticket_name': ticket_name,
-                        'project_name_002': closest_key_in_dict,
+                        'run_name': closest_key_in_dict,
                         'assay_type': my_dict[closest_key_in_dict]['assay_type']
                     }
 
@@ -1289,7 +1303,7 @@ class QueryPlotFunctions:
                 y=assay_df["processing_end_to_release"],
                 name="End of processing to release",
                 legendrank=2,
-                text=round(assay_df['upload_to_release'])
+                text=round(assay_df['upload_to_release'], 1)
             )
         )
 

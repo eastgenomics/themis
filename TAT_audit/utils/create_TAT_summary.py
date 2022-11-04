@@ -65,7 +65,7 @@ logger = logging.getLogger("main log")
 
 def determine_start_and_end_date():
     """
-    Determine the start and end dates of the audit based on CL arguments
+    Determine the start and end dates of the audit based on CLI arguments
 
     Returns
     -------
@@ -1337,6 +1337,7 @@ class QueryPlotFunctions:
             width=1100,
             height=700,
             font_family='Helvetica',
+            legend_traceorder="reversed"
         )
 
         html_fig = fig.to_html(full_html=False, include_plotlyjs=False)

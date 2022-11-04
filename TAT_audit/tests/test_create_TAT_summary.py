@@ -6,7 +6,7 @@ import pytest
 import sys
 
 from pathlib import Path
-from utils import TAT_queries as tat
+from utils import create_TAT_summary as tat
 from tests import TEST_DATA_DIR
 
 sys.path.append(os.path.abspath(

@@ -52,13 +52,13 @@ The script also:
 Run the script to query the last X (int supplied in credentials.json) number of months from today via:
 
 ```
-python create_TAT_summary.py
+python TAT_queries.py
 ```
 
 If you would like to specify the start and end dates, you can enter these as arguments like so:
 
 ```
-python create_TAT_summary.py -s 2022-05-01 -e 2022-11-01
+python TAT_queries.py -s 2022-05-01 -e 2022-11-01
 ```
 
 If any arguments are entered, both start and end dates must be supplied. The script will create a HTML file in the directory you're currently in, named to include the start and end dates of the audit period. If the script is run twice for the same period, if a summary report has been previously generated this will be replaced.

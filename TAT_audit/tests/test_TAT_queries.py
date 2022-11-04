@@ -6,12 +6,14 @@ import pytest
 import sys
 
 from pathlib import Path
-from utils import TAT_queries as tatq
+from utils import TAT_queries as tat
 from tests import TEST_DATA_DIR
 
 sys.path.append(os.path.abspath(
     os.path.join(os.path.realpath(__file__), '../../')
 ))
+
+tatq = tat.QueryPlotFunctions()
 
 class TestGetDistance():
     ticket_name = '220901_A01303_0094_BHGNNSDRX2_TSO500'
@@ -90,10 +92,10 @@ class TestCreateRunDictAddAssay():
         TSO500_response = []
 
         def test_create_run_dict_add_assay(self):
+            tatq.audit_start_obj = dt.datetime(2022, 4, 1)
+            tatq.audit_end_obj = dt.datetime(2022, 9, 1)
             CEN_dict = tatq.create_run_dict_add_assay(
-                'CEN', self.CEN_response, dt.datetime.strptime(
-                    '2022-04-01', "%Y-%m-%d"
-                ).date()
+                'CEN', self.CEN_response
             )
             assert CEN_dict == {
                 '220825_A01295_0122_BH7WG5DRX2': {
@@ -114,16 +116,17 @@ class TestCreateRunDictAddAssay():
                 }
         }, "Dictionary created incorrectly"
 
-        def test_create_run_dict_add_assay_2(self):
-            TSO500_dict = tatq.create_run_dict_add_assay(
-                'TSO500', self.TSO500_response, dt.datetime.strptime(
-                    '2022-04-01', "%Y-%m-%d"
-                ).date()
-            )
 
-            assert TSO500_dict == {}, (
-                "Run dictionary not empty when reponse is empty"
-            )
+    def test_create_run_dict_add_assay_2(self):
+        tatq.audit_start_obj = dt.datetime(2022, 4, 1)
+        tatq.audit_end_obj = dt.datetime(2022, 9, 1)
+        TSO500_dict = tatq.create_run_dict_add_assay(
+            'TSO500', self.TSO500_response
+        )
+
+        assert TSO500_dict == {}, (
+            "Run dictionary not empty when reponse is empty"
+        )
 
 
 class TestFindEarliestJob():
@@ -379,7 +382,6 @@ class TestGetStatusChangeTime():
             'agent': 'https://cuhxxx'
         }
     }
-
     def test_get_status_change_time(self):
         status_change_time = tatq.get_status_change_time(self.ticket_data)
         assert status_change_time == '2022-05-13 14:00:31', (
@@ -388,7 +390,6 @@ class TestGetStatusChangeTime():
 
 
 class TestDetermineFolderToSearch():
-
     def test_determine_folder_to_search(self):
         file_names, folder_to_search = tatq.determine_folder_to_search(
             '220908_A01303_0096_BHGNJKDRX2', 'TSO500', False
@@ -398,8 +399,8 @@ class TestDetermineFolderToSearch():
             " and bug is set to false"
         )
         assert folder_to_search == '/220908_A01303_0096_BHGNJKDRX2/runs', (
-            "Folder to search is incorrect (not /runs) when assay type not SNP and"
-            " bug is set to false"
+            "Folder to search is incorrect (not /runs) when assay type not SNP"
+            " and bug is set to false"
         )
 
     def test_determine_folder_to_search_2(self):
@@ -460,6 +461,8 @@ class TestLogFileTime():
             }
         }
     ]
+
+
     def test_find_log_file_time(self):
         upload_time = tatq.find_log_file_time(self.log_file_info)
         assert upload_time == '2022-09-09 06:54:10', "Log file time not correct"

@@ -81,7 +81,7 @@ class app_compliance:
         """
         data = dxjson_content
 
-        # Find Region for cloud server
+        # Find Region options for cloud servers.
         region = data.get('regionalOptions', {})
         region_list = list(region.keys())
 
@@ -91,7 +91,7 @@ class app_compliance:
             print(f"Incorrect multiple regions - {region_list}")
 
         # Find source for app/applet and check compliance
-        src_file_contents, release_date, release_version = self.get_src_file(
+        src_file_contents, last_release_date = self.get_src_file(
             app,
             dxjson_content=dxjson_content,
             organisation_name=self.ORGANISATION,
@@ -160,13 +160,13 @@ class app_compliance:
         # print(data.get('runSpec', {}))
         if authorised_users is None:
             auth_users_boolean = False
-        elif 'org-emee_1' in authorised_users:
+        elif authorised_users == ['org-emee_1']:
             auth_users_boolean = True
         else:
             authorised_users = False
         if authorised_devs is None:
             auth_devs_boolean = False
-        elif 'org-emee_1' in authorised_devs:
+        elif authorised_devs == ['org-emee_1']:
             auth_devs_boolean = True
         else:
             auth_devs_boolean = False
@@ -215,6 +215,7 @@ class app_compliance:
                            'dxapp_or_applet': app_or_applet,
                            'eggd_name_boolean': eggd_name_boolean,
                            'eggd_title_boolean': eggd_title_boolean,
+                           'last_release_date': last_release_date,
                            }
 
         details_dict = {'name': data.get('name'),
@@ -231,6 +232,7 @@ class app_compliance:
                         'set_e': set_e_boolean,
                         'manual_compiling': manual_compiling,
                         'dxapp_or_applet': app_or_applet,
+                        'last_release_date': last_release_date,
                         }
 
         # compliance dataframe
@@ -432,7 +434,7 @@ class app_compliance:
         last_release_date = None
         last_release_date = self.get_latest_release(organisation_name, repo_name, github_token)
 
-        return src_content_decoded, last_release_date, release_version
+        return src_content_decoded, last_release_date
 
 
     def summary_compliance_stats(self, compliance_df):

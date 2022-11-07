@@ -13,6 +13,7 @@ dxapp_compliance/__pycache__/*
 *.csv#
 *.html
 !TAT_audit/templates/*
+TAT_audit/tests/__pycache__/*
 *.log
 *.Rhistory
 *.coverage

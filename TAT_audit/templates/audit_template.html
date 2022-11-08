@@ -53,8 +53,21 @@
                 100% processing and releasing of SNP data in 3 calendar days
             </li>
         </ul>
-        <p>NB: In cases where a Jira ticket is found for a run but this does not match a 002 project this could be for a number or reasons. For example, the 002 project was not created within the audit period, the date of the run itself is not between the audit dates, the DNAnexus authorisation token does not have correct permissions to view the 002 project or the ticket name has more than 2 differences compared to the run name and so they are not considered a match.</p>
-
+        <p>NB: In cases where a Jira ticket is found for a run but this does not match a 002 project this could be for a number or reasons. For example:</p>
+        <ul>
+            <li>
+                The 002 project was not created within the audit period
+            </li>
+            <li>
+                The date of the run itself is not between the audit dates
+            </li>
+            <li>
+                The DNAnexus authorisation token does not have correct permissions to view the 002 project
+            </li>
+            <li>
+                The ticket name has more than 2 differences compared to the run name and so they are not considered a match
+            </li>
+        </ul>
         <div style="padding-top: 30px; padding-bottom: 20px;">
             <h4>CEN Runs</h4>
             {{ chart_1 }}

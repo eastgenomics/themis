@@ -445,7 +445,7 @@ class QueryPlotFunctions:
             containing each mismatched run for that assay type
         """
         staging_folders = self.get_staging_folders()
-        typo_run_folders = defaultdict(list)
+        typo_run_folders = []
         typo_folder_info = None
 
         for folder_name in staging_folders:
@@ -466,10 +466,11 @@ class QueryPlotFunctions:
                     if distance > 0:
                         # If mismatches between names, create dict with info
                         typo_folder_info = {
+                            'assay_type': assay_type,
                             'folder_name': folder_name,
-                            'project_name_002': run_name,
+                            'project_name_002': run_name
                         }
-                        typo_run_folders[assay_type].append(typo_folder_info)
+                        typo_run_folders.append(typo_folder_info)
 
                     if files_in_folder:
                         # If SNP run, files uploaded manually to staging area
@@ -864,9 +865,11 @@ class QueryPlotFunctions:
                 closest_key_in_dict = run_name
                 if distance > 0:
                     typo_ticket_info = {
-                        'jira_ticket_name': ticket_name,
+                        'assay_type': my_dict[closest_key_in_dict][
+                            'assay_type'
+                        ],
                         'run_name': closest_key_in_dict,
-                        'assay_type': my_dict[closest_key_in_dict]['assay_type']
+                        'jira_ticket_name': ticket_name
                     }
 
         return closest_key_in_dict, typo_ticket_info
@@ -1517,6 +1520,82 @@ class QueryPlotFunctions:
 
         return assay_stats, assay_issues, assay_fig
 
+    def create_ticket_typo_df(self, closed_typo_tickets, open_typo_tickets):
+        """
+        Create table of typos between the Jira ticket and run name
+
+        Parameters
+        ----------
+        closed_typo_tickets : list
+            list of dicts of Jira tickets with typos from closed sequencing
+            runs queue
+        open_typo_tickets : list
+            list of dicts of Jira tickets with typos from open sequencing runs
+            queue
+
+        Returns
+        -------
+        ticket_typos_html : str
+            dataframe of runs with typos in the Jira ticket as html string
+        """
+        ticket_typos_html = None
+        all_ticket_typos = closed_typo_tickets + open_typo_tickets
+
+        if all_ticket_typos:
+            ticket_typos_df = pd.DataFrame(all_ticket_typos)
+            ticket_typos_df.rename(
+                {
+                    'jira_ticket_name': 'Jira ticket name',
+                    'run_name': 'Run name',
+                    'assay_type': 'Assay type'
+                }, axis=1, inplace=True
+            )
+
+            ticket_typos_df.sort_values('Assay type', inplace=True)
+            ticket_typos_html = ticket_typos_df.to_html(
+                index=False,
+                classes='table table-striped"',
+                justify='left'
+            )
+
+        return ticket_typos_html
+
+    def create_project_typo_df(self, typo_folders_list):
+        """
+        Create table of typos between Staging Area run folder name and
+        the run name extracted from the 002 project name
+
+        Parameters
+        ----------
+        typo_folders_list : list
+            list of dicts representing instances of typos between run folder
+            name and 002 project name
+
+        Returns
+        -------
+        typo_folders_html : str
+            dataframe of 002 project names with typos as html string
+        """
+        typo_folders_html = None
+        if typo_folders_list:
+            typo_folders_df = pd.DataFrame(typo_folders_list)
+            typo_folders_df.rename(
+                {
+                    'assay_type':'Assay type',
+                    'folder_name': 'Run name',
+                    'project_name_002': '002 project name'
+                }, axis=1, inplace=True
+            )
+            typo_folders_df.sort_values('Assay type', inplace=True)
+
+            typo_folders_html = typo_folders_df.to_html(
+                index=False,
+                classes='table table-striped"',
+                justify='left'
+            )
+
+        return typo_folders_html
+
 
 def main():
     """Main function to create html report"""
@@ -1530,7 +1609,9 @@ def main():
         assay_run_dict, typo_run_folders = tatq.create_info_dict(assay_type)
         all_assays_dict.update(assay_run_dict)
         if typo_run_folders:
-            typo_folders_list.append(typo_run_folders)
+            typo_folders_list = typo_folders_list + typo_run_folders
+    typo_folders_table = tatq.create_project_typo_df(typo_folders_list)
+
     logger.info("Getting + adding JIRA ticket info for closed seq runs")
     closed_runs_response = tatq.get_jira_info(35)
     all_assays_dict, closed_typo_tickets, runs_no_002_proj, cancelled_runs = (
@@ -1545,6 +1626,9 @@ def main():
         tatq.add_jira_info_open_issues(
             all_assays_dict, open_jira_response
         )
+    )
+    all_typos_table = tatq.create_ticket_typo_df(
+        closed_typo_tickets, open_typo_tickets
     )
     logger.info("Creating df for all assays")
     all_assays_df = tatq.create_all_assays_df(all_assays_dict)
@@ -1605,9 +1689,8 @@ def main():
         runs_to_review_5=SNP_issues,
         open_runs=open_runs_list,
         runs_no_002=runs_no_002_proj,
-        open_ticket_typos=open_typo_tickets,
-        closed_ticket_typos=closed_typo_tickets,
-        typo_folders=typo_folders_list,
+        ticket_typos=all_typos_table,
+        typo_folders=typo_folders_table,
         cancelled_runs=cancelled_runs
     )
 

@@ -53,6 +53,7 @@
                 100% processing and releasing of SNP data in 3 calendar days
             </li>
         </ul>
+        <p>NB: In cases where a Jira ticket is found for a run but this does not match a 002 project this could be for a number or reasons. For example, the 002 project was not created within the audit period, the date of the run itself is not between the audit dates, the DNAnexus authorisation token does not have correct permissions to view the 002 project or the ticket name has more than 2 differences compared to the run name and so they are not considered a match.</p>
 
         <div style="padding-top: 30px; padding-bottom: 20px;">
             <h4>CEN Runs</h4>
@@ -146,7 +147,7 @@
         {% if runs_no_002 %}
         {% if "CEN" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found (that was created within the audit period for a run between the audit dates):</h5>
+            <h5>Jira tickets found for released runs but no 002 project found:</h5>
         {% for item in runs_no_002 %}
             {% if item.assay_type == "CEN" %}
                     <p><b>{{ item.run_name }}</b></p>
@@ -166,59 +167,6 @@
         {% endfor %}
         </div>
         {% endif %}
-        {% endif %}
-
-        {% if closed_ticket_typos %}
-        {% if "CEN" in closed_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between StagingArea run folder name and Jira ticket (closed tickets)</h5>
-        {% for item in closed_ticket_typos %}
-            {% if item.assay_type == "CEN" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if open_ticket_typos %}
-        {% if "CEN" in open_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and Jira ticket (open tickets)</h5>
-            {% for item in open_ticket_typos %}
-            {% if item.assay_type == "CEN" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if typo_folders %}
-        {% for assay_dict in typo_folders %}
-        {% for assay_name, values in assay_dict.items() %}
-        {% if assay_name == "CEN" %}
-            <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and 002 project name</h5>
-            {% for value in values %}
-                <b>Run folder name:</b> {{ value.folder_name }}
-                <br>
-                <b>002 project name:</b> {{ value.project_name_002 }}
-                <br>
-                <br>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endfor %}
         {% endif %}
 
         {% if cancelled_runs %}
@@ -336,7 +284,7 @@
         {% if runs_no_002 %}
         {% if "MYE" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found (that was created within the audit period for a run between the audit dates):</h5>
+            <h5>Jira tickets found for released runs but no 002 project found:</h5>
         {% for item in runs_no_002 %}
             {% if item.assay_type == "MYE" %}
                     <p><b>{{ item.run_name }}</b></p>
@@ -356,59 +304,6 @@
         {% endfor %}
         </div>
         {% endif %}
-        {% endif %}
-
-        {% if closed_ticket_typos %}
-        {% if "MYE" in closed_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between StagingArea run folder name and Jira ticket (closed tickets)</h5>
-        {% for item in closed_ticket_typos %}
-            {% if item.assay_type == "MYE" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if open_ticket_typos %}
-        {% if "MYE" in open_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and Jira ticket (open tickets)</h5>
-            {% for item in open_ticket_typos %}
-            {% if item.assay_type == "MYE" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if typo_folders %}
-        {% for assay_dict in typo_folders %}
-        {% for assay_name, values in assay_dict.items() %}
-        {% if assay_name == "MYE" %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and 002 project name</h5>
-            {% for value in values %}
-                <b>Run folder name:</b> {{ value.folder_name }}
-                <br>
-                <b>002 project name:</b> {{ value.project_name_002 }}
-                <br>
-                <br>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endfor %}
         {% endif %}
 
         {% if cancelled_runs %}
@@ -526,7 +421,7 @@
         {% if runs_no_002 %}
         {% if "TSO500" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found (that was created within the audit period for a run between the audit dates):</h5>
+            <h5>Jira tickets found for released runs but no 002 project found:</h5>
         {% for item in runs_no_002 %}
             {% if item.assay_type == "TSO500" %}
                     <p><b>{{ item.run_name }}</b></p>
@@ -546,59 +441,6 @@
         {% endfor %}
         </div>
         {% endif %}
-        {% endif %}
-
-        {% if closed_ticket_typos %}
-        {% if "TSO500" in closed_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between StagingArea run folder name and Jira ticket (closed tickets)</h5>
-        {% for item in closed_ticket_typos %}
-            {% if item.assay_type == "TSO500" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if open_ticket_typos %}
-        {% if "TSO500" in open_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and Jira ticket (open tickets)</h5>
-            {% for item in open_ticket_typos %}
-            {% if item.assay_type == "TSO500" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if typo_folders %}
-        {% for assay_dict in typo_folders %}
-        {% for assay_name, values in assay_dict.items() %}
-        {% if assay_name == "TSO500" %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name 002 project name</h5>
-            {% for value in values %}
-                <b>Run folder name:</b> {{ value.folder_name }}
-                <br>
-                <b>002 project name:</b> {{ value.project_name_002 }}
-                <br>
-                <br>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endfor %}
         {% endif %}
 
         {% if cancelled_runs %}
@@ -716,7 +558,7 @@
         {% if runs_no_002 %}
         {% if "TWE" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found (that was created within the audit period for a run between the audit dates):</h5>
+            <h5>Jira tickets found for released runs but no 002 project found:</h5>
         {% for item in runs_no_002 %}
             {% if item.assay_type == "TWE" %}
                     <p><b>{{ item.run_name }}</b></p>
@@ -736,59 +578,6 @@
         {% endfor %}
         </div>
         {% endif %}
-        {% endif %}
-
-        {% if closed_ticket_typos %}
-        {% if "TWE" in closed_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between StagingArea run folder name and Jira ticket (closed tickets)</h5>
-        {% for item in closed_ticket_typos %}
-            {% if item.assay_type == "TWE" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if open_ticket_typos %}
-        {% if "TWE" in open_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and Jira ticket (open tickets)</h5>
-            {% for item in open_ticket_typos %}
-            {% if item.assay_type == "TWE" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if typo_folders %}
-        {% for assay_dict in typo_folders %}
-        {% for assay_name, values in assay_dict.items() %}
-        {% if assay_name == "TWE" %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and 002 project name</h5>
-            {% for value in values %}
-                <b>Run folder name:</b> {{ value.folder_name }}
-                <br>
-                <b>002 project name:</b> {{ value.project_name_002 }}
-                <br>
-                <br>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endfor %}
         {% endif %}
 
         {% if cancelled_runs %}
@@ -906,7 +695,7 @@
         {% if runs_no_002 %}
         {% if "SNP" in runs_no_002|map(attribute="assay_type") %}
         <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found (that was created within the audit period for a run between the audit dates):</h5>
+            <h5>Jira tickets found for released runs but no 002 project found:</h5>
         {% for item in runs_no_002 %}
             {% if item.assay_type == "SNP" %}
                     <p><b>{{ item.run_name }}</b></p>
@@ -926,59 +715,6 @@
         {% endfor %}
         </div>
         {% endif %}
-        {% endif %}
-
-        {% if closed_ticket_typos %}
-        {% if "SNP" in closed_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>Mismatches between StagingArea run folder name and Jira ticket (closed tickets)</h5>
-        {% for item in closed_ticket_typos %}
-            {% if item.assay_type == "SNP" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if open_ticket_typos %}
-        {% if "SNP" in open_ticket_typos|map(attribute="assay_type") %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and Jira ticket (open tickets)</h5>
-            {% for item in open_ticket_typos %}
-            {% if item.assay_type == "SNP" %}
-                <b>Run folder name:</b> {{ item.run_name }}
-                <br>
-                <b>Jira ticket name:</b> {{ item.jira_ticket_name }}
-                <br>
-                <br>
-            {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if typo_folders %}
-        {% for assay_dict in typo_folders %}
-        {% for assay_name, values in assay_dict.items() %}
-        {% if assay_name == "SNP" %}
-        <div style="padding-top: 20px; padding-bottom: 20px;">
-            <h5>Mismatches between StagingArea run folder name and 002 project name</h5>
-            {% for value in values %}
-                <b>Run folder name:</b> {{ value.folder_name }}
-                <br>
-                <b>002 project name:</b> {{ value.project_name_002 }}
-                <br>
-                <br>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endfor %}
         {% endif %}
 
         {% if cancelled_runs %}
@@ -1003,7 +739,19 @@
         {% endif %}
         {% endif %}
 
+    {% if ticket_typos %}
+    <div style="padding-top: 20px; padding-bottom: 20px;">
+        <h5>All mismatches between Staging_Area52 run folder name and Jira ticket name</h5>
+        {{ ticket_typos }}
     </div>
+    {% endif %}
+
+    {% if typo_folders %}
+    <div style="padding-top: 20px; padding-bottom: 20px;">
+        <h5>All mismatches between Staging_Area52 run folder name and 002 project name</h5>
+        {{ typo_folders }}
+    </div>
+    {% endif %}
 
     <script>
         // Sets up DataTables

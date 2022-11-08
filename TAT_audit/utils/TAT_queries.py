@@ -45,7 +45,6 @@ parser.add_argument(
     )
 )
 
-
 # Create and configure logger
 LOG_FORMAT = (
     "%(asctime)s — %(name)s — %(levelname)s"
@@ -70,8 +69,8 @@ def determine_start_and_end_date(no_of_months):
     Parameters
     ----------
     no_of_months : int
-        number of months to audit from today by default if no args (taken
-        from config)
+        no. of months to audit from today by default if no args entered (taken
+        from config file)
     Returns
     -------
     audit_begin_date : str
@@ -87,8 +86,7 @@ def determine_start_and_end_date(no_of_months):
     """
     # Parse the CLI args
     args = parser.parse_args()
-    # Work out default dates for audit if none supplied
-    # (today and X months before)
+    # Work out default dates for audit if none supplied (today - X months)
     today_date = dt.date.today()
     today_str = today_date.strftime('%Y-%m-%d')
     default_begin_date = today_date + relativedelta(months=-no_of_months)
@@ -105,7 +103,7 @@ def determine_start_and_end_date(no_of_months):
     else:
         # Check start is before end date
         if args.end_date < args.start_date:
-            parser.error('--start date must be before --end_date')
+            parser.error('--start_date must be before --end_date')
         audit_begin_date = args.start_date
         audit_end_date = args.end_date
 
@@ -156,20 +154,22 @@ def load_credential_info():
 class QueryPlotFunctions:
     """Class for querying and plotting functions"""
     def __init__(self):
-        (
-            self.dx_token, self.jira_email, self.jira_token, self.staging_id,
-            self.default_months
-        ) = load_credential_info()
+        (self.dx_token,
+        self.jira_email,
+        self.jira_token,
+        self.staging_id,
+        self.default_months) = load_credential_info()
         self.assay_types = ['TWE', 'CEN', 'MYE', 'TSO500', 'SNP']
         # Jira API things
         self.auth = HTTPBasicAuth(self.jira_email, self.jira_token)
         self.headers = {"Accept": "application/json"}
-        (
-            self.audit_start, self.audit_end, self.audit_start_obj,
-            self.audit_end_obj
-        ) = determine_start_and_end_date(self.default_months)
+        (self.audit_start,
+        self.audit_end,
+        self.audit_start_obj,
+        self.audit_end_obj) = determine_start_and_end_date(self.default_months)
         self.current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.pd_current_time = pd.Timestamp(self.current_time)
+
 
     def login(self) -> None:
         """
@@ -177,7 +177,7 @@ class QueryPlotFunctions:
         Parameters
         ----------
         token : str
-            authorisation token for DNAnexus, from settings.py
+            authorisation token for DNAnexus, from credentials.json
         Raises
         ------
         Error
@@ -201,7 +201,7 @@ class QueryPlotFunctions:
     def get_002_projects_in_period(self, assay_type):
         """
         Gets all the 002 projects ending with the relevant assay type from
-        DNAnexus that have been created in the last X number of weeks
+        DNAnexus that have been created between the audit period dates
         Parameters
         ----------
         assay_type : str
@@ -727,9 +727,8 @@ class QueryPlotFunctions:
         for run in run_dict:
             project_id = run_dict[run]['project_id']
             multi_qc_jobs = self.find_multiqc_jobs(project_id)
-            (
-                multi_qc_completed, last_multiqc_job
-            ) = self.get_relevant_multiqc_job(multi_qc_jobs)
+            (multi_qc_completed,
+            last_multiqc_job) = self.get_relevant_multiqc_job(multi_qc_jobs)
 
             # For key with relevant run name, add multiQC_finished value to dict
             # For the first one and if there were >1 MultiQC job
@@ -802,13 +801,13 @@ class QueryPlotFunctions:
                 headers=self.headers,
                 auth=self.auth
             )
-            # Check request response is OK, otherwise exit as would be key error
+            # Check request response OK, otherwise exit as would be key error
             if queue_response.ok:
                 new_data = json.loads(queue_response.text)['values']
                 response_data += new_data
                 start += page_size
             else:
-                logger.error("Issue with Jira credentials")
+                logger.error("Issue with Jira response - check credentials")
                 sys.exit(1)
 
         return response_data
@@ -1095,6 +1094,7 @@ class QueryPlotFunctions:
                 if (
                     start_time >= self.audit_start_obj.strftime('%Y-%m-%d')
                     and start_time <= self.audit_end_obj.strftime('%Y-%m-%d')
+                    and run_type in self.assay_types
                 ):
                     open_runs_list.append({
                         'run_name': ticket_name,

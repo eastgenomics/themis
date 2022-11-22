@@ -111,10 +111,14 @@ def determine_start_and_end_date(no_of_months):
     # different str formats later
     audit_begin_date_obj = dt.datetime.strptime(audit_begin_date, '%Y-%m-%d')
     audit_end_date_obj = dt.datetime.strptime(audit_end_date, '%Y-%m-%d')
+    five_days_before_start = audit_begin_date_obj + relativedelta(days=-5)
+    five_days_before = five_days_before_start.strftime("%Y-%m-%d")
+    one_day_after_end = audit_end_date_obj + relativedelta(days=+1)
+    one_day_after = one_day_after_end.strftime("%Y-%m-%d")
 
     return (
         audit_begin_date, audit_end_date, audit_begin_date_obj,
-        audit_end_date_obj
+        audit_end_date_obj, five_days_before, one_day_after
     )
 
 
@@ -166,7 +170,9 @@ class QueryPlotFunctions:
         (self.audit_start,
         self.audit_end,
         self.audit_start_obj,
-        self.audit_end_obj) = determine_start_and_end_date(self.default_months)
+        self.audit_end_obj,
+        self.five_days_before_start,
+        self.day_after_end) = determine_start_and_end_date(self.default_months)
         self.current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.pd_current_time = pd.Timestamp(self.current_time)
 
@@ -215,8 +221,8 @@ class QueryPlotFunctions:
         # Return only relevant describe fields
         assay_response = list(dx.find_projects(
             level='VIEW',
-            created_before=self.audit_end,
-            created_after=self.audit_start,
+            created_before=self.day_after_end,
+            created_after=self.five_days_before_start,
             name=f"002*{assay_type}",
             name_mode="glob",
             describe={
@@ -360,8 +366,6 @@ class QueryPlotFunctions:
                 name=file_name,
                 name_mode='glob',
                 classname='file',
-                created_before=self.audit_end,
-                created_after=self.audit_start,
                 describe={
                     'fields': {
                         'name': True,

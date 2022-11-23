@@ -959,6 +959,10 @@ class QueryPlotFunctions:
         typo_tickets = []
         runs_no_002_proj = []
         cancelled_list = []
+        not_released_statuses = [
+            "Data cannot be processed", "Data cannot be released",
+            "Data not received"
+        ]
         # Summary of the ticket should be the run name
         for issue in closed_response:
             ticket_name = issue['fields']['summary']
@@ -969,6 +973,17 @@ class QueryPlotFunctions:
                 f"{start_date} {start_time}", '%Y-%m-%d %H:%M:%S'
             )
             jira_status = issue['fields']['status']['name']
+            # Try and get the key which stores the assay type
+            # If 'SNP Genotyping' change to 'SNP'
+            # to check against our list of assays
+            # Otherwise if key does not exist, set assay type to Unknown
+            assay_type_field = issue.get('fields').get('customfield_10070')
+            if assay_type_field:
+                assay_type_val = assay_type_field[0].get('value')
+                assay_type = assay_type_val.replace(' Genotyping', '')
+            else:
+                assay_type = 'Unknown'
+
             # If this matches run name in our dict (or is off by 2 chars)
             # Get relevant run name key in dict + return any with mismatches
             closest_dict_key, typo_ticket_info = (
@@ -983,27 +998,23 @@ class QueryPlotFunctions:
                 # For accurate info
                 ticket_data = self.query_specific_ticket(ticket_id)
                 all_assays_dict[closest_dict_key]['jira_status'] = jira_status
-                # If resolved add time of resolution in datetime
-                res_time_str = self.get_status_change_time(ticket_data)
-                if res_time_str:
-                    all_assays_dict[closest_dict_key]['jira_resolved'] = (
-                        res_time_str
-                    )
+                if jira_status in not_released_statuses:
+                    cancelled_list.append({
+                        'run_name': ticket_name,
+                        'assay_type': assay_type,
+                        'date_jira_ticket_created': date_time_created,
+                        'reason_not_released': jira_status
+                    })
+                else:
+                    # If resolved add time of resolution in datetime
+                    res_time_str = self.get_status_change_time(ticket_data)
+                    if res_time_str:
+                        all_assays_dict[closest_dict_key]['jira_resolved'] = (
+                            res_time_str
+                        )
             else:
                 # No key in our dict found (no 002 project exists for it)
                 # Get relevant info
-                # Try and get the key which stores the assay type
-                # If 'SNP Genotyping' change to 'SNP'
-                # to check against our list of assays
-                # Otherwise if key does not exist, set assay type to Unknown
-                assay_type_field = issue.get('fields').get('customfield_10070')
-                if assay_type_field:
-                    assay_type_val = assay_type_field[0].get('value')
-                    assay_type = assay_type_val.replace(' Genotyping', '')
-                else:
-                    assay_type = 'Unknown'
-
-                # If ticket not in dict (has no 002 project)
                 # Check it's within audit time + assays we are interested in
                 if (
                     assay_type in self.assay_types
@@ -1038,11 +1049,6 @@ class QueryPlotFunctions:
                         })
                     else:
                         # Data not released, add to cancelled list
-                        not_released_statuses = [
-                            "Data cannot be processed",
-                            "Data cannot be released",
-                            "Data not received"
-                        ]
                         if jira_status in not_released_statuses:
                             cancelled_list.append({
                                 'run_name': ticket_name,
@@ -1281,6 +1287,13 @@ class QueryPlotFunctions:
         html_fig : str
             Plotly figure as HTML string
         """
+        # Only plot uncancelled runs
+        cancelled_runs = [
+            'Data not received', 'Data cannot be processed',
+            'Data cannot be released'
+        ]
+        assay_df = assay_df[~assay_df.jira_status.isin(cancelled_runs)]
+
         # Add trace for Log file to first 002 job
         fig = go.Figure()
         fig.add_trace(

@@ -43,30 +43,30 @@
                 </h5>
                 <br>
                 {% block content %}
-                    <p class="font-weight-bold">Compliance Table by repository</p>
+                    <p class="fw-bold">Compliance Table by repository</p>
                     <div style="width: 100%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
                         <!-- style="width: 80%;margin-left: 10%;margin-top: 5px;margin-bottom: 40px; -->
                         {{ Compliance_table | safe }}
                     </div>
                     <br>
-                    <p class="font-weight-bold">Plot of compliance vs release date</p>
+                    <p class="fw-bold">Plot of compliance vs release date</p>
                     <div>   {{ release_comp_plot }}    </div>
-                    <p class="font-weight-bold">Plot of compliance vs release date by ubuntu version</p>
+                    <p class="fw-bold">Plot of compliance vs release date by ubuntu version</p>
                     <div>   {{ ubuntu_comp_plot }}    </div>
-                    <p class="font-weight-bold">Plot of compliance by latest commit date </p>
+                    <p class="fw-bold">Plot of compliance by latest commit date </p>
                     <div>   {{ compliance_bycommitdate_plot }}    </div>
-                    <p class="font-weight-bold">Plot of ubuntu versions</p>
+                    <p class="fw-bold">Plot of ubuntu versions</p>
                     <div>   {{ ubuntu_versions_plot }}    </div>
                 <br>
                 <div class="container-fluid">
-                    <p class="font-weight-bold">Compliance Table with extra detail</p>
+                    <p class="fw-bold">Compliance Table with extra detail</p>
                     <div style="width: 100%;">
                         {{ Details_table | safe }}
                     </div>
                 </div>
                 <br>
                 {% endblock %}
-                <p class="font-weight-bold"> Summary table of compliance by performa </p>
+                <p class="fw-bold"> Summary table of compliance by performa </p>
                 <div style="width:53.5%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
                     <table id="summary_1"> {{ compliance_stats_summary | safe }} </table>
                 </div>

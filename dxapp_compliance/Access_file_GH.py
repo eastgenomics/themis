@@ -2,26 +2,73 @@ import base64
 import json
 import requests
 import os
-from ghapi.all import *
+from pathlib import Path
+from ghapi.all import GhApi
 from fastcore.all import *
 from math import ceil
 import pandas as pd
 import numpy as np
-from jinja2 import Environment, PackageLoader, select_autoescape
-import plotly as py
+from jinja2 import Environment, PackageLoader, select_autoescape, FileSystemLoader
+import plotly.graph_objects as go
 import plotly.express as px
+import statsmodels.api as sm
+import logging
 
-## TODO: Add logging to the report.
 ## TODO: Add stats to parts of the html report and use bootrap to style it.
-## TODO: Add summary stats table to report
+## TODO: Add summary stats table to report.
+## TODO: Make report prettier with bootstrap.
+## TODO: Add assetDepends to the report.
 
 
-def get_template_render():
+# Set-up
+# Remove warnings from pandas which aren't relevant.
+pd.options.mode.chained_assignment = None
+# Set file path for root directory
+ROOT_DIR = Path(__file__).absolute().parents[1]
+# Create format for logging errors in API queries
+LOG_FORMAT = (
+    "%(asctime)s — %(name)s — %(levelname)s"
+    " — %(lineno)d — %(message)s"
+) # TODO: Change log format
+# Set level to debug, format with date and time and re-write file each time
+logging.basicConfig(
+    filename=ROOT_DIR.joinpath('dxapp_compliance/dx_compliance.log'),
+    level=logging.INFO,
+    format=LOG_FORMAT,
+    filemode='w'
+)
+# Set up logger
+logger = logging.getLogger("general log")
+
+
+def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
+                        release_comp_plot, ubuntu_comp_plot,
+                        compliance_bycommitdate_plot):
     """
     Render jinja2 template with provided variables.
     """
-    template = env.get_template("mytemplate.html")
-    print(template.render(the="variables", go="here"))
+    environment = Environment(loader=FileSystemLoader("templates/"))
+    template = environment.get_template("Report.html")
+    filename = "Audit_2022_11_08.html"
+    compliance_df.drop(columns=['Unnamed: 0'], inplace=True)
+    detailed_df.drop(columns=['Unnamed: 0'], inplace=True)
+    compliance_html = compliance_df.to_html(table_id="comp")
+    details_html = detailed_df.to_html(table_id="details")
+    compliance_stats_summary_html = compliance_stats_summary.to_html(
+        table_id="compliance_stats_summary"
+    )
+    context = {
+        "Compliance_table": compliance_html,
+        "Details_table": details_html,
+        "compliance_stats_summary": compliance_stats_summary_html,
+        "release_comp_plot": release_comp_plot,
+        "ubuntu_comp_plot": ubuntu_comp_plot,
+        "compliance_bycommitdate_plot": compliance_bycommitdate_plot,
+        }
+    with open(filename, mode="w", encoding="utf-8") as results:
+        results.write(template.render(context))
+        print(f"... wrote {filename}")
+
 
 def get_credentials():
     """
@@ -41,15 +88,362 @@ def get_credentials():
         credentials = json.load(f)
         github_token = credentials.get('GITHUB_TOKEN')
         organisation = credentials.get('organisation')
+        # Add config vars here
     return github_token, organisation
 
 
-class app_compliance:
+class compliance_checks:
     """
-    app_compliance
+    Class for all the checks for the compliance against DNAnexus performa.
+    """
+    def check_all(self, app=None, dxjson_content="",
+                  src_file_contents="",
+                  last_release_date=None,
+                  latest_commit_date=None,):
+        """
+        check_all compliance measures.
+        """
+        # Find compliance for app/applet
+        app_boolean, app_or_applet = self.check_app_compliance(
+            app, dxjson_content
+        )
+        name, title, eggd_name_boolean, eggd_title_boolean = self.check_naming_compliance(
+            dxjson_content
+        )
+        interpreter, distribution, dist_version, uptodate_ubuntu = self.check_interpreter_compliance(
+            dxjson_content
+        )
+        region_list, correct_regional_boolean, \
+            region_options_num = self.check_region_compliance(
+                dxjson_content
+            )
+        regions = None
+        if len(region_list) == 1:
+            region_list = region_list[0]
+            regions = region_list.split(":")[1].rstrip("']")
+        elif len(region_list) > 1:
+            regions = []
+            for region in region_list:
+                region_str = region.split(":")[1].rstrip("']")
+                regions.append(region_str)
+        else:
+            regions = region_list
+        set_e_boolean, no_manual_compiling = self.check_src_file_compliance(dxjson_content, src_file_contents)
+        timeout_policy, timeout_setting = self.check_timeout(
+            dxjson_content
+        )
+        authorised_users, authorised_devs, \
+            auth_devs_boolean, auth_users_boolean = self.check_users_and_devs(
+                dxjson_content
+            )
+
+        # Construct dicts to return data.
+        compliance_dict = {'name': name,
+                           'authorised_users': auth_users_boolean,
+                           'authorised_devs': auth_devs_boolean,
+                           'interpreter': interpreter,
+                           'uptodate_ubuntu': uptodate_ubuntu,
+                           'timeout_policy': timeout_policy,
+                           'correct_regional_option': correct_regional_boolean,
+                           'num_of_region_options': region_options_num,
+                           'set_e': set_e_boolean,
+                           'no_manual_compiling': no_manual_compiling,
+                           'dxapp_boolean': app_boolean,
+                           'dxapp_or_applet': app_or_applet,
+                           'eggd_name_boolean': eggd_name_boolean,
+                           'eggd_title_boolean': eggd_title_boolean,
+                           'last_release_date': last_release_date,
+                           'latest_commit_date': latest_commit_date,
+                           'timeout_setting': timeout_setting,
+                           }
+
+        details_dict = {'name': name,
+                        # 'release_version': data.get('properties', {}).get(),
+                        'authorised_users': authorised_users,
+                        'authorized_devs': authorised_devs,
+                        'interpreter': interpreter,
+                        'distribution': distribution,
+                        'dist_version': dist_version,
+                        'regionalOptions': regions,
+                        'title': title,
+                        'timeout': timeout_policy,
+                        'set_e': set_e_boolean,
+                        'no_manual_compiling': no_manual_compiling,
+                        'dxapp_or_applet': app_or_applet,
+                        'last_release_date': last_release_date,
+                        'latest_commit_date': latest_commit_date,
+                        'timeout_setting': timeout_setting,
+                        # 'description': data.get('summary'),
+                        }
+
+        return compliance_dict, details_dict
+
+
+    def check_region_compliance(self, dxjson_content):
+        """
+        Checks compliance for regional settings for DNAnexus app performa.
+        Parameters
+        ----------
+            dxjson_content (dict):
+                dictionary with all the information on dxapp.json details.
+
+
+        Returns:
+        -------
+            correct_regional_boolean (boolean):
+                True/False whether only the correct region is selected
+            region_options_num (int):
+                The number of regional options set for dnanexus cloud servers,
+                this should be 1 and set to the correct region.
+        """
+        # Find Region options for cloud servers.
+        region = dxjson_content.get('regionalOptions', {})
+        region_list = list(region.keys())
+
+        # regional options compliance info.
+        if region_list is ["aws:eu-central-1"]:
+            correct_regional_boolean = True
+            region_options_num = len(region_list)
+        elif 'aws:eu-central-1' in region_list:
+            correct_regional_boolean = True
+            region_options_num = len(region_list)
+        else:
+            correct_regional_boolean = False
+            region_options_num = len(region_list)
+
+        return region_list, correct_regional_boolean, region_options_num
+
+
+    def check_timeout(self, dxjson_content):
+        """
+        Checks compliance for timeout settings for DNAnexus app performa.
+        Parameters
+        ----------
+            dxjson_content (dict):
+                dictionary with all the information on dxapp.json details.
+
+
+        Returns:
+        -------
+            correct_regional_boolean (boolean):
+                True/False whether only the correct region is selected
+            region_options_num (int):
+                The number of regional options set for dnanexus cloud servers,
+                this should be 1 and set to the correct region.
+        """
+        data = dxjson_content
+        # Timeout policy compliance info.
+        timeout_policy_dict = data.get('runSpec', {}).get('timeoutPolicy', {}).get('*', {})
+        # If any keys are present then there is a timeout
+        # However, this could still be an inappropiate number i.e. 100 hours.
+        if timeout_policy_dict is {} or not timeout_policy_dict:
+            timeout_policy = False
+        else:
+            timeout_policy = True
+
+        timeout_setting = {}
+        for key in timeout_policy_dict.keys():
+            time_nomenclature = str(key)
+            timeout_setting[f'{time_nomenclature}'] = data.get('runSpec', {}).get('timeoutPolicy', {}).get('*', {}).get(f'{time_nomenclature}')
+
+        return timeout_policy, timeout_setting
+
+
+    def check_app_compliance(self, app, dxjson_content):
+        """
+        Checks if it is an app/applet.
+        Parameters
+        ----------
+            app (GithubAPI app object):
+                Github API repository object used for extracting app/applet info.
+            app_or_applet (str):
+                str of what the repo is for app/applet.
+
+
+        Returns:
+        -------
+            app_boolean (boolean):
+                True/False whether the repo is a dnanexus app.
+            region_options_num (int):
+                The number of regional options set for dnanexus cloud servers,
+                this should be 1 and set to the correct region.
+        """
+        # Find compliance for app
+        # Initialise variables - prevents not referenced before assignment error
+        app_boolean, app_or_applet = None, None
+
+        if 'version' in dxjson_content.keys():
+            app_or_applet = "app"
+            app_boolean = True
+            print("app FOUND")
+        elif "_v" in app.get('name'):
+            app_or_applet = "applet"
+            app_boolean = False
+            print("applet found")
+        else:
+            print(f"App or applet not clear. See app/applet here {app}")
+            # Likely still applet - So set to applet/false.
+            app_or_applet = "applet"
+            app_boolean = False
+
+        return app_boolean, app_or_applet
+
+
+    def check_src_file_compliance(self, dxjson_content, src_file_contents):
+        """
+        Checks compliance for set -e exit option and manual compiling settings
+        for DNAnexus app performa.
+
+        Parameters
+        ----------
+            dxjson_content (dict):
+                dictionary with all the information on dxapp.json details.
+            src_file_contents (str):
+                str with the app source code file.
+
+        Returns:
+        -------
+            set_e_boolean (boolean):
+                True/False whether only the set -e option is used.
+            no_manual_compliance (boolean):
+                True/False whether only the app doesn't manually compile.
+        """
+        set_e_boolean, no_manual_compiling = None, None
+        interpreter = dxjson_content.get('runSpec', {}).get('interpreter', '')
+        if 'python' in interpreter:
+            set_e_boolean = "NA"
+            no_manual_compiling = "NA"
+        else:
+            # Checks for only BASH apps
+            # src file compliance info.
+            if "set -e" in src_file_contents:
+                set_e_boolean = True
+            else:
+                set_e_boolean = False
+            if "make install" in src_file_contents:
+                no_manual_compiling = False
+            else:
+                no_manual_compiling = True
+
+        return set_e_boolean, no_manual_compiling
+
+
+    def check_interpreter_compliance(self, dxjson_content):
+        """
+        Checks compliance for ubuntu version for bash-based app/applets.
+
+        Parameters
+        ----------
+            dxjson_content (dict):
+                dictionary with all the information on dxapp.json details.
+
+        Returns:
+        -------
+            uptodate_ubuntu (boolean):
+                True/False whether the bash app
+                uses an up-to-date version of ubuntu.
+        """
+        data = dxjson_content
+        dist_version = None
+        # interpreter compliance info.
+        interpreter = data.get('runSpec', {}).get('interpreter', '')
+        distribution = data.get('runSpec', {}).get('distribution')
+        if interpreter == 'bash':
+            dist_version = 0
+            dist_version = float(data.get('runSpec', {}).get('release', ''))
+            if dist_version >= 20:
+                uptodate_ubuntu = True
+            else:
+                uptodate_ubuntu = False
+        elif 'python' in interpreter:
+            uptodate_ubuntu = "NA"
+        else:
+            print("interpreter not found")
+            logger.info(f"Interpreter: {interpreter}")
+
+        return interpreter, distribution, dist_version, uptodate_ubuntu
+
+    def check_users_and_devs(self, dxjson_content):
+        """
+        Checks compliance for user and developer settings
+        for DNAnexus app performa.
+
+        Parameters
+        ----------
+            dxjson_content (dict):
+                dictionary with all the information on dxapp.json details.
+
+        Returns:
+        -------
+            auth_devs_boolean (boolean):
+                True/False whether the right developers are set in dxapp.json
+            auth_users_boolean (boolean):
+                True/False whether the right users are set in dxapp.json
+        """
+        auth_devs_boolean, auth_users_boolean = None, None
+        # auth devs & users
+        authorised_users = dxjson_content.get('authorizedUsers')
+        authorised_devs = dxjson_content.get('developers')
+
+        if authorised_users is None:
+            auth_users_boolean = False
+        elif authorised_users == ['org-emee_1']:
+            auth_users_boolean = True
+        else:
+            auth_users_boolean = False
+        if authorised_devs is None:
+            auth_devs_boolean = False
+        elif authorised_devs == ['org-emee_1']:
+            auth_devs_boolean = True
+        else:
+            auth_devs_boolean = False
+
+        return authorised_users, authorised_devs, auth_devs_boolean, auth_users_boolean
+
+    def check_naming_compliance(self, dxjson_content):
+        """
+        Checks compliance for app/applet naming compliance
+        against the DNAnexus app performa.
+
+        Parameters
+        ----------
+            dxjson_content (dict):
+                dictionary with all the information on dxapp.json details.
+
+        Returns:
+        -------
+            eggd_name_boolean (boolean):
+                True/False whether the app/applet name conforms
+                to the 'eggd_' prefix criterium.
+            eggd_title_boolean (boolean):
+                True/False whether the app/applet title conforms
+                to the 'eggd_' prefix criterium.
+        """
+        # name compliance info.
+        name = dxjson_content.get('name')
+        title = dxjson_content.get('title')
+        if not name:
+            eggd_name_boolean = False
+        elif name.startswith('eggd'):
+            eggd_name_boolean = True
+        else:
+            eggd_name_boolean = False
+        if not title:
+            eggd_title_boolean = False
+        elif title.startswith('eggd'):
+            eggd_title_boolean = True
+        else:
+            eggd_title_boolean = False
+
+        return name, title, eggd_name_boolean, eggd_title_boolean
+
+
+class audit_class:
+    """
     A class for all dx querying functions.
     This collects all the compliance data needed for the audit app.
     """
+
 
     def __init__(self):
         self.env = Environment(
@@ -79,162 +473,22 @@ class app_compliance:
             df_details (pandas dataframe):
                 dataframe of compliance details for the app/applet.
         """
-        data = dxjson_content
-
-        # Find Region options for cloud servers.
-        region = data.get('regionalOptions', {})
-        region_list = list(region.keys())
-
-        if region_list == ["aws:eu-central-1"]:
-            print(f"Correct only one region - {region_list[0]}")
-        else:
-            print(f"Incorrect multiple regions - {region_list}")
 
         # Find source for app/applet and check compliance
-        src_file_contents, last_release_date = self.get_src_file(
+        src_file_contents, last_release_date, latest_commit_date = self.get_src_file(
             app,
             dxjson_content=dxjson_content,
             organisation_name=self.ORGANISATION,
             github_token=self.GITHUB_TOKEN)
-
-        # Find compliance for app
-        # Initialise variables - prevents not referenced before assignment error
-        set_e_boolean, manual_compiling = None, None
-        app_boolean, app_or_applet = None, None
-        auth_devs_boolean, auth_users_boolean = None, None
-
-        if 'version' in dxjson_content.keys():
-            app_or_applet = "app"
-            app_boolean = True
-            print("app FOUND")
-        elif "_v" in app.get('name'):
-            app_or_applet = "applet"
-            app_boolean = False
-            print("applet found")
-        else:
-            print(f"App or applet not clear. See app/applet here {app}")
-            # Likely still applet - So set to applet/false.
-            app_or_applet = "applet"
-            app_boolean = False
-
-        # src file compliance info.
-        if "set -e" in src_file_contents:
-            set_e_boolean = True
-        else:
-            set_e_boolean = False
-        if "make install" in src_file_contents:
-            no_manual_compiling = False
-            # print(src_file_contents)
-        else:
-            no_manual_compiling = True
-        # interpreter compliance info.
-        if data.get('runSpec', {}).get('interpreter', '') == 'bash':
-            dist_version = float(data.get('runSpec', {}).get('release', ''))
-            print(dist_version)
-            if dist_version >= 20:
-                uptodate_ubuntu = True
-            else:
-                uptodate_ubuntu = False
-        elif 'python' in data.get('runSpec', {}).get('interpreter', ''):
-            uptodate_ubuntu = "NA"
-        else:
-            print("interpreter not found")
-            print(data.get('runSpec', {}).get('interpreter', ''))
-
-        # Timeout policy compliance info.
-        print(data.get('runSpec', {}).get('timeoutPolicy', {}).get('*', {}).get('hours'))
-        print(data.get('runSpec', {}).get('timeoutPolicy', {}))
-        if data.get('runSpec', {}).get('timeoutPolicy', {}).get('*', {}).get('hours') == None:
-            timeout_policy = False
-        elif data.get('runSpec', {}).get('timeoutPolicy', {}).get('*', {}).get('hours') > 0:
-            timeout_policy = True
-        else:
-            timeout_policy = False
-
-        # auth devs & users
-        authorised_users = data.get('authorizedUsers')
-        authorised_devs = data.get('developers')
-        print(authorised_users)
-        print(authorised_devs)
-        print(data)
-        # print(data.get('runSpec', {}))
-        if authorised_users is None:
-            auth_users_boolean = False
-        elif authorised_users == ['org-emee_1']:
-            auth_users_boolean = True
-        else:
-            authorised_users = False
-        if authorised_devs is None:
-            auth_devs_boolean = False
-        elif authorised_devs == ['org-emee_1']:
-            auth_devs_boolean = True
-        else:
-            auth_devs_boolean = False
-
-        # regional options compliance info.
-        if region_list == ["aws:eu-central-1"]:
-            correct_regional_boolean = True
-            region_options_num = len(region_list)
-        elif 'aws:eu-central-1' in region_list:
-            correct_regional_boolean = True
-            region_options_num = len(region_list)
-        else:
-            correct_regional_boolean = False
-            region_options_num = len(region_list)
-
-        # name compliance info.
-        name = data.get('name')
-        title = data.get('title')
-        if name is None:
-            eggd_name_boolean = False
-        elif name.startswith('eggd'):
-            eggd_name_boolean = True
-        else:
-            eggd_name_boolean = False
-        if title is None:
-            eggd_title_boolean = False
-        elif title.startswith('eggd'):
-            eggd_title_boolean = True
-        else:
-            eggd_title_boolean = False
-
-
-        compliance_dict = {'name': data.get('name'),
-                           'title': data.get('title'),
-                           #'description': data.get('summary'),
-                           'authorised_users': auth_users_boolean,
-                           'authorised_devs': auth_devs_boolean,
-                           'interpreter': data.get('runSpec', {}).get('interpreter', ''),
-                           'uptodate_ubuntu': uptodate_ubuntu,
-                           'timeout_policy': timeout_policy,
-                           'correct_regional_option': correct_regional_boolean,
-                           'num_of_region_options': region_options_num,
-                           'set_e': set_e_boolean,
-                           'no_manual_compiling': no_manual_compiling,
-                           'dxapp_boolean': app_boolean,
-                           'dxapp_or_applet': app_or_applet,
-                           'eggd_name_boolean': eggd_name_boolean,
-                           'eggd_title_boolean': eggd_title_boolean,
-                           'last_release_date': last_release_date,
-                           }
-
-        details_dict = {'name': data.get('name'),
-                        'title': data.get('title'),
-                        #'description': data.get('summary'),
-                        # 'release_version': data.get('properties', {}).get(),
-                        'authorised_users': data.get('authorizedUsers'),
-                        'authorizedDevs': data.get('developers'),
-                        'interpreter': data.get('runSpec', {}).get('interpreter'),
-                        'distribution': data.get('runSpec', {}).get('distribution'),
-                        'dist_version': data.get('runSpec', {}).get('release'),
-                        'regionalOptions': region_list,
-                        'timeout': data.get('runSpec', {}).get('timeoutPolicy', {}).get('*', {}).get('hours'),
-                        'set_e': set_e_boolean,
-                        'manual_compiling': manual_compiling,
-                        'dxapp_or_applet': app_or_applet,
-                        'last_release_date': last_release_date,
-                        }
-
+        # Run all compliance checks
+        # compliance_checks.
+        checks = compliance_checks()
+        compliance_dict, details_dict = checks.check_all(
+            app=app, dxjson_content=dxjson_content,
+            src_file_contents=src_file_contents,
+            last_release_date=last_release_date,
+            latest_commit_date = latest_commit_date
+            )
         # compliance dataframe
         df_compliance = pd.DataFrame.from_dict(compliance_dict,
                                                orient='index')
@@ -252,14 +506,17 @@ class app_compliance:
     def get_list_of_repositories(self, org_username, github_token=None):
         """
         This function gets a list of all visible repositories for a given ORG.
+
         Parameters
         ----------
         self:
             self
         org_username (str):
-            the username of the organisation to get the list of repositories for.
+            the username of the organisation to use
+            for getting the list of repositories.
         github_token (str):
             the github token to authenticate with.
+
         Returns
         -------
         all_repos (list):
@@ -278,8 +535,8 @@ class app_compliance:
 
         for page in range(1, pages_total+1):
             response = api.repos.list_for_org(org=org_username,
-                                              per_page = per_page_num,
-                                              page = page)
+                                              per_page=per_page_num,
+                                              page=page)
             response_repos = [repo for repo in response]
             all_repos = all_repos + response_repos
 
@@ -310,33 +567,40 @@ class app_compliance:
         repos_apps_content = []
         api = GhApi(token=github_token)
         for repo in list_of_repos:
-            # repo_full_name = repo['full_name']
-            # print(repo)
-            owner = 'eastgenomics'
-            repo_name = repo['name']
-            file_path = 'dxapp.json'
 
-            # Checks to find dxapp.json which determines if repo is an app.
-            try:
-                contents = api.repos.get_content(owner, repo_name, file_path)
-            except HTTP404NotFoundError:
-                print(f'{repo_name} is not an app.')
+            if repo['archived'] is False:
+                owner = 'eastgenomics'
+                repo_name = repo['name']
+                file_path = 'dxapp.json'
+
+                # Checks to find dxapp.json which determines if repo is an app.
+                try:
+                    contents = api.repos.get_content(owner, repo_name, file_path)
+                except HTTP404NotFoundError:
+                    logger.error(f'{repo_name} is not an app.')
+                    print(f'{repo_name} is not an app.')
+                    continue
+
+                # Append app to list of apps
+                repos_apps.append(repo)
+
+                # Decode contents using base64 and append to list.
+                file_content = contents['content']
+                file_content_encoding = contents.get('encoding')
+                if file_content_encoding == 'base64':
+                    contents_decoded = base64.b64decode(file_content).decode()
+                    app_decoded = json.loads(contents_decoded)
+
+                    repos_apps_content.append(app_decoded)
+
+                else:
+                    print(f"Other encoding used. {file_content_encoding}")
+            elif repo['archived'] is True:
+                logger.info(f'{repo["name"]} is archived.')
+                print(f"{repo['name']} is archived.")
                 continue
-
-            # Append app to list of apps
-            repos_apps.append(repo)
-
-            # Decode contents using base64 and append to list.
-            file_content = contents['content']
-            file_content_encoding = contents.get('encoding')
-            if file_content_encoding == 'base64':
-                contents_decoded = base64.b64decode(file_content).decode()
-                app_decoded = json.loads(contents_decoded)
-
-                repos_apps_content.append(app_decoded)
-
             else:
-                print(f"Other encoding used. {file_content_encoding}")
+                continue
 
         print(f"{len(repos_apps)} app repositories found.")
 
@@ -364,13 +628,12 @@ class app_compliance:
 
     def get_src_file(self, app, organisation_name, dxjson_content, github_token=None):
         """
-        get_src_file
         This function gets the source script for a given app/applet.
 
         Parameters
         ----------
             app (GithubAPI app object):
-                Github API app object used for extracting app/applet info.
+                Github API repository object used for extracting app/applet info.
             organisation_name (str):
                 the username of the organisation the app/applet is in.
             dxjson_content (dict):
@@ -400,9 +663,8 @@ class app_compliance:
                                              repo_name,
                                              file_path)
         except HTTP404NotFoundError:
-            # log error?
-            print("No src file found. ERROR")
-            pass
+            logger.info(f'{repo_name} No src file found.')
+
 
         repos_apps.append(dxjson_content)
         if contents:
@@ -410,7 +672,6 @@ class app_compliance:
                 if (content['type'] == 'file' and
                     r'.sh' in content['name'] or
                     r'.py' in content['name']):
-                    print("okay")
                     try:
                         file_path = content['path']
                         app_src_file = api.repos.get_content(organisation_name,
@@ -418,23 +679,30 @@ class app_compliance:
                                                              file_path)
 
                     except HTTP404NotFoundError:
-                        # log error
-                        print("No src file found. 404 ERROR")
+                        logger.info(f'{repo_name} 404 No src file found.')
                         pass
                     src_code_content = app_src_file['content']
                     code_content_encoding = app_src_file.get('encoding')
                     if code_content_encoding == 'base64':
-                        src_content_decoded = base64.b64decode(src_code_content).decode()
+                        src_content_decoded = base64.b64decode(
+                            src_code_content
+                            ).decode()
                     else:
                         print("Other encoding used.")
         print(organisation_name)
         print(repo_name)
-        print(github_token)
-        # In progress - getting latest release date
-        last_release_date = None
-        last_release_date = self.get_latest_release(organisation_name, repo_name, github_token)
 
-        return src_content_decoded, last_release_date
+        # Get the latest release date & commit date
+        last_release_date = ""  # None
+        last_release_date = self.get_latest_release(
+            organisation_name, repo_name, github_token
+            )
+        latest_commit_date = ""  # None
+        latest_commit_date = self.get_latest_commit_date(
+            organisation_name, repo_name, github_token
+            )
+
+        return src_content_decoded, last_release_date, latest_commit_date
 
 
     def summary_compliance_stats(self, compliance_df):
@@ -494,7 +762,7 @@ class app_compliance:
         print(eggd_stat)
 
 
-    def compliance_stats(self, compliance_df):
+    def compliance_stats(self, compliance_df, details_df):
         """
         compliance_stats
         Finds the % compliance with the EastGLH guidelines for each app/applet.
@@ -510,6 +778,7 @@ class app_compliance:
                 with added compliance % column.
         """
         list_of_compliance_scores = []
+        # Find the % overall compliance for each app/applet
         for _, row in compliance_df.iterrows():
             no_compliant = 0
             if 'bash' in row['interpreter']:
@@ -517,6 +786,7 @@ class app_compliance:
             else:
                 total_performa = 9
             for column in row:
+                # Looking for int which is only for no. regions.
                 if column is Int:
                     if column >= 2:
                         pass
@@ -530,34 +800,20 @@ class app_compliance:
                     pass
             compliance_score = f"{round((no_compliant/total_performa)*100, 1)}%"
             list_of_compliance_scores.append(compliance_score)
-        compliance_df['compliance_score'] = list_of_compliance_scores
-        return compliance_df
-
-
-    def convert_to_html(self, dataframe):
-        """
-        Convert dataframe to html table.
-
-        Parameters
-        ----------
-            dataframe (pandas dataframe):
-                dataframe to convert to html table.
-
-        Returns
-        -------
-            df_html (html table):
-                html table of dataframe.
-        """
-
-        df_html = pd.DataFrame.to_html(dataframe)
-
-        return df_html
+        # compliance_df['compliance_score'] = list_of_compliance_scores
+        compliance_df.insert(loc=1,
+                             column='compliance_score',
+                             value=list_of_compliance_scores)
+        details_df.insert(loc=1,
+                          column='compliance_score',
+                          value=list_of_compliance_scores)
+        return compliance_df, details_df
 
 
     def get_latest_release(self, organisation_name, repo_name, token):
         """
         Get latest release of app/applet repo.
-        In progress - getting latest release date
+        Extracts the latest release date from the github API.
 
         Parameters
         ----------
@@ -569,8 +825,8 @@ class app_compliance:
                 github token for accessing repo via API.
         Returns
         -------
-            contents (json):
-                json API response of latest release endpoint.
+            last_release_date (str):
+                string of latest release date.
         """
         api = GhApi(token=token)
         # get latest release endpoint json.
@@ -579,11 +835,64 @@ class app_compliance:
                                                     repo_name)
             last_release_date = contents['published_at'].split("T")[0]
         except HTTP404NotFoundError:
-            # log error?
-            print("No release found. ERROR")
+            logger.info(f'{repo_name} 404 No release found.')
             last_release_date = None
 
         return last_release_date
+
+
+    def get_latest_commit_date(self, organisation_name, repo_name, token):
+        """
+        Get latest commit of app/applet repo.
+        In progress - getting latest commit date
+        Parameters
+        ----------
+            organisation_name (str):
+                name of organisation of app/applet.
+            repo_name (str):
+                name of repo to get latest release of.
+            token (str):
+                github token for accessing repo via API.
+        Returns
+        -------
+            last_release_date (str):
+                string of latest commit date.
+        """
+        api = GhApi(token=token)
+
+        # List all branches
+        list_of_shas = []
+        try:
+            list_of_branches = api.repos.list_branches(organisation_name, repo_name)
+        except HTTP404NotFoundError:
+            logger.error(f'{repo_name} 404 No branches found.')
+            list_of_branches = []
+
+        # Find sha for each branch and append to list for api calls.
+        for branch in list_of_branches:
+            sha = branch['commit']['sha']
+            list_of_shas.append(sha)
+
+        # For branch in branches
+        list_of_commit_dates = []
+        for branch in list_of_shas:
+            try:
+                json_reponse = api.repos.list_commits(organisation_name,
+                                                      repo_name,
+                                                      branch,
+                                                      per_page=1,
+                                                      page=1)
+                commit_date = json_reponse[0]['commit']['committer']['date']
+                list_of_commit_dates.append(commit_date)
+            except HTTP404NotFoundError:
+                logger.info(f'{repo_name} 404 No commits found on {branch}')
+
+        # Find latest commit date
+        latest_commit_datetime = max(list_of_commit_dates)
+        latest_commit_date = latest_commit_datetime.split("T")[0]
+        print(latest_commit_date)
+
+        return latest_commit_date
 
 
     def orchestrate_app_compliance(self, list_apps, list_of_json_contents):
@@ -603,6 +912,7 @@ class app_compliance:
             details_df (dataframe)
                 df of apps/applets with detailed information.
         """
+        compliance_df, details_df = None, None
         if len(list_apps) != len(list_of_json_contents):
             print("Error missing repos")
         else:
@@ -624,45 +934,207 @@ class app_compliance:
         return compliance_df, details_df
 
 
+    def compliance_scores_for_each_measure(self, df):
+        """
+        compliance_scores_for_each_measure
+        TODO: This docstring needs finishing.
+        IN PROGRESS
+        Parameters
+        ----------
+            df (_type_): _description_
+
+        Returns
+        -------
+            _type_: _description_
+        """
+        # df.fillna(value=False, inplace=True)
+        df = df[[
+            'authorised_users',
+            'authorised_devs',
+            'uptodate_ubuntu',
+            'timeout_policy',
+            'correct_regional_option',
+            'set_e',
+            'no_manual_compiling',
+            'dxapp_boolean',
+            'eggd_name_boolean',
+            'eggd_title_boolean',
+        ]]
+        columns_summed = []
+        for column in df:
+            # Get number of true and false values for compliance measures
+            no_true = len(df.query(f'{column} == True'))
+            no_false = len(df.query(f'{column} == False'))
+            len_df = len(df)
+
+            # Get all non-boolean columns
+            non_boolean_rows = df.query(f'{column} != True').query(f'{column} != False')
+
+            # Num_Nas = df[f'{column}'].isna().sum() # Alternative for nas only.
+            num_non_boolean_rows = len(non_boolean_rows)
+            total = len_df - num_non_boolean_rows
+            complaince_stats = {
+                'name': column,
+                'true': no_true,
+                'false': no_false,
+                'total': total,
+                'compliance_percentage': round((no_true/(no_true + no_false))*100, 2)
+            }
+            columns_summed.append(complaince_stats)
+        summary_df = pd.DataFrame(columns_summed)
+        print(summary_df)
+        return summary_df
+
 class plotting:
     """
      In progress.
     """
 
-
     def __init__(self):
         pass
 
 
-    def interpreter_distribution(df):
+    def import_csv(self, path_to_dataframe):
         """
-        interpreter_distribution _summary_
+        import_csv _summary_
 
-        Args:
-            df (pandas df): dataframe of apps compliance data.
+        Parameters
+        ----------
+            path_to_dataframe (str): string for absolute/relative path to
+                csv file.
         """
-        # using Plotly Express directly
-        fig2 = px.bar(df.interpreter)
-        fig2.show()
+        df = pd.read_csv(path_to_dataframe)
+        if df['compliance_score']:
+            df['compliance_score'] = df['compliance_score'].str.rstrip("%").astype(float)
+
+        return df
 
 
-    def bash_py(df):
+    def release_date_compliance_plot(self, df):
         """
-        bash_py: Uses plotly to plot the distribution of bash and python apps.
+        Convert date to datetime object.
 
-        Args:
-            df (pandas df): dataframe of apps compliance data.
+        Parameters
+        ----------
+            df (dataframe):
+                dataframe of apps/applets with release date and compliance score.
+
+        Returns
+        -------
+            plot (plotly plot object):
+                plot object of apps/applets with release date and compliance score.
         """
-        # using Plotly Express directly
-        dfout = df['interpreter'].value_counts()
-        print(dfout)
-        # print(df.count('interpreter'))
+        # Convert release_date to pandas datetime column
+        df['last_release_date'] = pd.to_datetime(df['last_release_date'])
+        # Convert % column to numeric float column
+        df_ordered = df.sort_values(by=['last_release_date'])
+        # print(len(df))
+        # print(len(df_ordered))
+        # print(df_ordered['last_release_date'])
+        # df['compliance_score'] = pd.to_numeric(df['compliance_score'])
+        #print(df_ordered['compliance_score'])
+        #release_date_plot = go.Figure([go.Scatter(x=df_ordered['last_release_date'],
+        #                                      y=df_ordered['compliance_score'],
+        #                                      marker=go.Marker(color='#3D3C28')
+        #                                      )],)
+        fig = px.scatter(
+            data_frame=df_ordered,
+            x=df_ordered['last_release_date'],
+            y=df_ordered['compliance_score'],
+            labels={
+                'x': 'Date of last release',
+                'y': 'Compliance (%)'
+            },
+            trendline="lowess", # needs module statsmodels
+            )
+        html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
-        fig2 = px.bar(dfout)
-        fig2.show()
+        return html_fig
 
 
-    def bash_version(df):
+    def compliance_by_latest_activity_plot(self, df):
+        """
+        Convert date to datetime object.
+
+        Parameters
+        ----------
+            df (dataframe):
+                dataframe of apps/applets with release date and compliance score.
+
+        Returns
+        -------
+            plot (plotly plot object):
+                plot object of apps/applets with release date and compliance score.
+        """
+        # Convert release_date to pandas datetime column
+        df['latest_commit_date'] = pd.to_datetime(df['latest_commit_date'])
+        # Convert % column to numeric float column
+        print(df['compliance_score'])
+        df_ordered = df.sort_values(by=['latest_commit_date'])
+
+        fig = px.scatter(
+            data_frame=df_ordered,
+            x=df_ordered['latest_commit_date'],
+            y=df_ordered['compliance_score'],
+            labels={
+                'x': 'Date of last release',
+                'y': 'Compliance (%)'
+            },
+            trendline="lowess", # needs module statsmodels
+            )
+        html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
+
+        return html_fig
+
+
+    def ubuntu_compliance_timeseries(self, df):
+        """
+        Convert date to datetime object.
+
+        Parameters
+        ----------
+            df (dataframe):
+                dataframe of apps/applets with release date and compliance score.
+
+        Returns
+        -------
+            plot (plotly plot object):
+                plot object of apps/applets with release date and compliance score.
+        """
+        # Convert release_date to pandas datetime column
+        df = df[df['interpreter'] == 'bash']
+        df['last_release_date'] = pd.to_datetime(df['last_release_date'])
+        # Convert % column to numeric float column
+        print(df['compliance_score'])
+        df_ordered = df.sort_values(by=['last_release_date'])
+        # df_ordered = df_ordered.query("interpreter == 'bash'")
+        # df['compliance_score'] = pd.to_numeric(df['compliance_score'])
+        # print(df_ordered['compliance_score'])
+        df_ordered['dist_version'] = df_ordered['dist_version'].astype('str')
+        #print(df_ordered['dist_version'])
+
+        fig = px.scatter(
+            data_frame=df_ordered,
+            x=df_ordered['last_release_date'],
+            y=df_ordered['compliance_score'],
+            color=df_ordered['dist_version'],
+            #trendline="lowess",
+            #trendline_scope="overall",
+            labels={
+                'x': 'Date of last release',
+                'y': 'Compliance (%)',
+                'color': 'Ubuntu version',
+            },
+            hover_name="name",
+            hover_data=["last_release_date",
+                        "dist_version"],
+        )
+        html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
+
+        return html_fig
+
+
+    def bash_version(self, df):
         """
         bash_py: Uses plotly to plot the distribution of bash and python apps.
 
@@ -683,88 +1155,40 @@ class plotting:
                               "unique_versions": "Ubuntu version",
                               "counts": "Count",
                               },
-                      title="Version of Ubuntu by bash apps"
+                      title="Version of Ubuntu by bash apps",
                       )
-        fig2.show()
 
-
-    def new_plot(df):
-        """
-        new_plot _summary_
-
-        Args:
-            df (pandas df): dataframe of apps compliance data.
-        """
-
-        # using Plotly Express directly
-        dfout = df[df['interpreter'] == 'bash']
-        print(df)
-        print(dfout)
-        dfout = dfout['dist_version'].value_counts().rename_axis('unique_versions').reset_index(name='counts')
-        print(dfout)
-        print(dfout.columns)
-
-        fig2 = px.bar(dfout, x="unique_versions", y="counts",
-                      color="unique_versions",
-                      labels={
-                              "unique_versions": "Ubuntu version",
-                              "counts": "Count",
-                              "unique_versions": "Ubuntu version",
-                              },
-                      title="Version of Ubuntu by bash apps"
-                      )
-        fig2.show()
         #TODO: Add a bar chart for other compliance stats.
-
-
-def docstings_forGITAI():
-    """
-    check_compliance
-    This function checks the compliance of a given app.
-    Parameters
-    ----------
-        src_file (str):
-            contents of src file.
-        src_file_encoding (str):
-            the encoding of the src file.
-        dxjson_content (dict):
-            contents of the dxapp.json file for the app.
-    Returns:
-        compliance (boolean):
-            boolean of whether the app is compliant.
-    """
-    """
-                app_code_decoded (str):
-                    contents of src file decoded
-                set_e_boolean (boolean)
-                    boolean of whether set -e is used in the src file
-                manual_compiling (boolean):
-                    boolean of whether manual compiling is used in the src file
-                    i.e. "make install".
-                dxapp_boolean (boolean):
-                    boolean of if the dxapp/applet is an app.
-    """
 
 
 def main():
     # Initialise class with shorthand
-    app_c = app_compliance()
-    list_of_repos = app_c.get_list_of_repositories(app_c.ORGANISATION,
-                                                   app_c.GITHUB_TOKEN)
+    audit = audit_class()
+    plots = plotting()
+    list_of_repos = audit.get_list_of_repositories(audit.ORGANISATION,
+                                                   audit.GITHUB_TOKEN)
     print(f"Number of items: {len(list_of_repos)}")
-    list_apps, list_of_json_contents = app_c.select_apps(list_of_repos,
-                                                         app_c.GITHUB_TOKEN)
-    compliance_df, details_df = app_c.orchestrate_app_compliance(list_apps,
+    list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
+                                                         audit.GITHUB_TOKEN)
+    compliance_df, details_df = audit.orchestrate_app_compliance(list_apps,
                                                      list_of_json_contents)
-    print(compliance_df)
-    print(compliance_df.columns)
-    print(compliance_df.size)
-    compliance_df = app_c.compliance_stats(compliance_df)
-    compliance_df.to_csv('compliance_df.csv')
-    details_df.to_csv('details_df.csv')
+    compliance_df, details_df = audit.compliance_stats(compliance_df,
+                                                       details_df)
+    compliance_df.to_csv('compliance_df2.csv')
+    details_df.to_csv('details_df2.csv')
     #TODO: Convert to html table and add to report using datatables
     #TODO: Add stats to parts of the html report and use bootrap to style it.
     #TODO: Add logging to the report.
+    compliance_df = plots.import_csv('/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df2.csv')
+    detailed_df = plots.import_csv('/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/details_df2.csv')
+    compliance_stats_summary = audit.compliance_scores_for_each_measure(compliance_df)
+    print("done")
+    release_comp_plot = plots.release_date_compliance_plot(compliance_df)
+    ubuntu_comp_plot = plots.ubuntu_compliance_timeseries(detailed_df)
+    compliance_bycommitdate_plot = plots.compliance_by_latest_activity_plot(compliance_df)
+    get_template_render(compliance_df, detailed_df, compliance_stats_summary,
+                        release_comp_plot, ubuntu_comp_plot,
+                        compliance_bycommitdate_plot)
 
 
 if __name__ == '__main__':

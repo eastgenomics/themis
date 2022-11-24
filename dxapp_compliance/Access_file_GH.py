@@ -5,11 +5,12 @@ import os
 from pathlib import Path
 from ghapi.all import GhApi
 from fastcore.all import *
+# Fastcore extends the python standard library to allow for the use of ghapi.
 from math import ceil
 import pandas as pd
 import numpy as np
-from jinja2 import Environment, PackageLoader, select_autoescape, FileSystemLoader
-import plotly.graph_objects as go
+from jinja2 import Environment, FileSystemLoader
+# import plotly.graph_objects as go
 import plotly.express as px
 import statsmodels.api as sm
 import logging
@@ -52,6 +53,7 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("Report.html")
     filename = "Audit_2022_11_08.html"
+    # Remove old index column
     compliance_df.drop(columns=['Unnamed: 0'], inplace=True)
     detailed_df.drop(columns=['Unnamed: 0'], inplace=True)
     compliance_html = compliance_df.to_html(table_id="comp")
@@ -73,11 +75,9 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         print(f"... wrote {filename}")
 
 
-def get_credentials():
+def get_config():
     """
-    get_credentials
-
-    Extracts the credentials from the json credentials file.
+    Extracts the config from the json config file.
 
     Returns:
     github_token (str):
@@ -87,12 +87,13 @@ def get_credentials():
         Organisation dnanexus username.
 
     """
-    with open('CREDENTIALS.json') as f:
-        credentials = json.load(f)
-        github_token = credentials.get('GITHUB_TOKEN')
-        organisation = credentials.get('organisation')
-        # Add config vars here
-    return github_token, organisation
+    with open('CONFIG.json') as file:
+        config = json.load(file)
+        github_token = config.get('GITHUB_TOKEN')
+        organisation = config.get('organisation')
+        default_region = config.get('default_region')
+
+    return github_token, organisation, default_region
 
 
 class compliance_checks:
@@ -102,7 +103,8 @@ class compliance_checks:
     def check_all(self, app=None, dxjson_content="",
                   src_file_contents="",
                   last_release_date=None,
-                  latest_commit_date=None,):
+                  latest_commit_date=None,
+                  default_region=None,):
         """
         check_all compliance measures.
         """
@@ -118,7 +120,8 @@ class compliance_checks:
         )
         region_list, correct_regional_boolean, \
             region_options_num = self.check_region_compliance(
-                dxjson_content
+                dxjson_content,
+                default_region
             )
         regions = None
         if len(region_list) == 1:
@@ -182,13 +185,15 @@ class compliance_checks:
         return compliance_dict, details_dict
 
 
-    def check_region_compliance(self, dxjson_content):
+    def check_region_compliance(self, dxjson_content, default_region=None):
         """
         Checks compliance for regional settings for DNAnexus app performa.
         Parameters
         ----------
             dxjson_content (dict):
                 dictionary with all the information on dxapp.json details.
+            default_region (str):
+                default region to check against.
 
 
         Returns:
@@ -202,17 +207,27 @@ class compliance_checks:
         # Find Region options for cloud servers.
         region = dxjson_content.get('regionalOptions', {})
         region_list = list(region.keys())
+        num_regions = len(region_list)
 
         # regional options compliance info.
-        if region_list is ["aws:eu-central-1"]:
+        if region_list is [default_region]:
             correct_regional_boolean = True
-            region_options_num = len(region_list)
+            region_options_num = num_regions
         elif 'aws:eu-central-1' in region_list:
             correct_regional_boolean = True
-            region_options_num = len(region_list)
+            region_options_num = num_regions
+        elif region_list is []:
+            correct_regional_boolean = False
+            region_options_num = 0
+            logger.info("No regional options set.")
+        elif num_regions == 1:
+            correct_regional_boolean = False
+            region_options_num = num_regions
+            logger.info("Incorrect regional option set.")
         else:
             correct_regional_boolean = False
-            region_options_num = len(region_list)
+            region_options_num = num_regions
+            logger.info("Incorrect regional option set and multiple regions present.")
 
         return region_list, correct_regional_boolean, region_options_num
 
@@ -277,13 +292,13 @@ class compliance_checks:
         if 'version' in dxjson_content.keys():
             app_or_applet = "app"
             app_boolean = True
-            logger(f"App: {app.name}")
+            logger.info(f"App: {app.name}")
         elif "_v" in app.get('name'):
             app_or_applet = "applet"
             app_boolean = False
-            logger(f"Applet: {app.name}")
+            logger.info(f"Applet: {app.name}")
         else:
-            logger(f"App or applet not clear. See app/applet here {app}")
+            logger.info(f"App or applet not clear. See app/applet here {app}")
             # Likely still applet - So set to applet/false.
             app_or_applet = "applet"
             app_boolean = False
@@ -370,6 +385,9 @@ class compliance_checks:
         Checks compliance for user and developer settings
         for DNAnexus app performa.
 
+        Currently checks if the user is only for org-emee_1
+        but could change to contains the org-emee_1 user.
+
         Parameters
         ----------
             dxjson_content (dict):
@@ -387,13 +405,14 @@ class compliance_checks:
         authorised_users = dxjson_content.get('authorizedUsers')
         authorised_devs = dxjson_content.get('developers')
 
-        if authorised_users is None:
+        if not authorised_users: # authorised_users is None
             auth_users_boolean = False
         elif authorised_users == ['org-emee_1']:
             auth_users_boolean = True
         else:
             auth_users_boolean = False
-        if authorised_devs is None:
+
+        if not authorised_devs: # authorised_devs is None
             auth_devs_boolean = False
         elif authorised_devs == ['org-emee_1']:
             auth_devs_boolean = True
@@ -448,8 +467,8 @@ class audit_class:
 
 
     def __init__(self):
-        # Set credentials
-        self.GITHUB_TOKEN, self.ORGANISATION = get_credentials()
+        # Set config
+        self.GITHUB_TOKEN, self.ORGANISATION, self.DEFAULT_REGION = get_config()
 
 
     def check_file_compliance(self, app, dxjson_content):
@@ -487,7 +506,8 @@ class audit_class:
             app=app, dxjson_content=dxjson_content,
             src_file_contents=src_file_contents,
             last_release_date=last_release_date,
-            latest_commit_date = latest_commit_date
+            latest_commit_date = latest_commit_date,
+            default_region=self.DEFAULT_REGION
             )
         # compliance dataframe
         df_compliance = pd.DataFrame.from_dict(compliance_dict,
@@ -752,6 +772,7 @@ class audit_class:
         ----------
             compliance_df (pandas dataframe):
                 dataframe of compliance booleans for each app/applet.
+
         Returns
         -------
             compliance_df (pandas dataframe):
@@ -761,35 +782,38 @@ class audit_class:
                 dataframe of compliance performa details for each app/applet.
         """
         list_of_compliance_scores = []
+        # remove columns that are not compliance checks
+        compliance_checks_df = compliance_df.drop(columns=['name',
+                                                           'num_of_region_options',
+                                                           'last_release_date',
+                                                           'latest_commit_date',
+                                                           'timeout_setting',
+                                                           ])
         # Find the % overall compliance for each app/applet
-        for _, row in compliance_df.iterrows():
-            no_compliant = 0
+        for _, row in compliance_checks_df.iterrows():
+            compliance_count = 0
+            # Set number of total performa relevant to the repo.
             if 'bash' in row['interpreter']:
-                total_performa = 10
-            else:
                 total_performa = 9
+            else:
+                total_performa = 8
+            # Count the number of True values in each row
             for column in row:
-                # Looking for int which is only for no. regions.
-                if column is Int:
-                    if column >= 2:
-                        pass
-                    if column == 1:
-                        no_compliant += 1
-                    if column == 0:
-                        pass
                 if column is True:
-                    no_compliant += 1
+                    compliance_count += 1
                 else:
                     pass
-            compliance_score = f"{round((no_compliant/total_performa)*100, 1)}%"
+            # Calculate the % compliance
+            compliance_score = f"{round((compliance_count/total_performa)*100, 1)}%"
             list_of_compliance_scores.append(compliance_score)
-        # compliance_df['compliance_score'] = list_of_compliance_scores
+
         compliance_df.insert(loc=1,
                              column='compliance_score',
                              value=list_of_compliance_scores)
         details_df.insert(loc=1,
                           column='compliance_score',
                           value=list_of_compliance_scores)
+
         return compliance_df, details_df
 
 

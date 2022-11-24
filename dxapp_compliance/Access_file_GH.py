@@ -283,7 +283,7 @@ class compliance_checks:
             app_boolean = False
             print("applet found")
         else:
-            print(f"App or applet not clear. See app/applet here {app}")
+            logger(f"App or applet not clear. See app/applet here {app}")
             # Likely still applet - So set to applet/false.
             app_or_applet = "applet"
             app_boolean = False
@@ -448,10 +448,6 @@ class audit_class:
 
 
     def __init__(self):
-        self.env = Environment(
-            loader=PackageLoader("Access_file_GH"),
-            autoescape=select_autoescape()
-        )
         # Set credentials
         self.GITHUB_TOKEN, self.ORGANISATION = get_credentials()
 
@@ -527,8 +523,10 @@ class audit_class:
         # https://api.github.com/orgs/ORG/repos
         api = GhApi(token=github_token)
         org_details = api.orgs.get(org_username)
+        logger.info(org_details)
         print(org_details)
         total_num_repos = org_details['public_repos'] + org_details['total_private_repos']
+        logger.info(total_num_repos)
         print(total_num_repos)
         per_page_num = 30
         pages_total = ceil(total_num_repos/per_page_num)  # production line
@@ -604,7 +602,7 @@ class audit_class:
             else:
                 continue
 
-        print(f"{len(repos_apps)} app repositories found.")
+        logger.info(f"{len(repos_apps)} app repositories found.")
 
         return repos_apps, repos_apps_content
 
@@ -672,9 +670,8 @@ class audit_class:
                             src_code_content
                             ).decode()
                     else:
-                        print("Other encoding used.")
-        print(organisation_name)
-        print(repo_name)
+                        logger.error("Other encoding used.")
+        logger.info(repo_name)
 
         # Get the latest release date & commit date
         last_release_date = ""  # None
@@ -877,7 +874,6 @@ class audit_class:
         # Find latest commit date
         latest_commit_datetime = max(list_of_commit_dates)
         latest_commit_date = latest_commit_datetime.split("T")[0]
-        print(latest_commit_date)
 
         return latest_commit_date
 
@@ -1158,17 +1154,17 @@ def main():
     # Initialise class with shorthand
     audit = audit_class()
     plots = plotting()
-    # list_of_repos = audit.get_list_of_repositories(audit.ORGANISATION,
-    #                                                audit.GITHUB_TOKEN)
-    # print(f"Number of items: {len(list_of_repos)}")
-    # list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
-    #                                                      audit.GITHUB_TOKEN)
-    # compliance_df, details_df = audit.orchestrate_app_compliance(list_apps,
-    #                                                  list_of_json_contents)
-    # compliance_df, details_df = audit.compliance_stats(compliance_df,
-    #                                                    details_df)
-    # compliance_df.to_csv('compliance_df2.csv')
-    # details_df.to_csv('details_df2.csv')
+    list_of_repos = audit.get_list_of_repositories(audit.ORGANISATION,
+                                                   audit.GITHUB_TOKEN)
+    print(f"Number of items: {len(list_of_repos)}")
+    list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
+                                                         audit.GITHUB_TOKEN)
+    compliance_df, details_df = audit.orchestrate_app_compliance(list_apps,
+                                                     list_of_json_contents)
+    compliance_df, details_df = audit.compliance_stats(compliance_df,
+                                                       details_df)
+    compliance_df.to_csv('compliance_df2.csv')
+    details_df.to_csv('details_df2.csv')
     #TODO: Convert to html table and add to report using datatables
     #TODO: Add stats to parts of the html report and use bootrap to style it.
     #TODO: Add logging to the report.

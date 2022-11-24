@@ -495,7 +495,7 @@ class audit_class:
 
         # Find source for app/applet and check compliance
         src_file_contents, last_release_date, latest_commit_date = self.get_src_file(
-            app,
+            app=app,
             dxjson_content=dxjson_content,
             organisation_name=self.ORGANISATION,
             github_token=self.GITHUB_TOKEN)

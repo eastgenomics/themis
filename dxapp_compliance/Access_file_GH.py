@@ -15,11 +15,11 @@ import plotly.express as px
 import statsmodels.api as sm
 import logging
 
-## TODO: Add stats to parts of the html report and use bootrap to style it.
-## TODO: Make report prettier with bootstrap.
-## TODO: Add assetDepends to the report.
-## TODO: Add list of repos without releases to report. (datatables)
-## TODO: Add ... to the report.
+# TODO: Add stats to parts of the html report and use bootrap to style it.
+# TODO: Make report prettier with bootstrap.
+# TODO: Add assetDepends to the report.
+# TODO: Add list of repos without releases to report. (datatables)
+# TODO: Add ... to the report.
 
 # Set-up
 # Remove warnings from pandas which aren't relevant.
@@ -30,7 +30,7 @@ ROOT_DIR = Path(__file__).absolute().parents[1]
 LOG_FORMAT = (
     "%(asctime)s — %(name)s — %(levelname)s"
     " — %(lineno)d — %(message)s"
-) # TODO: Change log format
+)  # TODO: Change log format
 # Set level to debug, format with date and time and re-write file each time
 logging.basicConfig(
     filename=ROOT_DIR.joinpath('dxapp_compliance/dx_compliance.log'),
@@ -69,7 +69,7 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         "ubuntu_comp_plot": ubuntu_comp_plot,
         "compliance_bycommitdate_plot": compliance_bycommitdate_plot,
         "ubuntu_versions_plot": ubuntu_versions_plot,
-        }
+    }
     with open(filename, mode="w", encoding="utf-8") as results:
         results.write(template.render(context))
         print(f"... wrote {filename}")
@@ -100,6 +100,7 @@ class compliance_checks:
     """
     Class for all the checks for the compliance against DNAnexus performa.
     """
+
     def check_all(self, app=None, dxjson_content="",
                   src_file_contents="",
                   last_release_date=None,
@@ -134,7 +135,8 @@ class compliance_checks:
                 regions.append(region_str)
         else:
             regions = region_list
-        set_e_boolean, no_manual_compiling = self.check_src_file_compliance(dxjson_content, src_file_contents)
+        set_e_boolean, no_manual_compiling = self.check_src_file_compliance(
+            dxjson_content, src_file_contents)
         timeout_policy, timeout_setting = self.check_timeout(
             dxjson_content
         )
@@ -184,7 +186,6 @@ class compliance_checks:
 
         return compliance_dict, details_dict
 
-
     def check_region_compliance(self, dxjson_content, default_region=None):
         """
         Checks compliance for regional settings for DNAnexus app performa.
@@ -227,10 +228,10 @@ class compliance_checks:
         else:
             correct_regional_boolean = False
             region_options_num = num_regions
-            logger.info("Incorrect regional option set and multiple regions present.")
+            logger.info(
+                "Incorrect regional option set and multiple regions present.")
 
         return region_list, correct_regional_boolean, region_options_num
-
 
     def check_timeout(self, dxjson_content):
         """
@@ -251,7 +252,8 @@ class compliance_checks:
         """
         data = dxjson_content
         # Timeout policy compliance info.
-        timeout_policy_dict = data.get('runSpec', {}).get('timeoutPolicy', {}).get('*', {})
+        timeout_policy_dict = data.get('runSpec', {}).get(
+            'timeoutPolicy', {}).get('*', {})
         # If any keys are present then there is a timeout
         # However, this could still be an inappropiate number i.e. 100 hours.
         if timeout_policy_dict is {} or not timeout_policy_dict:
@@ -262,10 +264,10 @@ class compliance_checks:
         timeout_setting = {}
         for key in timeout_policy_dict.keys():
             time_nomenclature = str(key)
-            timeout_setting[f'{time_nomenclature}'] = data.get('runSpec', {}).get('timeoutPolicy', {}).get('*', {}).get(f'{time_nomenclature}')
+            timeout_setting[f'{time_nomenclature}'] = data.get('runSpec', {}).get(
+                'timeoutPolicy', {}).get('*', {}).get(f'{time_nomenclature}')
 
         return timeout_policy, timeout_setting
-
 
     def check_app_compliance(self, app, dxjson_content):
         """
@@ -305,7 +307,6 @@ class compliance_checks:
 
         return app_boolean, app_or_applet
 
-
     def check_src_file_compliance(self, dxjson_content, src_file_contents):
         """
         Checks compliance for set -e exit option and manual compiling settings
@@ -343,7 +344,6 @@ class compliance_checks:
                 no_manual_compiling = True
 
         return set_e_boolean, no_manual_compiling
-
 
     def check_interpreter_compliance(self, dxjson_content):
         """
@@ -405,14 +405,14 @@ class compliance_checks:
         authorised_users = dxjson_content.get('authorizedUsers')
         authorised_devs = dxjson_content.get('developers')
 
-        if not authorised_users: # authorised_users is None
+        if not authorised_users:  # authorised_users is None
             auth_users_boolean = False
         elif authorised_users == ['org-emee_1']:
             auth_users_boolean = True
         else:
             auth_users_boolean = False
 
-        if not authorised_devs: # authorised_devs is None
+        if not authorised_devs:  # authorised_devs is None
             auth_devs_boolean = False
         elif authorised_devs == ['org-emee_1']:
             auth_devs_boolean = True
@@ -465,11 +465,9 @@ class audit_class:
     This collects all the compliance data needed for the audit app.
     """
 
-
     def __init__(self):
         # Set config
         self.GITHUB_TOKEN, self.ORGANISATION, self.DEFAULT_REGION = get_config()
-
 
     def check_file_compliance(self, app, dxjson_content):
         """
@@ -506,9 +504,9 @@ class audit_class:
             app=app, dxjson_content=dxjson_content,
             src_file_contents=src_file_contents,
             last_release_date=last_release_date,
-            latest_commit_date = latest_commit_date,
+            latest_commit_date=latest_commit_date,
             default_region=self.DEFAULT_REGION
-            )
+        )
         # compliance dataframe
         df_compliance = pd.DataFrame.from_dict(compliance_dict,
                                                orient='index')
@@ -521,7 +519,6 @@ class audit_class:
         # transpose fixes value error for length differences
 
         return df_compliance, df_details
-
 
     def get_list_of_repositories(self, org_username, github_token=None):
         """
@@ -545,7 +542,8 @@ class audit_class:
         org_details = api.orgs.get(org_username)
         logger.info(org_details)
         print(org_details)
-        total_num_repos = org_details['public_repos'] + org_details['total_private_repos']
+        total_num_repos = org_details['public_repos'] + \
+            org_details['total_private_repos']
         logger.info(total_num_repos)
         print(total_num_repos)
         per_page_num = 30
@@ -561,7 +559,6 @@ class audit_class:
             all_repos = all_repos + response_repos
 
         return all_repos
-
 
     def select_apps(self, list_of_repos, github_token=None):
         """
@@ -595,7 +592,8 @@ class audit_class:
 
                 # Checks to find dxapp.json which determines if repo is an app.
                 try:
-                    contents = api.repos.get_content(owner, repo_name, file_path)
+                    contents = api.repos.get_content(
+                        owner, repo_name, file_path)
                 except HTTP404NotFoundError:
                     logger.error(f'{repo_name} is not an app.')
                     print(f'{repo_name} is not an app.')
@@ -625,7 +623,6 @@ class audit_class:
         logger.info(f"{len(repos_apps)} app repositories found.")
 
         return repos_apps, repos_apps_content
-
 
     def get_src_file(self, app, organisation_name, dxjson_content, github_token=None):
         """
@@ -667,13 +664,12 @@ class audit_class:
         except HTTP404NotFoundError:
             logger.info(f'{repo_name} No src file found.')
 
-
         repos_apps.append(dxjson_content)
         if contents:
             for content in contents:
                 if (content['type'] == 'file' and
                     r'.sh' in content['name'] or
-                    r'.py' in content['name']):
+                        r'.py' in content['name']):
                     try:
                         file_path = content['path']
                         app_src_file = api.repos.get_content(organisation_name,
@@ -688,7 +684,7 @@ class audit_class:
                     if code_content_encoding == 'base64':
                         src_content_decoded = base64.b64decode(
                             src_code_content
-                            ).decode()
+                        ).decode()
                     else:
                         logger.error("Other encoding used.")
         logger.info(repo_name)
@@ -697,14 +693,13 @@ class audit_class:
         last_release_date = ""  # None
         last_release_date = self.get_latest_release(
             organisation_name, repo_name, github_token
-            )
+        )
         latest_commit_date = ""  # None
         latest_commit_date = self.get_latest_commit_date(
             organisation_name, repo_name, github_token
-            )
+        )
 
         return src_content_decoded, last_release_date, latest_commit_date
-
 
     def summary_compliance_stats(self, compliance_df):
         """
@@ -734,7 +729,8 @@ class audit_class:
 
         # Counts number of repos with each dist_version
         print(compliance_df.groupby(['dist_version'])['dist_version'].count())
-        version_complaince = (compliance_df.groupby(['dist_version'])['dist_version'].count()['20.04']/total_rows)*100
+        version_complaince = (compliance_df.groupby(['dist_version'])[
+                              'dist_version'].count()['20.04']/total_rows)*100
         print(version_complaince)
 
         # Counts number of repos with each dist
@@ -747,13 +743,16 @@ class audit_class:
         print(eggd_stat)
         # Correct version of ubuntu
         compliance_df.info()
-        bash_apps = compliance_df[compliance_df['interpreter'].str.match('bash')]
+        bash_apps = compliance_df[compliance_df['interpreter'].str.match(
+            'bash')]
         print(bash_apps)
-        ubuntu_version_stat = ((bash_apps.groupby(['dist_version'])['dist_version'].count()['20.04'])/total_rows) * 100
+        ubuntu_version_stat = ((bash_apps.groupby(['dist_version'])[
+                               'dist_version'].count()['20.04'])/total_rows) * 100
         print(ubuntu_version_stat)
         # Correct regional options - aws:eu-central-1 present.
         selection = ['aws:eu-central-1']
-        mask = compliance_df.regionalOptions.apply(lambda x: any(item for item in selection if item in x))
+        mask = compliance_df.regionalOptions.apply(
+            lambda x: any(item for item in selection if item in x))
         region_set_apps = compliance_df[mask]
         print(region_set_apps)
         compliance_df = compliance_df['title'].dropna()
@@ -761,7 +760,6 @@ class audit_class:
         print(eggd_title_match)
         eggd_stat = round((len(eggd_title_match)/total_rows)*100, 2)
         print(eggd_stat)
-
 
     def compliance_stats(self, compliance_df, details_df):
         """
@@ -816,7 +814,6 @@ class audit_class:
 
         return compliance_df, details_df
 
-
     def get_latest_release(self, organisation_name, repo_name, token):
         """
         Get latest release of app/applet repo.
@@ -847,7 +844,6 @@ class audit_class:
 
         return last_release_date
 
-
     def get_latest_commit_date(self, organisation_name, repo_name, token):
         """
         Get latest commit of app/applet repo.
@@ -871,7 +867,8 @@ class audit_class:
         # List all branches
         list_of_shas = []
         try:
-            list_of_branches = api.repos.list_branches(organisation_name, repo_name)
+            list_of_branches = api.repos.list_branches(
+                organisation_name, repo_name)
         except HTTP404NotFoundError:
             logger.error(f'{repo_name} 404 No branches found.')
             list_of_branches = []
@@ -901,7 +898,6 @@ class audit_class:
 
         return latest_commit_date
 
-
     def orchestrate_app_compliance(self, list_apps, list_of_json_contents):
         """
         orchestrate_app_compliance
@@ -928,18 +924,19 @@ class audit_class:
         for index, (app, dxapp_contents) in enumerate(zip(list_apps, list_of_json_contents)):
             # The first item creates the dataframe
             if index == 0:
-                df_repo, df_repo_details = self.check_file_compliance(app, dxapp_contents)
+                df_repo, df_repo_details = self.check_file_compliance(
+                    app, dxapp_contents)
                 compliance_df = df_repo
                 details_df = df_repo_details
             else:
-                df_repo, df_repo_details = self.check_file_compliance(app, dxapp_contents)
+                df_repo, df_repo_details = self.check_file_compliance(
+                    app, dxapp_contents)
                 compliance_df = pd.concat([compliance_df,
                                            df_repo], ignore_index=True)
                 details_df = pd.concat([details_df,
                                         df_repo_details], ignore_index=True)
 
         return compliance_df, details_df
-
 
     def compliance_scores_for_each_measure(self, df):
         """
@@ -980,7 +977,8 @@ class audit_class:
             len_df = len(df)
 
             # Get all non-boolean columns
-            non_boolean_rows = df.query(f'{column} != True').query(f'{column} != False')
+            non_boolean_rows = df.query(
+                f'{column} != True').query(f'{column} != False')
 
             # Num_Nas = df[f'{column}'].isna().sum() # Alternative for nas only.
             num_non_boolean_rows = len(non_boolean_rows)
@@ -997,6 +995,7 @@ class audit_class:
 
         return summary_df
 
+
 class plotting:
     """
     Collection of plotting functions to use plotly to
@@ -1005,7 +1004,6 @@ class plotting:
 
     def __init__(self):
         pass
-
 
     def import_csv(self, path_to_dataframe):
         """
@@ -1023,10 +1021,10 @@ class plotting:
         """
         df = pd.read_csv(path_to_dataframe)
         if 'compliance_score' in df.columns:
-            df['compliance_score'] = df['compliance_score'].str.rstrip("%").astype(float)
+            df['compliance_score'] = df['compliance_score'].str.rstrip(
+                "%").astype(float)
 
         return df
-
 
     def release_date_compliance_plot(self, df):
         """
@@ -1055,11 +1053,10 @@ class plotting:
                 'x': 'Date of last release',
                 'y': 'Compliance (%)'
             },
-            )
+        )
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
         return html_fig
-
 
     def compliance_by_latest_activity_plot(self, df):
         """
@@ -1088,12 +1085,11 @@ class plotting:
                 'x': 'Date of last release',
                 'y': 'Compliance (%)'
             },
-            trendline="lowess", # needs module statsmodels
-            )
+            trendline="lowess",  # needs module statsmodels
+        )
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
         return html_fig
-
 
     def ubuntu_compliance_timeseries(self, df):
         """
@@ -1124,8 +1120,8 @@ class plotting:
             x=df_ordered['last_release_date'],
             y=df_ordered['compliance_score'],
             color=df_ordered['dist_version'],
-            #trendline="lowess",
-            #trendline_scope="overall",
+            # trendline="lowess",
+            # trendline_scope="overall",
             labels={
                 'x': 'Date of last release',
                 'y': 'Compliance (%)',
@@ -1138,7 +1134,6 @@ class plotting:
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
         return html_fig
-
 
     def bash_version(self, df):
         """
@@ -1156,21 +1151,22 @@ class plotting:
         # Find all apps with bash as the interpreter
         dfout = df[df['interpreter'] == 'bash']
         dfout.sort_values(by=['dist_version'])
-        dfout["dist_version"]=dfout["dist_version"].values.astype('str')
-        dfout = dfout['dist_version'].value_counts().rename_axis('unique_versions').reset_index(name='counts')
+        dfout["dist_version"] = dfout["dist_version"].values.astype('str')
+        dfout = dfout['dist_version'].value_counts().rename_axis(
+            'unique_versions').reset_index(name='counts')
 
         fig = px.bar(dfout, x="unique_versions", y="counts",
                      color="unique_versions",
                      labels={
-                             "unique_versions": "Ubuntu version",
-                             "counts": "Count",
-                             },
+                         "unique_versions": "Ubuntu version",
+                         "counts": "Count",
+                     },
                      title="Version of Ubuntu by bash apps",
                      )
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
         return html_fig
-        #TODO: Add a bar chart for other compliance stats.
+        # TODO: Add a bar chart for other compliance stats.
 
 
 def main():
@@ -1183,20 +1179,24 @@ def main():
     list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
                                                          audit.GITHUB_TOKEN)
     compliance_df, details_df = audit.orchestrate_app_compliance(list_apps,
-                                                     list_of_json_contents)
+                                                                 list_of_json_contents)
     compliance_df, details_df = audit.compliance_stats(compliance_df,
                                                        details_df)
     compliance_df.to_csv('compliance_df2.csv')
     details_df.to_csv('details_df2.csv')
-    #TODO: Convert to html table and add to report using datatables
-    #TODO: Add stats to parts of the html report and use bootrap to style it.
-    #TODO: Add logging to the report.
-    compliance_df = plots.import_csv('/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df2.csv')
-    detailed_df = plots.import_csv('/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/details_df2.csv')
-    compliance_stats_summary = audit.compliance_scores_for_each_measure(compliance_df)
+    # TODO: Convert to html table and add to report using datatables
+    # TODO: Add stats to parts of the html report and use bootrap to style it.
+    # TODO: Add logging to the report.
+    compliance_df = plots.import_csv(
+        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df2.csv')
+    detailed_df = plots.import_csv(
+        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/details_df2.csv')
+    compliance_stats_summary = audit.compliance_scores_for_each_measure(
+        compliance_df)
     release_comp_plot = plots.release_date_compliance_plot(compliance_df)
     ubuntu_comp_plot = plots.ubuntu_compliance_timeseries(detailed_df)
-    compliance_bycommitdate_plot = plots.compliance_by_latest_activity_plot(compliance_df)
+    compliance_bycommitdate_plot = plots.compliance_by_latest_activity_plot(
+        compliance_df)
     ubuntu_versions_plot = plots.bash_version(detailed_df)
     get_template_render(compliance_df, detailed_df, compliance_stats_summary,
                         release_comp_plot, ubuntu_comp_plot,

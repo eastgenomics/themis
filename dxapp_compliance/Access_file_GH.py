@@ -15,10 +15,10 @@ import statsmodels.api as sm
 import logging
 
 ## TODO: Add stats to parts of the html report and use bootrap to style it.
-## TODO: Add summary stats table to report.
 ## TODO: Make report prettier with bootstrap.
 ## TODO: Add assetDepends to the report.
-
+## TODO: Add list of repos without releases to report. (datatables)
+## TODO: Add ... to the report.
 
 # Set-up
 # Remove warnings from pandas which aren't relevant.
@@ -277,11 +277,11 @@ class compliance_checks:
         if 'version' in dxjson_content.keys():
             app_or_applet = "app"
             app_boolean = True
-            print("app FOUND")
+            logger(f"App: {app.name}")
         elif "_v" in app.get('name'):
             app_or_applet = "applet"
             app_boolean = False
-            print("applet found")
+            logger(f"Applet: {app.name}")
         else:
             logger(f"App or applet not clear. See app/applet here {app}")
             # Likely still applet - So set to applet/false.
@@ -1031,7 +1031,6 @@ class plotting:
                 'x': 'Date of last release',
                 'y': 'Compliance (%)'
             },
-            trendline="lowess", # needs module statsmodels
             )
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 

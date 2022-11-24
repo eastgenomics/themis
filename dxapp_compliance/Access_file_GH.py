@@ -43,7 +43,9 @@ logger = logging.getLogger("general log")
 
 def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
                         release_comp_plot, ubuntu_comp_plot,
-                        compliance_bycommitdate_plot):
+                        compliance_bycommitdate_plot,
+                        ubuntu_versions_plot
+                        ):
     """
     Render jinja2 template with provided variables.
     """
@@ -64,6 +66,7 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         "release_comp_plot": release_comp_plot,
         "ubuntu_comp_plot": ubuntu_comp_plot,
         "compliance_bycommitdate_plot": compliance_bycommitdate_plot,
+        "ubuntu_versions_plot": ubuntu_versions_plot,
         }
     with open(filename, mode="w", encoding="utf-8") as results:
         results.write(template.render(context))
@@ -256,9 +259,8 @@ class compliance_checks:
         ----------
             app (GithubAPI app object):
                 Github API repository object used for extracting app/applet info.
-            app_or_applet (str):
-                str of what the repo is for app/applet.
-
+            dxjson_content (dict):
+                dictionary with all the information on dxapp.json details.
 
         Returns:
         -------
@@ -464,6 +466,8 @@ class audit_class:
 
         Parameters
         ----------
+            app (GithubAPI app object):
+                Github API repository object used for extracting app/applet info.
             dxjson_content (dict):
                 contents of the dxapp.json file for the app.
 
@@ -509,18 +513,16 @@ class audit_class:
 
         Parameters
         ----------
-        self:
-            self
-        org_username (str):
-            the username of the organisation to use
-            for getting the list of repositories.
-        github_token (str):
-            the github token to authenticate with.
+            org_username (str):
+                the username of the organisation to use
+                for getting the list of repositories.
+            github_token (str):
+                the github token to authenticate with.
 
         Returns
         -------
-        all_repos (list):
-            a list of all the repositories for the given organisation.
+            all_repos (list):
+                a list of all the repositories for the given organisation.
         """
         # https://api.github.com/orgs/ORG/repos
         api = GhApi(token=github_token)
@@ -607,25 +609,6 @@ class audit_class:
         return repos_apps, repos_apps_content
 
 
-    def convert_to_dataframe(self, list_of_json_contents):
-        """
-
-        Parameters
-        ----------
-        list_of_json_contents (list of dictionaries):
-            list of repositories with json contents
-
-        Returns
-        -------
-        df (pandas dataframe):
-            dataframe of list of repositories with json contents
-        """
-
-        dataframe = pd.DataFrame.from_records(list_of_json_contents)
-
-        return dataframe
-
-
     def get_src_file(self, app, organisation_name, dxjson_content, github_token=None):
         """
         This function gets the source script for a given app/applet.
@@ -645,9 +628,10 @@ class audit_class:
         Returns:
             src_content_decoded (str):
                 the source code for the app/applet decoded.
-        In development:
-            returning the last commit date for the app/applet.
-            To be used for checking if the app/applet was recently updated.
+            last_release_date (str):
+                the date of the last release for the app/applet.
+            latest_commit_date (str):
+                the date of the latest commit for the app/applet.
         """
         repos_apps = []
         src_code_content = None
@@ -776,6 +760,8 @@ class audit_class:
             compliance_df (pandas dataframe):
                 dataframe of compliance booleans for each app/applet.
                 with added compliance % column.
+            details_df (pandas dataframe):
+                dataframe of compliance performa details for each app/applet.
         """
         list_of_compliance_scores = []
         # Find the % overall compliance for each app/applet
@@ -844,18 +830,19 @@ class audit_class:
     def get_latest_commit_date(self, organisation_name, repo_name, token):
         """
         Get latest commit of app/applet repo.
-        In progress - getting latest commit date
+        Extracts the latest commit date from the github API.
+
         Parameters
         ----------
             organisation_name (str):
                 name of organisation of app/applet.
             repo_name (str):
-                name of repo to get latest release of.
+                name of repo to get latest commit of.
             token (str):
                 github token for accessing repo via API.
         Returns
         -------
-            last_release_date (str):
+            last_commit_date (str):
                 string of latest commit date.
         """
         api = GhApi(token=token)
@@ -937,15 +924,20 @@ class audit_class:
     def compliance_scores_for_each_measure(self, df):
         """
         compliance_scores_for_each_measure
-        TODO: This docstring needs finishing.
-        IN PROGRESS
+        This function takes the compliance dataframe and
+        creates a new dataframe summarising true/false for each measure.
+        And then, calcualtes an overall compliance percentage for each measure.
+
         Parameters
         ----------
-            df (_type_): _description_
+            df (pandas dataframe):
+                dataframe of compliance booleans and score
+                for each app/applet repo.
 
         Returns
         -------
-            _type_: _description_
+            summary_df:
+                dataframe of compliance scores for each performa.
         """
         # df.fillna(value=False, inplace=True)
         df = df[[
@@ -982,12 +974,13 @@ class audit_class:
             }
             columns_summed.append(complaince_stats)
         summary_df = pd.DataFrame(columns_summed)
-        print(summary_df)
+
         return summary_df
 
 class plotting:
     """
-     In progress.
+    Collection of plotting functions to use plotly to
+    create plots of compliance performa for each app/applet repo.
     """
 
     def __init__(self):
@@ -996,15 +989,20 @@ class plotting:
 
     def import_csv(self, path_to_dataframe):
         """
-        import_csv _summary_
+        Imports csv into pandas dataframe for plotting.
+        Converts compliance column into float if present.
 
         Parameters
         ----------
             path_to_dataframe (str): string for absolute/relative path to
                 csv file.
+        Returns
+        -------
+            df (pandas dataframe):
+                pandas dataframe of csv file with minor changes.
         """
         df = pd.read_csv(path_to_dataframe)
-        if df['compliance_score']:
+        if 'compliance_score' in df.columns:
             df['compliance_score'] = df['compliance_score'].str.rstrip("%").astype(float)
 
         return df
@@ -1028,15 +1026,7 @@ class plotting:
         df['last_release_date'] = pd.to_datetime(df['last_release_date'])
         # Convert % column to numeric float column
         df_ordered = df.sort_values(by=['last_release_date'])
-        # print(len(df))
-        # print(len(df_ordered))
-        # print(df_ordered['last_release_date'])
-        # df['compliance_score'] = pd.to_numeric(df['compliance_score'])
-        #print(df_ordered['compliance_score'])
-        #release_date_plot = go.Figure([go.Scatter(x=df_ordered['last_release_date'],
-        #                                      y=df_ordered['compliance_score'],
-        #                                      marker=go.Marker(color='#3D3C28')
-        #                                      )],)
+
         fig = px.scatter(
             data_frame=df_ordered,
             x=df_ordered['last_release_date'],
@@ -1063,13 +1053,12 @@ class plotting:
 
         Returns
         -------
-            plot (plotly plot object):
-                plot object of apps/applets with release date and compliance score.
+            html fig (plotly html plot):
+                plot html object of apps/applets with release date and compliance score.
         """
         # Convert release_date to pandas datetime column
         df['latest_commit_date'] = pd.to_datetime(df['latest_commit_date'])
         # Convert % column to numeric float column
-        print(df['compliance_score'])
         df_ordered = df.sort_values(by=['latest_commit_date'])
 
         fig = px.scatter(
@@ -1094,24 +1083,22 @@ class plotting:
         Parameters
         ----------
             df (dataframe):
-                dataframe of apps/applets with release date and compliance score.
+                dataframe of apps/applets with ubuntu version,
+                release date, and compliance score.
 
         Returns
         -------
-            plot (plotly plot object):
-                plot object of apps/applets with release date and compliance score.
+            html fig (plotly html plot):
+                plot html object of apps/applets with release date,
+                ubuntu version, and compliance score.
         """
         # Convert release_date to pandas datetime column
         df = df[df['interpreter'] == 'bash']
         df['last_release_date'] = pd.to_datetime(df['last_release_date'])
         # Convert % column to numeric float column
-        print(df['compliance_score'])
         df_ordered = df.sort_values(by=['last_release_date'])
-        # df_ordered = df_ordered.query("interpreter == 'bash'")
-        # df['compliance_score'] = pd.to_numeric(df['compliance_score'])
-        # print(df_ordered['compliance_score'])
+
         df_ordered['dist_version'] = df_ordered['dist_version'].astype('str')
-        #print(df_ordered['dist_version'])
 
         fig = px.scatter(
             data_frame=df_ordered,
@@ -1136,28 +1123,34 @@ class plotting:
 
     def bash_version(self, df):
         """
-        bash_py: Uses plotly to plot the distribution of bash and python apps.
+        Uses plotly to plot the distribution of bash ubuntu versions.
 
-        Args:
+        Parameters
+        ----------
             df (pandas df): dataframe of apps compliance data.
+
+        Returns
+        -------
+            html_fig (plotly html plot):
+                plot of bash and python apps.
         """
-        # using Plotly Express directly
+        # Find all apps with bash as the interpreter
         dfout = df[df['interpreter'] == 'bash']
-        print(df)
-        print(dfout)
+        dfout.sort_values(by=['dist_version'])
+        dfout["dist_version"]=dfout["dist_version"].values.astype('str')
         dfout = dfout['dist_version'].value_counts().rename_axis('unique_versions').reset_index(name='counts')
-        print(dfout)
-        print(dfout.columns)
 
-        fig2 = px.bar(dfout, x="unique_versions", y="counts",
-                      color="unique_versions",
-                      labels={
-                              "unique_versions": "Ubuntu version",
-                              "counts": "Count",
-                              },
-                      title="Version of Ubuntu by bash apps",
-                      )
+        fig = px.bar(dfout, x="unique_versions", y="counts",
+                     color="unique_versions",
+                     labels={
+                             "unique_versions": "Ubuntu version",
+                             "counts": "Count",
+                             },
+                     title="Version of Ubuntu by bash apps",
+                     )
+        html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
+        return html_fig
         #TODO: Add a bar chart for other compliance stats.
 
 
@@ -1165,30 +1158,32 @@ def main():
     # Initialise class with shorthand
     audit = audit_class()
     plots = plotting()
-    list_of_repos = audit.get_list_of_repositories(audit.ORGANISATION,
-                                                   audit.GITHUB_TOKEN)
-    print(f"Number of items: {len(list_of_repos)}")
-    list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
-                                                         audit.GITHUB_TOKEN)
-    compliance_df, details_df = audit.orchestrate_app_compliance(list_apps,
-                                                     list_of_json_contents)
-    compliance_df, details_df = audit.compliance_stats(compliance_df,
-                                                       details_df)
-    compliance_df.to_csv('compliance_df2.csv')
-    details_df.to_csv('details_df2.csv')
+    # list_of_repos = audit.get_list_of_repositories(audit.ORGANISATION,
+    #                                                audit.GITHUB_TOKEN)
+    # print(f"Number of items: {len(list_of_repos)}")
+    # list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
+    #                                                      audit.GITHUB_TOKEN)
+    # compliance_df, details_df = audit.orchestrate_app_compliance(list_apps,
+    #                                                  list_of_json_contents)
+    # compliance_df, details_df = audit.compliance_stats(compliance_df,
+    #                                                    details_df)
+    # compliance_df.to_csv('compliance_df2.csv')
+    # details_df.to_csv('details_df2.csv')
     #TODO: Convert to html table and add to report using datatables
     #TODO: Add stats to parts of the html report and use bootrap to style it.
     #TODO: Add logging to the report.
     compliance_df = plots.import_csv('/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df2.csv')
     detailed_df = plots.import_csv('/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/details_df2.csv')
     compliance_stats_summary = audit.compliance_scores_for_each_measure(compliance_df)
-    print("done")
     release_comp_plot = plots.release_date_compliance_plot(compliance_df)
     ubuntu_comp_plot = plots.ubuntu_compliance_timeseries(detailed_df)
     compliance_bycommitdate_plot = plots.compliance_by_latest_activity_plot(compliance_df)
+    ubuntu_versions_plot = plots.bash_version(detailed_df)
     get_template_render(compliance_df, detailed_df, compliance_stats_summary,
                         release_comp_plot, ubuntu_comp_plot,
-                        compliance_bycommitdate_plot)
+                        compliance_bycommitdate_plot,
+                        ubuntu_versions_plot
+                        )
 
 
 if __name__ == '__main__':

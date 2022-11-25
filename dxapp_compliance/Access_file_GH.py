@@ -288,7 +288,7 @@ class compliance_checks:
         """
         # Find compliance for app
         # Initialise variables - prevents not referenced before assignment error
-        app_boolean, app_or_applet = None, None
+        app_boolean = app_or_applet = None
 
         if 'version' in dxjson_content.keys():
             app_or_applet = "app"
@@ -325,7 +325,7 @@ class compliance_checks:
             no_manual_compliance (boolean):
                 True/False whether only the app doesn't manually compile.
         """
-        set_e_boolean, no_manual_compiling = None, None
+        set_e_boolean = no_manual_compiling = None
         interpreter = dxjson_content.get('runSpec', {}).get('interpreter', '')
         if 'python' in interpreter:
             set_e_boolean = "NA"
@@ -399,19 +399,19 @@ class compliance_checks:
             auth_users_boolean (boolean):
                 True/False whether the right users are set in dxapp.json
         """
-        auth_devs_boolean, auth_users_boolean = None, None
+        auth_devs_boolean = auth_users_boolean = None
         # auth devs & users
         authorised_users = dxjson_content.get('authorizedUsers')
         authorised_devs = dxjson_content.get('developers')
 
-        if not authorised_users:  # authorised_users is None
+        if not authorised_users:
             auth_users_boolean = False
         elif authorised_users == ['org-emee_1']:
             auth_users_boolean = True
         else:
             auth_users_boolean = False
 
-        if not authorised_devs:  # authorised_devs is None
+        if not authorised_devs:
             auth_devs_boolean = False
         elif authorised_devs == ['org-emee_1']:
             auth_devs_boolean = True
@@ -547,7 +547,6 @@ class audit_class:
         print(total_num_repos)
         per_page_num = 30
         pages_total = ceil(total_num_repos/per_page_num)  # production line
-        # pages_total = 1  # testing line
         all_repos = []
 
         for page in range(1, pages_total+1):
@@ -689,11 +688,11 @@ class audit_class:
         logger.info(repo_name)
 
         # Get the latest release date & commit date
-        last_release_date = ""  # None
+        last_release_date = ""
         last_release_date = self.get_latest_release(
             organisation_name, repo_name, github_token
         )
-        latest_commit_date = ""  # None
+        latest_commit_date = ""
         latest_commit_date = self.get_latest_commit_date(
             organisation_name, repo_name, github_token
         )
@@ -791,7 +790,7 @@ class audit_class:
             compliance_count = 0
             # Set number of total performa relevant to the repo.
             if 'bash' in row['interpreter']:
-                total_performa = 9
+                total_performa = 10
             else:
                 total_performa = 8
             # Count the number of True values in each row
@@ -914,7 +913,7 @@ class audit_class:
             details_df (dataframe)
                 df of apps/applets with detailed information.
         """
-        compliance_df, details_df = None, None
+        compliance_df = details_df = None
         if len(list_apps) != len(list_of_json_contents):
             print("Error missing repos")
         else:
@@ -1182,6 +1181,7 @@ def main():
                                                        details_df)
     compliance_df.to_csv('compliance_df2.csv')
     details_df.to_csv('details_df2.csv')
+    # TODO: Add arguements to the main function to allow for customisation.
     compliance_df = plots.import_csv(
         '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df2.csv')
     detailed_df = plots.import_csv(

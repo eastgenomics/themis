@@ -19,7 +19,7 @@ from jinja2 import Environment, FileSystemLoader
 # TODO: Make report prettier with bootstrap.
 # TODO: Add assetDepends to the report.
 # TODO: Add list of repos without releases to report. (datatables)
-# TODO: Add ... to the report.
+# TODO: Add instance type to the report.
 
 # Set-up
 # Remove warnings from pandas which aren't relevant.

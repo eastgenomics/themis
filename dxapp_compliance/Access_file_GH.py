@@ -49,6 +49,28 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
                         ):
     """
     Render jinja2 template with provided variables.
+    Parameters
+    ----------
+    compliance_df (pandas dataframe):
+        Dataframe containing compliance information for each app.
+    detailed_df (pandas dataframe):
+        Dataframe containing detailed information for each app.
+    compliance_stats_summary (pandas dataframe):
+        Dataframe containing compliance information for each app.
+    release_comp_plot (plotly figure):
+        Plotly figure of Scatter plot for compliance % by release date
+    ubuntu_comp_plot (plotly figure):
+        Plotly figure of Scatter plot for compliance % by release date
+        coloured by ubuntu version.
+    compliance_bycommitdate_plot (plotly figure):
+        Plotly figure of Scatter plot for compliance % by last commit date
+    ubuntu_versions_plot (plotly figure):
+        Plotly figure of bar plot of counts of ubuntu versions used in apps.
+
+    Returns
+    -------
+    None
+    But writes html file of the report with provided variables.
     """
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("Report.html")

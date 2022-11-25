@@ -10,7 +10,6 @@ from math import ceil
 import pandas as pd
 import numpy as np
 from jinja2 import Environment, FileSystemLoader
-# import plotly.graph_objects as go
 import plotly.express as px
 import statsmodels.api as sm
 import logging
@@ -980,7 +979,6 @@ class audit_class:
             non_boolean_rows = df.query(
                 f'{column} != True').query(f'{column} != False')
 
-            # Num_Nas = df[f'{column}'].isna().sum() # Alternative for nas only.
             num_non_boolean_rows = len(non_boolean_rows)
             total = len_df - num_non_boolean_rows
             complaince_stats = {
@@ -988,7 +986,7 @@ class audit_class:
                 'true': no_true,
                 'false': no_false,
                 'total': total,
-                'compliance_percentage': round((no_true/(no_true + no_false))*100, 2)
+                'compliance_percentage': round((no_true / (no_true + no_false))*100, 2)
             }
             columns_summed.append(complaince_stats)
         summary_df = pd.DataFrame(columns_summed)
@@ -1037,8 +1035,8 @@ class plotting:
 
         Returns
         -------
-            plot (plotly plot object):
-                plot object of apps/applets with release date and compliance score.
+            html_fig (plotly html plot object):
+                html plot object of apps/applets with release date and compliance score.
         """
         # Convert release_date to pandas datetime column
         df['last_release_date'] = pd.to_datetime(df['last_release_date'])
@@ -1184,9 +1182,6 @@ def main():
                                                        details_df)
     compliance_df.to_csv('compliance_df2.csv')
     details_df.to_csv('details_df2.csv')
-    # TODO: Convert to html table and add to report using datatables
-    # TODO: Add stats to parts of the html report and use bootrap to style it.
-    # TODO: Add logging to the report.
     compliance_df = plots.import_csv(
         '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df2.csv')
     detailed_df = plots.import_csv(

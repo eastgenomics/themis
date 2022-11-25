@@ -368,11 +368,12 @@ class compliance_checks:
         else:
             # Checks for only BASH apps
             # src file compliance info.
-            match = re.search(r"set[\ \-exo]+", src_file_contents)
-            if match:
+            match_set_e = re.search(r"set[\ \-exo]+", src_file_contents)
+            if match_set_e:
                 set_e_boolean = True
             else:
                 set_e_boolean = False
+            match_manual_compiling = re.search(r"set[\ \-exo]+", src_file_contents)
             if "make install" in src_file_contents:
                 no_manual_compiling = False
             else:
@@ -437,6 +438,10 @@ class compliance_checks:
 
         Returns:
         -------
+            authorised_users (list):
+                List of users who can run the app.
+            authorised_devs (list):
+                List of users who can develop the app.
             auth_devs_boolean (boolean):
                 True/False whether the right developers are set in dxapp.json
             auth_users_boolean (boolean):
@@ -482,7 +487,7 @@ class compliance_checks:
                 True/False whether the app/applet title conforms
                 to the 'eggd_' prefix criterium.
         """
-        # name compliance info.
+        # get app name and title
         name = dxjson_content.get('name')
         title = dxjson_content.get('title')
         if not name:
@@ -540,7 +545,6 @@ class audit_class:
             organisation_name=self.ORGANISATION,
             github_token=self.GITHUB_TOKEN)
         # Run all compliance checks
-        # compliance_checks.
         checks = compliance_checks()
         compliance_dict, details_dict = checks.check_all(
             app=app, dxjson_content=dxjson_content,
@@ -583,11 +587,9 @@ class audit_class:
         api = GhApi(token=github_token)
         org_details = api.orgs.get(org_username)
         logger.info(org_details)
-        print(org_details)
         total_num_repos = org_details['public_repos'] + \
             org_details['total_private_repos']
         logger.info(total_num_repos)
-        print(total_num_repos)
         per_page_num = 30
         pages_total = ceil(total_num_repos/per_page_num)  # production line
         all_repos = []
@@ -597,7 +599,7 @@ class audit_class:
                                               per_page=per_page_num,
                                               page=page)
             response_repos = [repo for repo in response]
-            all_repos = all_repos + response_repos
+            all_repos += response_repos
 
         return all_repos
 
@@ -696,6 +698,8 @@ class audit_class:
         contents = None
         repo_name = app.get('name')
         file_path = 'src/'
+        ## TODO: Change function to get src file from dxapp.json
+        #file_path = dxjson_content.get('runSpec').get('file')
 
         # Extract src file
         try:
@@ -709,8 +713,8 @@ class audit_class:
         if contents:
             for content in contents:
                 if (content['type'] == 'file' and
-                    r'.sh' in content['name'] or
-                        r'.py' in content['name']):
+                    (r'.sh' in content['name'] or
+                        r'.py' in content['name'])):
                     try:
                         file_path = content['path']
                         app_src_file = api.repos.get_content(organisation_name,
@@ -731,80 +735,19 @@ class audit_class:
         logger.info(repo_name)
 
         # Get the latest release date & commit date
-        last_release_date = ""
+        #last_release_date = ""
         last_release_date = self.get_latest_release(
             organisation_name, repo_name, github_token
         )
-        latest_commit_date = ""
+        #latest_commit_date = ""
         latest_commit_date = self.get_latest_commit_date(
             organisation_name, repo_name, github_token
         )
 
         return src_content_decoded, last_release_date, latest_commit_date
 
-    def summary_compliance_stats(self, compliance_df):
-        """
-        compliance_stats
-        Calculates stats for overall compliance of each app/applet.
-        In progress, requires more work.
-        Purpose: make a small summary table
-        for overall compliance of each category.
-
-        Parameters
-        ----------
-            compliance_df (dataframe):
-                dataframe of app/applet dxapp.json contents.
-        Returns
-        -------
-            None (currently)
-        """
-        # Find out how many repos have eggd in the name and title
-        compliance_df = compliance_df.fillna(value=np.nan)
-
-        print(compliance_df.groupby('timeout'))
-        print(compliance_df.groupby('timeout').size())
-
-        print(compliance_df['timeout'].isna().sum())
-        total_rows = len(compliance_df)
-        print(total_rows)
-
-        # Counts number of repos with each dist_version
-        print(compliance_df.groupby(['dist_version'])['dist_version'].count())
-        version_complaince = (compliance_df.groupby(['dist_version'])[
-                              'dist_version'].count()['20.04']/total_rows)*100
-        print(version_complaince)
-
-        # Counts number of repos with each dist
-        print(compliance_df.groupby(['distribution'])['distribution'].count())
-
-        # Find number with correct name/title compliance
-        eggd_match = compliance_df[compliance_df['name'].str.match('eggd')]
-        print(eggd_match)
-        eggd_stat = round((len(eggd_match)/total_rows)*100, 2)
-        print(eggd_stat)
-        # Correct version of ubuntu
-        compliance_df.info()
-        bash_apps = compliance_df[compliance_df['interpreter'].str.match(
-            'bash')]
-        print(bash_apps)
-        ubuntu_version_stat = ((bash_apps.groupby(['dist_version'])[
-                               'dist_version'].count()['20.04'])/total_rows) * 100
-        print(ubuntu_version_stat)
-        # Correct regional options - aws:eu-central-1 present.
-        selection = ['aws:eu-central-1']
-        mask = compliance_df.regionalOptions.apply(
-            lambda x: any(item for item in selection if item in x))
-        region_set_apps = compliance_df[mask]
-        print(region_set_apps)
-        compliance_df = compliance_df['title'].dropna()
-        eggd_title_match = compliance_df[compliance_df.str.match('eggd')]
-        print(eggd_title_match)
-        eggd_stat = round((len(eggd_title_match)/total_rows)*100, 2)
-        print(eggd_stat)
-
     def compliance_stats(self, compliance_df, details_df):
         """
-        compliance_stats
         Finds the % compliance with the EastGLH guidelines for each app/applet.
 
         Parameters
@@ -907,12 +850,8 @@ class audit_class:
 
         # List all branches
         list_of_shas = []
-        try:
-            list_of_branches = api.repos.list_branches(
+        list_of_branches = api.repos.list_branches(
                 organisation_name, repo_name)
-        except HTTP404NotFoundError:
-            logger.error(f'{repo_name} 404 No branches found.')
-            list_of_branches = []
 
         # Find sha for each branch and append to list for api calls.
         for branch in list_of_branches:

@@ -45,7 +45,6 @@
                 {% block content %}
                     <p class="fw-bold">Compliance Table by repository</p>
                     <div style="width: 100%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
-                        <!-- style="width: 80%;margin-left: 10%;margin-top: 5px;margin-bottom: 40px; -->
                         {{ Compliance_table | safe }}
                     </div>
                     <br>
@@ -68,7 +67,7 @@
                 {% endblock %}
                 <p class="fw-bold"> Summary table of compliance by performa </p>
                 <div style="width:53.5%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
-                    <table id="summary_1"> {{ compliance_stats_summary | safe }} </table>
+                    <table id="summary_1"> {{ compliance_stats_summary }} </table>
                 </div>
             </div>
         </div>
@@ -97,7 +96,7 @@
                 ],
                 dom: 'Bfrtip',
                 buttons: [
-                    'copyHtml5', 'csv', 'excel', 'pdf', 'print'
+                    'copyHtml5', 'csv',
                 ],
                 pageResize:     false,
                 ordering:       true
@@ -125,14 +124,13 @@
                 paging: false,
                 dom: 'Bfrtip',
                 buttons: [
-                    'copyHtml5', 'csv', 'excel', 'pdf', 'print'
+                    'copyHtml5', 'csv', 'print'
                 ],
                 pageResize:     false,
                 ordering:       true
                 });
             });
         </script>
-
     </body>
 
 </html>

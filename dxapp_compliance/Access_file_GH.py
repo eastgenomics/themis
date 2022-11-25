@@ -1,18 +1,19 @@
 import base64
 import json
-import requests
+import logging
 import os
-from pathlib import Path
-from ghapi.all import GhApi
-from fastcore.all import *
 # Fastcore extends the python standard library to allow for the use of ghapi.
 from math import ceil
-import pandas as pd
+from pathlib import Path
+
 import numpy as np
-from jinja2 import Environment, FileSystemLoader
+import pandas as pd
 import plotly.express as px
+import requests
 import statsmodels.api as sm
-import logging
+from fastcore.all import *
+from ghapi.all import GhApi
+from jinja2 import Environment, FileSystemLoader
 
 # TODO: Add stats to parts of the html report and use bootrap to style it.
 # TODO: Make report prettier with bootstrap.

@@ -108,6 +108,9 @@ def get_config():
     organisation (str):
         Organisation dnanexus username.
 
+    default_region (str):
+        Default region for running apps in DNANexus.
+
     """
     with open('CONFIG.json') as file:
         config = json.load(file)
@@ -129,7 +132,29 @@ class compliance_checks:
                   latest_commit_date=None,
                   default_region=None,):
         """
-        check_all compliance measures.
+        checks all compliance measures.
+        Parameters
+        ----------
+        app (GithubAPI app object):
+                Github API repository object used for extracting app/applet info.
+        dxjson_content (dict):
+            dictionary with all the information on dxapp.json details.
+        src_file_contents (str):
+                str with the app source code file.
+        last_release_date (str):
+                the date of the last release for the app/applet.
+        latest_commit_date (str):
+            the date of the latest commit for the app/applet.
+        default_region (str):
+                default region to check against.
+
+
+        Returns:
+        -------
+            compliance_dict (dict):
+                dict of compliance booleans for the app/applet.
+            details_dict (dict):
+                dict of compliance details for the app/applet.
         """
         # Find compliance for app/applet
         app_boolean, app_or_applet = self.check_app_compliance(
@@ -188,7 +213,6 @@ class compliance_checks:
                            }
 
         details_dict = {'name': name,
-                        # 'release_version': data.get('properties', {}).get(),
                         'authorised_users': authorised_users,
                         'authorized_devs': authorised_devs,
                         'interpreter': interpreter,
@@ -203,7 +227,6 @@ class compliance_checks:
                         'last_release_date': last_release_date,
                         'latest_commit_date': latest_commit_date,
                         'timeout_setting': timeout_setting,
-                        # 'description': data.get('summary'),
                         }
 
         return compliance_dict, details_dict
@@ -221,9 +244,11 @@ class compliance_checks:
 
         Returns:
         -------
+            region_list (list):
+                list of regional options for the app/applet.
             correct_regional_boolean (boolean):
                 True/False whether only the correct region is selected
-            region_options_num (int):
+            num_regions (int):
                 The number of regional options set for dnanexus cloud servers,
                 this should be 1 and set to the correct region.
         """
@@ -233,27 +258,16 @@ class compliance_checks:
         num_regions = len(region_list)
 
         # regional options compliance info.
-        if region_list is [default_region]:
+        if region_list is [default_region] or 'aws:eu-central-1' in region_list:
             correct_regional_boolean = True
-            region_options_num = num_regions
-        elif 'aws:eu-central-1' in region_list:
-            correct_regional_boolean = True
-            region_options_num = num_regions
-        elif region_list is []:
+        elif region_list is [] or num_regions == 1:
             correct_regional_boolean = False
-            region_options_num = 0
-            logger.info("No regional options set.")
-        elif num_regions == 1:
-            correct_regional_boolean = False
-            region_options_num = num_regions
             logger.info("Incorrect regional option set.")
         else:
             correct_regional_boolean = False
-            region_options_num = num_regions
-            logger.info(
-                "Incorrect regional option set and multiple regions present.")
+            logger.info("Incorrect regional option set and multiple regions present.")
 
-        return region_list, correct_regional_boolean, region_options_num
+        return region_list, correct_regional_boolean, num_regions
 
     def check_timeout(self, dxjson_content):
         """
@@ -266,11 +280,10 @@ class compliance_checks:
 
         Returns:
         -------
-            correct_regional_boolean (boolean):
-                True/False whether only the correct region is selected
-            region_options_num (int):
-                The number of regional options set for dnanexus cloud servers,
-                this should be 1 and set to the correct region.
+        timeout_policy (boolean):
+            True/False whether timeout policy is set in dxapp.json.
+        timeout_setting (str):
+            The timeout setting for the app. i.e. {'hours': 12}.
         """
         data = dxjson_content
         # Timeout policy compliance info.
@@ -278,7 +291,7 @@ class compliance_checks:
             'timeoutPolicy', {}).get('*', {})
         # If any keys are present then there is a timeout
         # However, this could still be an inappropiate number i.e. 100 hours.
-        if timeout_policy_dict is {} or not timeout_policy_dict:
+        if not timeout_policy_dict:
             timeout_policy = False
         else:
             timeout_policy = True
@@ -305,9 +318,8 @@ class compliance_checks:
         -------
             app_boolean (boolean):
                 True/False whether the repo is a dnanexus app.
-            region_options_num (int):
-                The number of regional options set for dnanexus cloud servers,
-                this should be 1 and set to the correct region.
+            app_or_applet (str):
+                Whether the repo is an 'app' or 'applet'.
         """
         # Find compliance for app
         # Initialise variables - prevents not referenced before assignment error
@@ -356,7 +368,8 @@ class compliance_checks:
         else:
             # Checks for only BASH apps
             # src file compliance info.
-            if "set -e" in src_file_contents:
+            match = re.search(r"set[\ \-exo]+", src_file_contents)
+            if match:
                 set_e_boolean = True
             else:
                 set_e_boolean = False
@@ -378,6 +391,13 @@ class compliance_checks:
 
         Returns:
         -------
+            interpreter (str):
+                The interpreter used for the app. i.e. bash or python
+            distribution (str):
+                If the interpreter is bash.
+                The ubuntu distribution used for the app. i.e. ubuntu
+            dist_version (str):
+                The ubuntu version used for the app.
             uptodate_ubuntu (boolean):
                 True/False whether the bash app
                 uses an up-to-date version of ubuntu.

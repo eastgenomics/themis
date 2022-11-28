@@ -746,7 +746,7 @@ class audit_class:
 
         return src_content_decoded, last_release_date, latest_commit_date
 
-    def compliance_stats(self, compliance_df, details_df):
+    def compliance_stats(self, compliance_df, detailed_df):
         """
         Finds the % compliance with the EastGLH guidelines for each app/applet.
 
@@ -760,7 +760,7 @@ class audit_class:
             checks_df (pandas dataframe):
                 dataframe of compliance booleans for each app/applet.
                 with added compliance % column.
-            details_df (pandas dataframe):
+            detailed_df (pandas dataframe):
                 dataframe of compliance performa details for each app/applet.
         """
         # remove columns that are not compliance checks
@@ -775,9 +775,9 @@ class audit_class:
             (checks_df['compliance_count'] /
              checks_df['total_performa']) * 100, 2
         )
-        details_df['compliance_score'] = checks_df['compliance_score']
+        detailed_df['compliance_score'] = checks_df['compliance_score']
 
-        return checks_df, details_df
+        return checks_df, detailed_df
 
     def get_latest_release(self, organisation_name, repo_name, token):
         """
@@ -872,10 +872,10 @@ class audit_class:
         -------
             compliance_df (dataframe)
                 df of apps/applets with compliance stats.
-            details_df (dataframe)
+            detailed_df (dataframe)
                 df of apps/applets with detailed information.
         """
-        compliance_df = details_df = None
+        compliance_df = detailed_df = None
         if len(list_apps) != len(list_of_json_contents):
             logger.error(
                 "Number of apps and list of json contents do not match.")
@@ -887,16 +887,16 @@ class audit_class:
                 df_repo, df_repo_details = self.check_file_compliance(
                     app, dxapp_contents)
                 compliance_df = df_repo
-                details_df = df_repo_details
+                detailed_df = df_repo_details
             else:
                 df_repo, df_repo_details = self.check_file_compliance(
                     app, dxapp_contents)
                 compliance_df = pd.concat([compliance_df,
                                            df_repo], ignore_index=True)
-                details_df = pd.concat([details_df,
+                detailed_df = pd.concat([detailed_df,
                                         df_repo_details], ignore_index=True)
 
-        return compliance_df, details_df
+        return compliance_df, detailed_df
 
     def compliance_scores_for_each_measure(self, df):
         """
@@ -952,7 +952,7 @@ class audit_class:
 
         return summary_df
 
-    def compliance_df_format(self, compliance_df):
+    def compliance_df_format(self, compliance_df, detailed_df):
         """
         This function takes the compliance dataframe
         and coerces it to a more readable format for datatables.
@@ -961,15 +961,61 @@ class audit_class:
         ----------
             compliance_df (pandas dataframe):
                 dataframe of compliance booleans and score
+            detailed_df (pandas dataframe):
+                dataframe of compliance details for each app/applet repo.
 
         Returns
         -------
             compliance_df (pandas dataframe):
-                dataframe of compliance booleans and score minus redundant columns.
+                dataframe of compliance booleans and score
+                with columns renamed and minus redundant columns.
+            detailed_df (pandas dataframe):
+                dataframe of compliance details for each app/applet repo
+                with columns renamed.
         """
-        compliance_df = compliance_df.drop(columns=['timeout_setting', ])
+        # remove columns not needed for displaying in datatables
+        compliance_df = compliance_df.drop(columns=['dxapp_boolean',
+                                                    'timeout_policy',
+                                                    'last_release_date',
+                                                    ], inplace=True)
 
-        return compliance_df
+        # rename columns for displaying in datatables
+        compliance_df = compliance_df.rename(columns={
+            'compliance_score': 'compliance %',
+            'authorised_users': 'Auth Users',
+            'authorised_devs': 'Auth Devs',
+            'uptodate_ubuntu': 'Ubuntu 20+',
+            'correct_regional_option': 'Correct Region',
+            'num_of_region_options': 'Total Regions',
+            'no_manual_compiling': 'No Manual Compile',
+            'asset_present': 'Assets',
+            'dxapp_or_applet': 'App/Applet',
+            'eggd_name_boolean': 'eggd_name',
+            'eggd_title_boolean': 'eggd_title',
+            'last_release_date': 'last_release',
+            'latest_commit_date': 'latest_commit',
+            'timeout_setting': 'Timeout',
+        })
+
+        detailed_df = detailed_df.rename(columns={
+            'compliance_score': 'compliance %',
+            'authorised_users': 'Auth Users',
+            'authorised_devs': 'Auth Devs',
+            'uptodate_ubuntu': 'Ubuntu 20+',
+            'timeout_policy': 'Timeout',
+            'correct_regional_option': 'Correct Region',
+            'num_of_region_options': 'Total Regions',
+            'no_manual_compiling': 'No Manual Compile',
+            'asset_present': 'Assets',
+            'dxapp_or_applet': 'App/Applet',
+            'eggd_name_boolean': 'eggd_ name',
+            'eggd_title_boolean': 'eggd_ title',
+            'last_release_date': 'last release',
+            'latest_commit_date': 'latest commit',
+            'timeout_setting': 'Timeout',
+        })
+
+        return compliance_df, detailed_df
 
 
 class plotting:
@@ -1144,22 +1190,29 @@ def main():
     # Initialise class with shorthand
     audit = audit_class()
     plots = plotting()
+    # API call to get all apps and check compliance to DNAnexus app standards.
     list_of_repos = audit.get_list_of_repositories(audit.ORGANISATION,
                                                    audit.GITHUB_TOKEN)
     print(f"Number of items: {len(list_of_repos)}")
     list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
                                                          audit.GITHUB_TOKEN)
-    compliance_df, details_df = audit.orchestrate_app_compliance(list_apps,
+    compliance_df, detailed_df = audit.orchestrate_app_compliance(list_apps,
                                                                  list_of_json_contents)
-    compliance_df, details_df = audit.compliance_stats(compliance_df,
-                                                       details_df)
-    compliance_df.to_csv('compliance_df3.csv')
-    details_df.to_csv('details_df3.csv')
+    compliance_df, detailed_df = audit.compliance_stats(compliance_df,
+                                                       detailed_df)
+    # Write to csv
+    compliance_df.to_csv('compliance_df.csv')
+    detailed_df.to_csv('detailed_df.csv')
+
     # TODO: Add arguements to the main function to allow for customisation.
+    # Read csv for plotting - this is to avoid API calls while testing.
     compliance_df = plots.import_csv(
-        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df3.csv')
+        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df.csv')
     detailed_df = plots.import_csv(
-        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/details_df3.csv')
+        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/detailed_df.csv')
+
+    # Create tables and plots for html report
+    compliance_df, detailed_df = audit.compliance_df_format(compliance_df, detailed_df)
     compliance_stats_summary = audit.compliance_scores_for_each_measure(
         compliance_df)
     release_comp_plot = plots.release_date_compliance_plot(compliance_df)

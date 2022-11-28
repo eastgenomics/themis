@@ -132,7 +132,9 @@ class compliance_checks:
                   latest_commit_date=None,
                   default_region=None,):
         """
-        checks all compliance measures.
+        checks all compliance measures for an app
+        against Eastgenomics DNAnexus App standards.
+
         Parameters
         ----------
         app (GithubAPI app object):
@@ -171,17 +173,9 @@ class compliance_checks:
                 dxjson_content,
                 default_region
             )
-        regions = None
-        if len(region_list) == 1:
-            region_list = region_list[0]
-            regions = region_list.split(":")[1].rstrip("']")
-        elif len(region_list) > 1:
-            regions = []
-            for region in region_list:
-                region_str = region.split(":")[1].rstrip("']")
-                regions.append(region_str)
-        else:
-            regions = region_list
+
+        regions = [x.split(':')[1].rstrip("']") for x in region_list]
+
         set_e_boolean, no_manual_compiling = self.check_src_file_compliance(
             dxjson_content, src_file_contents)
         timeout_policy, timeout_setting = self.check_timeout(
@@ -265,7 +259,8 @@ class compliance_checks:
             logger.info("Incorrect regional option set.")
         else:
             correct_regional_boolean = False
-            logger.info("Incorrect regional option set and multiple regions present.")
+            logger.info(
+                "Incorrect regional option set and multiple regions present.")
 
         return region_list, correct_regional_boolean, num_regions
 
@@ -368,13 +363,17 @@ class compliance_checks:
         else:
             # Checks for only BASH apps
             # src file compliance info.
-            match_set_e = re.search(r"set[\ \-exo]+", src_file_contents)
+            match_set_e = re.search(
+                r"set[\ \-exo]+", src_file_contents
+            )
             if match_set_e:
                 set_e_boolean = True
             else:
                 set_e_boolean = False
-            match_manual_compiling = re.search(r"set[\ \-exo]+", src_file_contents)
-            if "make install" in src_file_contents:
+            match_manual_compiling = re.search(
+                r".*make install.*", src_file_contents
+            )
+            if match_manual_compiling:
                 no_manual_compiling = False
             else:
                 no_manual_compiling = True
@@ -452,16 +451,12 @@ class compliance_checks:
         authorised_users = dxjson_content.get('authorizedUsers')
         authorised_devs = dxjson_content.get('developers')
 
-        if not authorised_users:
-            auth_users_boolean = False
-        elif authorised_users == ['org-emee_1']:
+        if authorised_users == ['org-emee_1']:
             auth_users_boolean = True
         else:
             auth_users_boolean = False
 
-        if not authorised_devs:
-            auth_devs_boolean = False
-        elif authorised_devs == ['org-emee_1']:
+        if authorised_devs == ['org-emee_1']:
             auth_devs_boolean = True
         else:
             auth_devs_boolean = False
@@ -518,8 +513,6 @@ class audit_class:
 
     def check_file_compliance(self, app, dxjson_content):
         """
-        check_file_compliance
-
         This checks the compliance of each app/applet against the performa guidelines.
         This includes checking compliance using the dxapp.json file.
         (dxapp.json = the app/applet settings file)
@@ -632,7 +625,7 @@ class audit_class:
                 owner = 'eastgenomics'
                 repo_name = repo['name']
                 file_path = 'dxapp.json'
-
+                logger.info(repo_name)
                 # Checks to find dxapp.json which determines if repo is an app.
                 try:
                     contents = api.repos.get_content(
@@ -692,54 +685,61 @@ class audit_class:
                 the date of the latest commit for the app/applet.
         """
         repos_apps = []
-        src_code_content = None
+        app_src_file = {}
+        src_code_content = ""
         src_content_decoded = ""
         api = GhApi(token=github_token)
-        contents = None
         repo_name = app.get('name')
-        file_path = 'src/'
-        ## TODO: Change function to get src file from dxapp.json
-        #file_path = dxjson_content.get('runSpec').get('file')
+        file_path = dxjson_content.get('runSpec', {}).get('file')
 
-        # Extract src file
+        # Extract src file contents
         try:
-            contents = api.repos.get_content(organisation_name,
-                                             repo_name,
-                                             file_path)
+            app_src_file = api.repos.get_content(organisation_name,
+                                                 repo_name,
+                                                 file_path)
         except HTTP404NotFoundError:
-            logger.info(f'{repo_name} No src file found.')
+            logger.error(
+                f'{repo_name} No src file found using dxjson file path')
+            # Check if any other src file is in the src/ subfolder
+            try:
+                file_path = 'src/'
+                contents = api.repos.get_content(organisation_name,
+                                                 repo_name,
+                                                 file_path)
+                # Search contents for src file
+                for content in contents:
+                    if r'.sh' in content['name'] or r'.py' in content['name']:
+                        try:
+                            logger.info("src file found in src/ subfolder."
+                                        "src file is named differently in dxapp.json.")
+                            file_path = content['path']
+                            app_src_file = api.repos.get_content(organisation_name,
+                                                                 repo_name,
+                                                                 file_path)
+                        except HTTP404NotFoundError:
+                            logger.info(
+                                f'{repo_name} 404 No src file found in src/ subfolder')
+                            pass
+            except HTTP404NotFoundError:
+                logger.error(f'{repo_name} No src folder found.')
 
         repos_apps.append(dxjson_content)
-        if contents:
-            for content in contents:
-                if (content['type'] == 'file' and
-                    (r'.sh' in content['name'] or
-                        r'.py' in content['name'])):
-                    try:
-                        file_path = content['path']
-                        app_src_file = api.repos.get_content(organisation_name,
-                                                             repo_name,
-                                                             file_path)
-
-                    except HTTP404NotFoundError:
-                        logger.info(f'{repo_name} 404 No src file found.')
-                        pass
-                    src_code_content = app_src_file['content']
-                    code_content_encoding = app_src_file.get('encoding')
-                    if code_content_encoding == 'base64':
-                        src_content_decoded = base64.b64decode(
-                            src_code_content
-                        ).decode()
-                    else:
-                        logger.error("Other encoding used.")
-        logger.info(repo_name)
+        src_code_content = app_src_file.get('content', None)
+        code_content_encoding = app_src_file.get('encoding', None)
+        if src_code_content:
+            if code_content_encoding == 'base64':
+                src_content_decoded = base64.b64decode(
+                    src_code_content
+                ).decode()
+            else:
+                logger.error("Other encoding used.")
+        else:
+            logger.error("No src file found.")
 
         # Get the latest release date & commit date
-        #last_release_date = ""
         last_release_date = self.get_latest_release(
             organisation_name, repo_name, github_token
         )
-        #latest_commit_date = ""
         latest_commit_date = self.get_latest_commit_date(
             organisation_name, repo_name, github_token
         )
@@ -757,46 +757,27 @@ class audit_class:
 
         Returns
         -------
-            compliance_df (pandas dataframe):
+            checks_df (pandas dataframe):
                 dataframe of compliance booleans for each app/applet.
                 with added compliance % column.
             details_df (pandas dataframe):
                 dataframe of compliance performa details for each app/applet.
         """
-        list_of_compliance_scores = []
         # remove columns that are not compliance checks
-        compliance_checks_df = compliance_df.drop(columns=['name',
-                                                           'num_of_region_options',
-                                                           'last_release_date',
-                                                           'latest_commit_date',
-                                                           'timeout_setting',
-                                                           ])
+        checks_df = compliance_df.copy()
         # Find the % overall compliance for each app/applet
-        for _, row in compliance_checks_df.iterrows():
-            compliance_count = 0
-            # Set number of total performa relevant to the repo.
-            if 'bash' in row['interpreter']:
-                total_performa = 10
-            else:
-                total_performa = 8
-            # Count the number of True values in each row
-            for column in row:
-                if column is True:
-                    compliance_count += 1
-                else:
-                    pass
-            # Calculate the % compliance
-            compliance_score = f"{round((compliance_count/total_performa)*100, 1)}%"
-            list_of_compliance_scores.append(compliance_score)
+        # Set the total performa checks for each app/applet
+        checks_df['total_performa'] = checks_df['interpreter'].apply(
+            lambda x: 10 if 'bash' in x else 9)
+        # Find the number of performa checks passed for each app/applet
+        checks_df['compliance_count'] = (checks_df == True).T.sum()
+        checks_df['compliance_score'] = round(
+            (checks_df['compliance_count'] /
+             checks_df['total_performa']) * 100, 2
+        )
+        details_df['compliance_score'] = checks_df['compliance_score']
 
-        compliance_df.insert(loc=1,
-                             column='compliance_score',
-                             value=list_of_compliance_scores)
-        details_df.insert(loc=1,
-                          column='compliance_score',
-                          value=list_of_compliance_scores)
-
-        return compliance_df, details_df
+        return checks_df, details_df
 
     def get_latest_release(self, organisation_name, repo_name, token):
         """
@@ -851,14 +832,12 @@ class audit_class:
         # List all branches
         list_of_shas = []
         list_of_branches = api.repos.list_branches(
-                organisation_name, repo_name)
+            organisation_name, repo_name)
 
         # Find sha for each branch and append to list for api calls.
-        for branch in list_of_branches:
-            sha = branch['commit']['sha']
-            list_of_shas.append(sha)
+        list_of_shas = [branch['commit']['sha'] for branch in list_of_branches]
 
-        # For branch in branches
+        # For branch in branches find the latest commit date.
         list_of_commit_dates = []
         for branch in list_of_shas:
             try:
@@ -880,11 +859,12 @@ class audit_class:
 
     def orchestrate_app_compliance(self, list_apps, list_of_json_contents):
         """
-        orchestrate_app_compliance
         This calls the functions to get the compliance and then creates the dfs.
 
         Parameters
         ----------
+            list_apps (list):
+                list of dictionaries for app/applet with github repo details.
             list_of_json_contents (list):
                 list of json contents of apps/applets
 
@@ -897,9 +877,9 @@ class audit_class:
         """
         compliance_df = details_df = None
         if len(list_apps) != len(list_of_json_contents):
-            print("Error missing repos")
-        else:
-            pass
+            logger.error(
+                "Number of apps and list of json contents do not match.")
+            sys.exit(0)
 
         for index, (app, dxapp_contents) in enumerate(zip(list_apps, list_of_json_contents)):
             # The first item creates the dataframe
@@ -920,7 +900,6 @@ class audit_class:
 
     def compliance_scores_for_each_measure(self, df):
         """
-        compliance_scores_for_each_measure
         This function takes the compliance dataframe and
         creates a new dataframe summarising true/false for each measure.
         And then, calcualtes an overall compliance percentage for each measure.
@@ -936,7 +915,6 @@ class audit_class:
             summary_df:
                 dataframe of compliance scores for each performa.
         """
-        # df.fillna(value=False, inplace=True)
         df = df[[
             'authorised_users',
             'authorised_devs',
@@ -974,6 +952,25 @@ class audit_class:
 
         return summary_df
 
+    def compliance_df_format(self, compliance_df):
+        """
+        This function takes the compliance dataframe
+        and coerces it to a more readable format for datatables.
+
+        Parameters
+        ----------
+            compliance_df (pandas dataframe):
+                dataframe of compliance booleans and score
+
+        Returns
+        -------
+            compliance_df (pandas dataframe):
+                dataframe of compliance booleans and score minus redundant columns.
+        """
+        compliance_df = compliance_df.drop(columns=['timeout_setting', ])
+
+        return compliance_df
+
 
 class plotting:
     """
@@ -986,7 +983,7 @@ class plotting:
 
     def import_csv(self, path_to_dataframe):
         """
-        Imports csv into pandas dataframe for plotting.
+        Imports csv files into pandas dataframe for plotting.
         Converts compliance column into float if present.
 
         Parameters
@@ -999,9 +996,6 @@ class plotting:
                 pandas dataframe of csv file with minor changes.
         """
         df = pd.read_csv(path_to_dataframe)
-        if 'compliance_score' in df.columns:
-            df['compliance_score'] = df['compliance_score'].str.rstrip(
-                "%").astype(float)
 
         return df
 
@@ -1064,7 +1058,7 @@ class plotting:
                 'x': 'Date of last release',
                 'y': 'Compliance (%)'
             },
-            trendline="lowess",  # needs module statsmodels
+            trendline="lowess",
         )
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
@@ -1099,8 +1093,6 @@ class plotting:
             x=df_ordered['last_release_date'],
             y=df_ordered['compliance_score'],
             color=df_ordered['dist_version'],
-            # trendline="lowess",
-            # trendline_scope="overall",
             labels={
                 'x': 'Date of last release',
                 'y': 'Compliance (%)',
@@ -1161,13 +1153,13 @@ def main():
                                                                  list_of_json_contents)
     compliance_df, details_df = audit.compliance_stats(compliance_df,
                                                        details_df)
-    compliance_df.to_csv('compliance_df2.csv')
-    details_df.to_csv('details_df2.csv')
+    compliance_df.to_csv('compliance_df3.csv')
+    details_df.to_csv('details_df3.csv')
     # TODO: Add arguements to the main function to allow for customisation.
     compliance_df = plots.import_csv(
-        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df2.csv')
+        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df3.csv')
     detailed_df = plots.import_csv(
-        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/details_df2.csv')
+        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/details_df3.csv')
     compliance_stats_summary = audit.compliance_scores_for_each_measure(
         compliance_df)
     release_comp_plot = plots.release_date_compliance_plot(compliance_df)

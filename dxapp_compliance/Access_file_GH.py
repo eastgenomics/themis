@@ -644,12 +644,14 @@ class audit_class:
                     repos_apps_content.append(app_decoded)
 
                 else:
-                    logger.info(f"Other encoding used. {file_content_encoding}")
+                    logger.info(
+                        f"Other encoding used. {file_content_encoding}")
             elif repo['archived'] is True:
                 logger.info(f'{repo["name"]} is archived.')
                 continue
             else:
-                logger.info(f'{repo["name"]} has unknown archival state see: {repo['archived']}')
+                logger.info(
+                    f'{repo["name"]} has unknown archival state see: {repo["archived"]}')
                 continue
 
         logger.info(f"{len(repos_apps)} app repositories found.")
@@ -1193,7 +1195,7 @@ def main():
     list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
                                                          audit.GITHUB_TOKEN)
     compliance_df, detailed_df = audit.orchestrate_app_compliance(list_apps,
-                                                                 list_of_json_contents)
+                                                                  list_of_json_contents)
     compliance_df, detailed_df = audit.compliance_stats(compliance_df,
                                                         detailed_df)
     # Write to csv

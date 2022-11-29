@@ -26,7 +26,7 @@
 
 	</head>
 	<body>
-        <div class="container-fluid">
+        <div class="container-fluid" style="padding-top: 50px; padding-right: 60px; padding-bottom: 50px; padding-left: 60px;">
             <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
               <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none">
                 <svg class="bi me-2" width="40" height="32"><use xlink:href="#bootstrap"/></svg>
@@ -37,41 +37,48 @@
                 <li class="nav-item"><a href="#" class="nav-link active" aria-current="page">Home</a></li>
               </ul>
             </header>
-            <div class="container-xl">
-                <h5 class="fs-4">
-                    Audit report for complaince of DNAnexus Apps/Applets with Eastgenomics guidelines
-                </h5>
-                <br>
-                {% block content %}
-                    <p class="fw-bold">Compliance Table by repository</p>
+        </div>
+
+        <div class="container-fluid" style="padding-right: 60px; padding-left: 60px;">
+            <h5 class="fs-4">
+                Audit report for complaince of DNAnexus Apps/Applets with Eastgenomics guidelines
+            </h5>
+            <br>
+            {% block content %}
+                <p class="fw-bold">Compliance Table by repository</p>
                     <div style="width: 100%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
                         <!-- style="width: 80%;margin-left: 10%;margin-top: 5px;margin-bottom: 40px; -->
                         {{ Compliance_table | safe }}
                     </div>
-                    <br>
-                    <p class="fw-bold">Plot of compliance vs release date</p>
-                    <div>   {{ release_comp_plot }}    </div>
-                    <p class="fw-bold">Plot of compliance vs release date by ubuntu version</p>
-                    <div>   {{ ubuntu_comp_plot }}    </div>
-                    <p class="fw-bold">Plot of compliance by latest commit date </p>
-                    <div>   {{ compliance_bycommitdate_plot }}    </div>
-                    <p class="fw-bold">Plot of ubuntu versions</p>
-                    <div>   {{ ubuntu_versions_plot }}    </div>
                 <br>
-                <div class="container-fluid">
-                    <p class="fw-bold">Compliance Table with extra detail</p>
-                    <div style="width: 100%;">
-                        {{ Details_table | safe }}
-                    </div>
-                </div>
-                <br>
-                {% endblock %}
-                <p class="fw-bold"> Summary table of compliance by performa </p>
-                <div style="width:53.5%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
-                    <table id="summary_1"> {{ compliance_stats_summary | safe }} </table>
+        </div>
+
+        <div class="container-lg"  style="padding-right: 60px;padding-left: 60px;">
+                <p class="fw-bold">Plot of compliance vs release date</p>
+                <div>   {{ release_comp_plot }}    </div>
+                <p class="fw-bold">Plot of compliance vs release date by ubuntu version</p>
+                <div>   {{ ubuntu_comp_plot }}    </div>
+                <p class="fw-bold">Plot of compliance by latest commit date </p>
+                <div>   {{ compliance_bycommitdate_plot }}    </div>
+                <p class="fw-bold">Plot of ubuntu versions</p>
+                <div>   {{ ubuntu_versions_plot }}    </div>
+            <br>
+        </div>
+
+        <div class="container-fluid"  style="padding-right: 60px; padding-bottom: 50px; padding-left: 60px;">
+                <p class="fw-bold">Compliance Table with extra detail</p>
+                <div style="width: 100%;">
+                    {{ Details_table | safe }}
                 </div>
             </div>
+            <br>
+            {% endblock %}
+            <div style="width:35.5%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
+                <p class="fw-bold"> Summary table of compliance by performa </p>
+                <table id="summary_1"> {{ compliance_stats_summary | safe }} </table>
+            </div>
         </div>
+
         <script>
             // Sets up the DataTable
             $(document).ready(function () {
@@ -91,13 +98,10 @@
                     'loadingRecords': '&nbsp;',
                     'processing': 'Loading...'
                 },
-                paging: false, //removes page numbers?
-                "columnDefs": [
-                  { "width": "40%", "targets": 9 }
-                ],
+                paging: false,
                 dom: 'Bfrtip',
                 buttons: [
-                    'copyHtml5', 'csv', 'excel', 'pdf', 'print'
+                    'copyHtml5', 'csv', 'print'
                 ],
                 pageResize:     false,
                 ordering:       true
@@ -125,7 +129,7 @@
                 paging: false,
                 dom: 'Bfrtip',
                 buttons: [
-                    'copyHtml5', 'csv', 'excel', 'pdf', 'print'
+                    'copyHtml5', 'csv', 'print'
                 ],
                 pageResize:     false,
                 ordering:       true

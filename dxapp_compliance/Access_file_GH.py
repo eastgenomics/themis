@@ -582,7 +582,7 @@ class audit_class:
         per_page_num = 30
         pages_total = ceil(total_num_repos/per_page_num)
         all_repos = []
-
+        # The API response in paginated, so we need to loop through all pages
         for page in range(1, pages_total+1):
             response = api.repos.list_for_org(org=org_username,
                                               per_page=per_page_num,
@@ -983,7 +983,7 @@ class audit_class:
             'num_of_region_options': 'Total Regions',
             'no_manual_compiling': 'No Manual Compile',
             'asset_present': 'Assets',
-            'dxapp_or_applet': 'App/Applet',
+            'dxapp_or_applet': 'App or Applet',
             'eggd_name_boolean': 'eggd_ name',
             'eggd_title_boolean': 'eggd_ title',
             'latest_commit_date': 'latest_commit',

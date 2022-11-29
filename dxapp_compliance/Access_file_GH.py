@@ -706,7 +706,9 @@ class audit_class:
                                                  file_path)
                 # Search contents for src file
                 for content in contents:
-                    if r'.sh' in content['name'] or r'.py' in content['name']:
+                    filename = content['name']
+                    if (re.search(r'.*sh', filename) or
+                        re.search(r'.*py', filename)):
                         try:
                             logger.info("src file found in src/ subfolder."
                                         "src file is named differently in dxapp.json.")

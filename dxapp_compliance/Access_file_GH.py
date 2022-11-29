@@ -414,8 +414,7 @@ class compliance_checks:
         elif 'python' in interpreter:
             uptodate_ubuntu = "NA"
         else:
-            print("interpreter not found")
-            logger.info(f"Interpreter: {interpreter}")
+            logger.info(f"Interpreter not found. Interpreter: {interpreter}")
 
         return interpreter, distribution, dist_version, uptodate_ubuntu
 
@@ -645,12 +644,12 @@ class audit_class:
                     repos_apps_content.append(app_decoded)
 
                 else:
-                    print(f"Other encoding used. {file_content_encoding}")
+                    logger.info(f"Other encoding used. {file_content_encoding}")
             elif repo['archived'] is True:
                 logger.info(f'{repo["name"]} is archived.')
-                print(f"{repo['name']} is archived.")
                 continue
             else:
+                logger.info(f'{repo["name"]} has unknown archival state see: {repo['archived']}')
                 continue
 
         logger.info(f"{len(repos_apps)} app repositories found.")
@@ -822,7 +821,7 @@ class audit_class:
                 github token for accessing repo via API.
         Returns
         -------
-            last_commit_date (str):
+            latest_commit_date (str):
                 string of latest commit date.
         """
         api = GhApi(token=token)

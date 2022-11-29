@@ -75,9 +75,6 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("Report.html")
     filename = "Audit_2022_11_08.html"
-    # Remove old index column
-    compliance_df.drop(columns=['Unnamed: 0'], inplace=True)
-    detailed_df.drop(columns=['Unnamed: 0'], inplace=True)
     compliance_html = compliance_df.to_html(table_id="comp")
     details_html = detailed_df.to_html(table_id="details")
     compliance_stats_summary_html = compliance_stats_summary.to_html(
@@ -584,7 +581,7 @@ class audit_class:
             org_details['total_private_repos']
         logger.info(total_num_repos)
         per_page_num = 30
-        pages_total = ceil(total_num_repos/per_page_num)  # production line
+        pages_total = ceil(total_num_repos/per_page_num)
         all_repos = []
 
         for page in range(1, pages_total+1):
@@ -771,11 +768,12 @@ class audit_class:
             lambda x: 10 if 'bash' in x else 9)
         # Find the number of performa checks passed for each app/applet
         checks_df['compliance_count'] = (checks_df == True).T.sum()
-        checks_df['compliance_score'] = round(
+        score_data = round(
             (checks_df['compliance_count'] /
              checks_df['total_performa']) * 100, 2
         )
-        detailed_df['compliance_score'] = checks_df['compliance_score']
+        checks_df.insert(1, 'compliance_score', score_data)
+        detailed_df.insert(1, 'compliance_score', score_data)
 
         return checks_df, detailed_df
 
@@ -973,36 +971,15 @@ class audit_class:
                 dataframe of compliance details for each app/applet repo
                 with columns renamed.
         """
-        # remove columns not needed for displaying in datatables
-        compliance_df = compliance_df.drop(columns=['dxapp_boolean',
-                                                    'timeout_policy',
-                                                    'last_release_date',
-                                                    ], inplace=True)
 
         # rename columns for displaying in datatables
-        compliance_df = compliance_df.rename(columns={
+        compliance_df.rename(columns={
             'compliance_score': 'compliance %',
             'authorised_users': 'Auth Users',
             'authorised_devs': 'Auth Devs',
+            'interpreter': 'File Type',
             'uptodate_ubuntu': 'Ubuntu 20+',
-            'correct_regional_option': 'Correct Region',
-            'num_of_region_options': 'Total Regions',
-            'no_manual_compiling': 'No Manual Compile',
-            'asset_present': 'Assets',
-            'dxapp_or_applet': 'App/Applet',
-            'eggd_name_boolean': 'eggd_name',
-            'eggd_title_boolean': 'eggd_title',
-            'last_release_date': 'last_release',
-            'latest_commit_date': 'latest_commit',
-            'timeout_setting': 'Timeout',
-        })
-
-        detailed_df = detailed_df.rename(columns={
-            'compliance_score': 'compliance %',
-            'authorised_users': 'Auth Users',
-            'authorised_devs': 'Auth Devs',
-            'uptodate_ubuntu': 'Ubuntu 20+',
-            'timeout_policy': 'Timeout',
+            'timeout_policy': 'Timeout Policy',
             'correct_regional_option': 'Correct Region',
             'num_of_region_options': 'Total Regions',
             'no_manual_compiling': 'No Manual Compile',
@@ -1010,10 +987,30 @@ class audit_class:
             'dxapp_or_applet': 'App/Applet',
             'eggd_name_boolean': 'eggd_ name',
             'eggd_title_boolean': 'eggd_ title',
-            'last_release_date': 'last release',
+            'latest_commit_date': 'latest_commit',
+        }, inplace=True)
+
+        detailed_df = detailed_df.rename(columns={
+            'compliance_score': 'compliance %',
+            'authorised_users': 'Auth Users',
+            'authorised_devs': 'Auth Devs',
+            'uptodate_ubuntu': 'Ubuntu 20+',
+            'timeout_policy': 'Timeout Policy',
+            'correct_regional_option': 'Correct Region',
+            'num_of_region_options': 'Total Regions',
+            'no_manual_compiling': 'No Manual Compile',
+            'asset_present': 'Assets',
+            'dxapp_or_applet': 'App or Applet',
+            'eggd_name_boolean': 'eggd_ name',
+            'eggd_title_boolean': 'eggd_ title',
             'latest_commit_date': 'latest commit',
-            'timeout_setting': 'Timeout',
+            'timeout_setting': 'Timeout Setting',
         })
+
+        compliance_df.drop(columns=['dxapp_boolean', 'Total Regions',
+                                    'timeout_setting', 'last_release_date',
+                                    'total_performa', 'compliance_count',
+                                    ], inplace=True)
 
         return compliance_df, detailed_df
 
@@ -1199,20 +1196,19 @@ def main():
     compliance_df, detailed_df = audit.orchestrate_app_compliance(list_apps,
                                                                  list_of_json_contents)
     compliance_df, detailed_df = audit.compliance_stats(compliance_df,
-                                                       detailed_df)
+                                                        detailed_df)
     # Write to csv
-    compliance_df.to_csv('compliance_df.csv')
-    detailed_df.to_csv('detailed_df.csv')
+    # compliance_df.to_csv('compliance_df.csv')
+    # detailed_df.to_csv('detailed_df.csv')
 
     # TODO: Add arguements to the main function to allow for customisation.
     # Read csv for plotting - this is to avoid API calls while testing.
-    compliance_df = plots.import_csv(
-        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df.csv')
-    detailed_df = plots.import_csv(
-        '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/detailed_df.csv')
+    # compliance_df = plots.import_csv(
+    #    '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df.csv')
+    # detailed_df = plots.import_csv(
+    #    '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/detailed_df.csv')
 
     # Create tables and plots for html report
-    compliance_df, detailed_df = audit.compliance_df_format(compliance_df, detailed_df)
     compliance_stats_summary = audit.compliance_scores_for_each_measure(
         compliance_df)
     release_comp_plot = plots.release_date_compliance_plot(compliance_df)
@@ -1220,6 +1216,8 @@ def main():
     compliance_bycommitdate_plot = plots.compliance_by_latest_activity_plot(
         compliance_df)
     ubuntu_versions_plot = plots.bash_version(detailed_df)
+    compliance_df, detailed_df = audit.compliance_df_format(compliance_df,
+                                                            detailed_df)
     get_template_render(compliance_df, detailed_df, compliance_stats_summary,
                         release_comp_plot, ubuntu_comp_plot,
                         compliance_bycommitdate_plot,

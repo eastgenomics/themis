@@ -1021,7 +1021,7 @@ class audit_class:
                                     'compliance_count',
                                     ], inplace=True)
 
-        detailed_df.drop(columns=['distribution', 'timeout',
+        detailed_df.drop(columns=['distribution', 'timeout', 'title',
                                   ], inplace=True)
 
         return compliance_df, detailed_df

@@ -289,11 +289,21 @@ class compliance_checks:
         else:
             timeout_policy = True
 
-        timeout_setting = {}
+        timeout_setting = []
+        list_of_time_units = {'days': 'd', 'hours': 'hrs', 'minutes': 'm'}
         for key in timeout_policy_dict.keys():
             time_nomenclature = str(key)
-            timeout_setting[f'{time_nomenclature}'] = data.get('runSpec', {}).get(
+            time = data.get('runSpec', {}).get(
                 'timeoutPolicy', {}).get('*', {}).get(f'{time_nomenclature}')
+            # set timeout setting to a string in format of 1d, 30m, 12hrs.
+            time_shorthand = list_of_time_units.get(time_nomenclature, ' ')
+            timeout_setting.append(f"{time} {time_shorthand})")
+        if len(timeout_setting) == 0:
+            timeout_setting = None
+        elif len(timeout_setting) == 1:
+            timeout_setting = timeout_setting[0]
+        else:
+            timeout_setting = ", ".join(timeout_setting)
 
         return timeout_policy, timeout_setting
 

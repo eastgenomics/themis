@@ -7,10 +7,12 @@ import Levenshtein
 import logging
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import sys
 import time
+import warnings
 
 from collections import defaultdict
 from dateutil.relativedelta import relativedelta
@@ -18,6 +20,8 @@ from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from requests.auth import HTTPBasicAuth
 
+
+warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 ROOT_DIR = Path(__file__).absolute().parents[1]
 
@@ -113,12 +117,12 @@ def determine_start_and_end_date(no_of_months):
     audit_end_date_obj = dt.datetime.strptime(audit_end_date, '%Y-%m-%d')
     five_days_before_start = audit_begin_date_obj + relativedelta(days=-5)
     five_days_before = five_days_before_start.strftime("%Y-%m-%d")
-    one_day_after_end = audit_end_date_obj + relativedelta(days=+1)
-    one_day_after = one_day_after_end.strftime("%Y-%m-%d")
+    five_days_after_end = audit_end_date_obj + relativedelta(days=+5)
+    five_days_after = five_days_after_end.strftime("%Y-%m-%d")
 
     return (
         audit_begin_date, audit_end_date, audit_begin_date_obj,
-        audit_end_date_obj, five_days_before, one_day_after
+        audit_end_date_obj, five_days_before, five_days_after
     )
 
 
@@ -172,7 +176,9 @@ class QueryPlotFunctions:
         self.audit_start_obj,
         self.audit_end_obj,
         self.five_days_before_start,
-        self.day_after_end) = determine_start_and_end_date(self.default_months)
+        self.five_days_after) = determine_start_and_end_date(
+            self.default_months
+        )
         self.current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.pd_current_time = pd.Timestamp(self.current_time)
 
@@ -221,7 +227,7 @@ class QueryPlotFunctions:
         # Return only relevant describe fields
         assay_response = list(dx.find_projects(
             level='VIEW',
-            created_before=self.day_after_end,
+            created_before=self.five_days_after,
             created_after=self.five_days_before_start,
             name=f"002*{assay_type}",
             name_mode="glob",
@@ -1054,7 +1060,7 @@ class QueryPlotFunctions:
                                 'run_name': ticket_name,
                                 'assay_type': assay_type,
                                 'date_jira_ticket_created': date_time_created,
-                                'reason_not_released': jira_status
+                                'jira_status': jira_status
                             })
 
         return all_assays_dict, typo_tickets, runs_no_002_proj, cancelled_list
@@ -1119,7 +1125,7 @@ class QueryPlotFunctions:
         return all_assays_dict, open_runs_list, typo_tickets
 
 
-    def create_all_assays_df(self, all_assays_dict):
+    def create_all_assays_df(self, all_assays_dict, cancelled_runs):
         """
         Creates a df with all the assay types, run names and relevant audit info
         Parameters
@@ -1131,11 +1137,15 @@ class QueryPlotFunctions:
         -------
         all_assays_df : pd.DataFrame()
             dataframe with a row for each run
+        cancelled_runs : list
+            list of dicts with info for cancelled runs
         """
         # Convert dict to df with run names as column
         all_assays_df = pd.DataFrame(
             all_assays_dict.values()
         ).assign(run_name=all_assays_dict.keys())
+
+        all_assays_df = all_assays_df.append(cancelled_runs, ignore_index=True)
 
         # Check dataframe is not empty, if it is exit
         if all_assays_df.empty:
@@ -1245,6 +1255,12 @@ class QueryPlotFunctions:
             ).where(
                 all_assays_df['jira_status'] == "All samples released"
             ) / np.timedelta64(1, 'D')
+        )
+
+        # Sort assay types so match the report
+        custom_dict = {'CEN': 0, 'MYE': 1, 'TSO500': 2, 'TWE': 3, 'SNP': 4}
+        all_assays_df = all_assays_df.sort_values(
+            by=['assay_type'], key=lambda x: x.map(custom_dict)
         )
 
         return all_assays_df
@@ -1528,14 +1544,19 @@ class QueryPlotFunctions:
             if dict values empty passes as empty dict to be checked in HTML to
             Decide whether to show 'Runs to be manually reviewed' text
         assay_fig : str
-            Plotly fig as HTML string
+            Plotly TAT fig as HTML string
+        upload_day_fig : str
+            Plotly fig showing upload day of the week vs TAT for that assay
+            as HTML string
         """
         assay_df = self.extract_assay_df(all_assays_df, assay_type)
         assay_stats = self.make_stats_table(assay_df)
         assay_issues = self.find_runs_for_manual_review(assay_df)
         assay_fig = self.create_TAT_fig(assay_df, assay_type)
+        upload_day_fig = self.create_upload_day_fig(assay_df, assay_type)
 
-        return assay_stats, assay_issues, assay_fig
+        return assay_stats, assay_issues, assay_fig, upload_day_fig
+
 
     def create_ticket_typo_df(self, closed_typo_tickets, open_typo_tickets):
         """
@@ -1577,6 +1598,7 @@ class QueryPlotFunctions:
 
         return ticket_typos_html
 
+
     def create_project_typo_df(self, typo_folders_list):
         """
         Create table of typos between Staging Area run folder name and
@@ -1614,6 +1636,98 @@ class QueryPlotFunctions:
         return typo_folders_html
 
 
+    # def add_in_cancelled_runs(self, all_assays_df, cancelled_runs):
+    #     """
+    #     Add the cancelled runs captured only from Jira tickets to the
+    #     all_assays_df before converting to csv for completeness
+
+    #     Parameters
+    #     ----------
+    #     all_assays_df : pd.DataFrame
+    #         dataframe with all runs and timestamps and durations
+    #     cancelled_runs : list
+    #         list of dicts with info for cancelled runs from Jira tickets with
+    #         no 002 project
+
+    #     Returns
+    #     -------
+    #     all_assays_df: pd.DataFrame
+    #         all_assays_df with cancelled runs added as rows
+    #     """
+    #     # Append the list of dicts as new rows
+    #     all_assays_df = all_assays_df.append(cancelled_runs, ignore_index=True)
+    #     # Sort by assay type
+    #     all_assays_df = all_assays_df.sort_values('assay_type')
+
+    #     return all_assays_df
+
+
+    def create_upload_day_fig(self, assay_df, assay_type):
+        """
+        Create figure to see if the day of the week for data upload impacts
+        turnaround time
+
+        Parameters
+        ----------
+        assay_df : pd.DataFrame()
+            dataframe with rows for an assay type with columns including
+            run name, upload timestamp and turnaround time in days
+        assay_type : str
+            the assay type of interest e.g. 'CEN'
+
+        Returns
+        -------
+        html_fig : str
+            Plotly figure as html string
+        """
+        # Add df column with names of the day of the week that data were
+        # uploaded
+        assay_df['upload_day'] = assay_df['upload_time'].dt.day_name()
+        # Plot upload day vs TAT, if TAT is <=3.0 colour in green, otherwise
+        # colour in red
+        fig = px.scatter(
+            data_frame=assay_df,
+            x='upload_day',
+            y='upload_to_release',
+            custom_data=['run_name'],
+            color=assay_df["upload_to_release"] <= 3.0,
+            color_discrete_map={
+                True: "green",
+                False: "red"
+            },
+        )
+        # Set days in order
+        fig.update_xaxes(
+            categoryorder='array',
+            categoryarray= [
+                "Monday", "Tuesday", "Wednesday", "Thursday",
+                "Friday", "Saturday", "Sunday"
+            ]
+        )
+
+        fig.update_layout(
+            title={
+                'text': f'{assay_type} Upload Day vs Turnaround Time',
+                'xanchor': 'center',
+                'x':0.5
+            },
+            xaxis_title="Upload day of the week",
+            yaxis_title="Turnaround time",
+            font_family='Helvetica',
+            legend=dict(title='Within standards'),
+            width=1000,
+            height=500,
+        )
+        # Add run name to hovertext
+        fig.update_traces(
+            hovertemplate="Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f} days"
+        )
+
+        html_fig = fig.to_html(full_html=False, include_plotlyjs=False)
+
+        return html_fig
+
+
 def main():
     """Main function to create html report"""
     tatq = QueryPlotFunctions()
@@ -1648,10 +1762,10 @@ def main():
         closed_typo_tickets, open_typo_tickets
     )
     logger.info("Creating df for all assays")
-    all_assays_df = tatq.create_all_assays_df(all_assays_dict)
+    all_assays_df = tatq.create_all_assays_df(all_assays_dict, cancelled_runs)
     logger.info("Adding calculation columns")
-    tatq.add_calculation_columns(all_assays_df)
-
+    all_assays_df = tatq.add_calculation_columns(all_assays_df)
+    #all_assays_df = tatq.add_in_cancelled_runs(all_assays_df, cancelled_runs)
     all_assays_df.to_csv(
         f'audit_info_{tatq.audit_start}_{tatq.audit_end}.csv',
         float_format='%.3f',
@@ -1659,19 +1773,19 @@ def main():
     )
 
     logger.info("Generating objects for each assay")
-    CEN_stats, CEN_issues, CEN_fig = (
+    CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig = (
         tatq.create_assay_objects(all_assays_df, 'CEN')
     )
-    MYE_stats, MYE_issues, MYE_fig = (
+    MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig = (
         tatq.create_assay_objects(all_assays_df, 'MYE')
     )
-    TSO500_stats, TSO500_issues, TSO500_fig = (
+    TSO500_stats, TSO500_issues, TSO500_fig, TSO500_upload_fig = (
         tatq.create_assay_objects(all_assays_df, 'TSO500')
     )
-    TWE_stats, TWE_issues, TWE_fig = (
+    TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig = (
         tatq.create_assay_objects(all_assays_df, 'TWE')
     )
-    SNP_stats, SNP_issues, SNP_fig = (
+    SNP_stats, SNP_issues, SNP_fig, SNP_upload_fig = (
         tatq.create_assay_objects(all_assays_df, 'SNP')
     )
 
@@ -1691,18 +1805,23 @@ def main():
     content = template.render(
         chart_1=CEN_fig,
         averages_1=CEN_stats,
+        CEN_upload=CEN_upload_fig,
         runs_to_review_1=CEN_issues,
         chart_2=MYE_fig,
         averages_2=MYE_stats,
+        MYE_upload=MYE_upload_fig,
         runs_to_review_2=MYE_issues,
         chart_3=TSO500_fig,
         averages_3=TSO500_stats,
+        TSO500_upload=TSO500_upload_fig,
         runs_to_review_3=TSO500_issues,
         chart_4=TWE_fig,
         averages_4=TWE_stats,
+        TWE_upload=TWE_upload_fig,
         runs_to_review_4=TWE_issues,
         chart_5=SNP_fig,
         averages_5=SNP_stats,
+        SNP_upload=SNP_upload_fig,
         runs_to_review_5=SNP_issues,
         open_runs=open_runs_list,
         runs_no_002=runs_no_002_proj,

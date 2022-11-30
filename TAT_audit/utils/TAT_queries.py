@@ -1125,7 +1125,7 @@ class QueryPlotFunctions:
         return all_assays_dict, open_runs_list, typo_tickets
 
 
-    def create_all_assays_df(self, all_assays_dict, cancelled_runs):
+    def create_all_assays_df(self, all_assays_dict):
         """
         Creates a df with all the assay types, run names and relevant audit info
         Parameters
@@ -1137,15 +1137,11 @@ class QueryPlotFunctions:
         -------
         all_assays_df : pd.DataFrame()
             dataframe with a row for each run
-        cancelled_runs : list
-            list of dicts with info for cancelled runs
         """
         # Convert dict to df with run names as column
         all_assays_df = pd.DataFrame(
             all_assays_dict.values()
         ).assign(run_name=all_assays_dict.keys())
-
-        all_assays_df = all_assays_df.append(cancelled_runs, ignore_index=True)
 
         # Check dataframe is not empty, if it is exit
         if all_assays_df.empty:
@@ -1255,12 +1251,6 @@ class QueryPlotFunctions:
             ).where(
                 all_assays_df['jira_status'] == "All samples released"
             ) / np.timedelta64(1, 'D')
-        )
-
-        # Sort assay types so match the report
-        custom_dict = {'CEN': 0, 'MYE': 1, 'TSO500': 2, 'TWE': 3, 'SNP': 4}
-        all_assays_df = all_assays_df.sort_values(
-            by=['assay_type'], key=lambda x: x.map(custom_dict)
         )
 
         return all_assays_df
@@ -1636,30 +1626,34 @@ class QueryPlotFunctions:
         return typo_folders_html
 
 
-    # def add_in_cancelled_runs(self, all_assays_df, cancelled_runs):
-    #     """
-    #     Add the cancelled runs captured only from Jira tickets to the
-    #     all_assays_df before converting to csv for completeness
+    def add_in_cancelled_runs(self, all_assays_df, cancelled_runs):
+        """
+        Add the cancelled runs captured only from Jira tickets to the
+        all_assays_df before converting to csv for completeness
 
-    #     Parameters
-    #     ----------
-    #     all_assays_df : pd.DataFrame
-    #         dataframe with all runs and timestamps and durations
-    #     cancelled_runs : list
-    #         list of dicts with info for cancelled runs from Jira tickets with
-    #         no 002 project
+        Parameters
+        ----------
+        all_assays_df : pd.DataFrame
+            dataframe with all runs and timestamps and durations
+        cancelled_runs : list
+            list of dicts with info for cancelled runs from Jira tickets with
+            no 002 project
 
-    #     Returns
-    #     -------
-    #     all_assays_df: pd.DataFrame
-    #         all_assays_df with cancelled runs added as rows
-    #     """
-    #     # Append the list of dicts as new rows
-    #     all_assays_df = all_assays_df.append(cancelled_runs, ignore_index=True)
-    #     # Sort by assay type
-    #     all_assays_df = all_assays_df.sort_values('assay_type')
+        Returns
+        -------
+        all_assays_df: pd.DataFrame
+            all_assays_df with cancelled runs added as rows
+        """
+        # Append the list of dicts as new rows
+        all_assays_df = all_assays_df.append(cancelled_runs, ignore_index=True)
 
-    #     return all_assays_df
+        # Sort assay types so match the report
+        custom_dict = {'CEN': 0, 'MYE': 1, 'TSO500': 2, 'TWE': 3, 'SNP': 4}
+        all_assays_df = all_assays_df.sort_values(
+            by=['assay_type'], key=lambda x: x.map(custom_dict)
+        )
+
+        return all_assays_df
 
 
     def create_upload_day_fig(self, assay_df, assay_type):
@@ -1762,15 +1756,9 @@ def main():
         closed_typo_tickets, open_typo_tickets
     )
     logger.info("Creating df for all assays")
-    all_assays_df = tatq.create_all_assays_df(all_assays_dict, cancelled_runs)
+    all_assays_df = tatq.create_all_assays_df(all_assays_dict)
     logger.info("Adding calculation columns")
     all_assays_df = tatq.add_calculation_columns(all_assays_df)
-    #all_assays_df = tatq.add_in_cancelled_runs(all_assays_df, cancelled_runs)
-    all_assays_df.to_csv(
-        f'audit_info_{tatq.audit_start}_{tatq.audit_end}.csv',
-        float_format='%.3f',
-        index=False
-    )
 
     logger.info("Generating objects for each assay")
     CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig = (
@@ -1789,6 +1777,12 @@ def main():
         tatq.create_assay_objects(all_assays_df, 'SNP')
     )
 
+    all_assays_df = tatq.add_in_cancelled_runs(all_assays_df, cancelled_runs)
+    all_assays_df.to_csv(
+        f'audit_info_{tatq.audit_start}_{tatq.audit_end}.csv',
+        float_format='%.3f',
+        index=False
+    )
     # Load Jinja2 template
     # Add the charts, tables and issues into the template
     environment = Environment(loader=FileSystemLoader(

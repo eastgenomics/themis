@@ -51,8 +51,6 @@
         </div>
 
         <div class="container-lg"  style="padding-right: 60px;padding-left: 60px;">
-                <p class="fw-bold">Plot of compliance vs release date</p>
-                <div>   {{ release_comp_plot }}    </div>
                 <p class="fw-bold">Plot of compliance vs release date by ubuntu version</p>
                 <div>   {{ ubuntu_comp_plot }}    </div>
                 <p class="fw-bold">Plot of compliance by latest commit date </p>
@@ -70,7 +68,7 @@
             </div>
             <br>
             {% endblock %}
-            <div style="width:34.5%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
+            <div style="width:33.2%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
                 <p class="fw-bold"> Summary table of compliance by performa </p>
                 <table> {{ compliance_stats_summary | safe }} </table>
             </div>

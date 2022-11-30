@@ -32,10 +32,7 @@
                 <svg class="bi me-2" width="40" height="32"><use xlink:href="#bootstrap"/></svg>
                 <span class="fs-4">Audit Report</span>
               </a>
-
-              <ul class="nav nav-pills">
-                <li class="nav-item"><a href="#" class="nav-link active" aria-current="page">Home</a></li>
-              </ul>
+              <!-- Space to add nav pills if needed for development-->
             </header>
         </div>
 
@@ -73,18 +70,18 @@
             </div>
             <br>
             {% endblock %}
-            <div style="width:35.5%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
+            <div style="width:34.5%;margin-left: auto;margin-right: auto;margin-top: 5px;margin-bottom: 40px;">
                 <p class="fw-bold"> Summary table of compliance by performa </p>
-                <table id="summary_1"> {{ compliance_stats_summary | safe }} </table>
+                <table> {{ compliance_stats_summary | safe }} </table>
             </div>
         </div>
 
         <script>
             // Sets up the DataTable
             $(document).ready(function () {
-            $('.dataframe').DataTable( { //.dataframe // #comp
+            $('.dataframe').DataTable( {
                 deferRender:    true,
-                scrollY:        '45vh',
+                scrollY:        '50vh',
                 scrollX:        true,
                 scroller:       true,
                 scroller: {
@@ -99,6 +96,9 @@
                     'processing': 'Loading...'
                 },
                 paging: false,
+                columnDefs: [
+                    { "visible": false, "targets": 0 }
+                ],
                 dom: 'Bfrtip',
                 buttons: [
                     'copyHtml5', 'csv', 'print'
@@ -108,34 +108,7 @@
                 });
             });
         </script>
-        <script>
-            // Sets up the DataTable for summary_1 table
-            $(document).ready(function () {
-            $('#summary_1').DataTable( {
-                deferRender:    true,
-                scrollY:        '50vh',
-                scrollX:        true,
-                scroller:       true,
-                scroller: {
-                    loadingIndicator: true
-                },
-                scrollCollapse: true,
-                'autoWidth': true,
-                'processing': true,
-                'language': {
-                    'loadingRecords': '&nbsp;',
-                    'processing': 'Loading...'
-                },
-                paging: false,
-                dom: 'Bfrtip',
-                buttons: [
-                    'copyHtml5', 'csv', 'print'
-                ],
-                pageResize:     false,
-                ordering:       true
-                });
-            });
-        </script>
+
 
     </body>
 

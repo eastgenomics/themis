@@ -173,7 +173,7 @@ class compliance_checks:
 
         regions = [x.split(':')[1].rstrip("']") for x in region_list]
 
-        set_e_boolean, no_manual_compiling = self.check_src_file_compliance(
+        set_e_boolean, no_manual_compiling, asset_present = self.check_src_file_compliance(
             dxjson_content, src_file_contents)
         timeout_policy, timeout_setting = self.check_timeout(
             dxjson_content
@@ -205,7 +205,7 @@ class compliance_checks:
 
         details_dict = {'name': name,
                         'authorised_users': authorised_users,
-                        'authorized_devs': authorised_devs,
+                        'authorised_devs': authorised_devs,
                         'interpreter': interpreter,
                         'distribution': distribution,
                         'dist_version': dist_version,
@@ -214,6 +214,7 @@ class compliance_checks:
                         'timeout': timeout_policy,
                         'set_e': set_e_boolean,
                         'no_manual_compiling': no_manual_compiling,
+                        'asset_present': asset_present,
                         'dxapp_or_applet': app_or_applet,
                         'last_release_date': last_release_date,
                         'latest_commit_date': latest_commit_date,
@@ -354,6 +355,12 @@ class compliance_checks:
         """
         set_e_boolean = no_manual_compiling = None
         interpreter = dxjson_content.get('runSpec', {}).get('interpreter', '')
+        # Assets present in dxapp.json
+        if dxjson_content.get('assetsDepends', {}):
+            asset_present = True
+        else:
+            asset_present = False
+        # Check for set -e option and manual compiling in src file.
         if 'python' in interpreter:
             set_e_boolean = "NA"
             no_manual_compiling = "NA"
@@ -375,7 +382,7 @@ class compliance_checks:
             else:
                 no_manual_compiling = True
 
-        return set_e_boolean, no_manual_compiling
+        return set_e_boolean, no_manual_compiling, asset_present
 
     def check_interpreter_compliance(self, dxjson_content):
         """
@@ -765,10 +772,12 @@ class audit_class:
         """
         # remove columns that are not compliance checks
         checks_df = compliance_df.copy()
+        checks_df.drop(columns=['num_of_region_options'], inplace=True)
         # Find the % overall compliance for each app/applet
         # Set the total performa checks for each app/applet
+
         checks_df['total_performa'] = checks_df['interpreter'].apply(
-            lambda x: 10 if 'bash' in x else 9)
+            lambda x: 10 if 'bash' in x else 7)
         # Find the number of performa checks passed for each app/applet
         checks_df['compliance_count'] = (checks_df == True).T.sum()
         score_data = round(
@@ -777,7 +786,6 @@ class audit_class:
         )
         checks_df.insert(1, 'compliance_score', score_data)
         detailed_df.insert(1, 'compliance_score', score_data)
-
         return checks_df, detailed_df
 
     def get_latest_release(self, organisation_name, repo_name, token):
@@ -984,36 +992,37 @@ class audit_class:
             'uptodate_ubuntu': 'Ubuntu 20+',
             'timeout_policy': 'Timeout Policy',
             'correct_regional_option': 'Correct Region',
-            'num_of_region_options': 'Total Regions',
             'no_manual_compiling': 'No Manual Compile',
-            'asset_present': 'Assets',
             'dxapp_or_applet': 'App or Applet',
             'eggd_name_boolean': 'eggd_ name',
             'eggd_title_boolean': 'eggd_ title',
-            'latest_commit_date': 'latest_commit',
+            'latest_commit_date': 'Last Commit',
         }, inplace=True)
 
         detailed_df = detailed_df.rename(columns={
             'compliance_score': 'compliance %',
             'authorised_users': 'Auth Users',
             'authorised_devs': 'Auth Devs',
-            'uptodate_ubuntu': 'Ubuntu 20+',
-            'timeout_policy': 'Timeout Policy',
+            'interpreter': 'File Type',
+            'dist_version': 'Ubuntu Version',
+            'regionalOptions': 'Regions',
             'correct_regional_option': 'Correct Region',
             'num_of_region_options': 'Total Regions',
             'no_manual_compiling': 'No Manual Compile',
             'asset_present': 'Assets',
             'dxapp_or_applet': 'App or Applet',
-            'eggd_name_boolean': 'eggd_ name',
-            'eggd_title_boolean': 'eggd_ title',
-            'latest_commit_date': 'latest commit',
+            'last_release_date': 'Last Release',
+            'latest_commit_date': 'Last Commit',
             'timeout_setting': 'Timeout Setting',
         })
 
-        compliance_df.drop(columns=['dxapp_boolean', 'Total Regions',
-                                    'timeout_setting', 'last_release_date',
-                                    'total_performa', 'compliance_count',
+        compliance_df.drop(columns=['dxapp_boolean', 'timeout_setting',
+                                    'last_release_date', 'total_performa',
+                                    'compliance_count',
                                     ], inplace=True)
+
+        detailed_df.drop(columns=['distribution', 'timeout',
+                                  ], inplace=True)
 
         return compliance_df, detailed_df
 
@@ -1200,16 +1209,6 @@ def main():
                                                                   list_of_json_contents)
     compliance_df, detailed_df = audit.compliance_stats(compliance_df,
                                                         detailed_df)
-    # Write to csv
-    # compliance_df.to_csv('compliance_df.csv')
-    # detailed_df.to_csv('detailed_df.csv')
-
-    # TODO: Add arguements to the main function to allow for customisation.
-    # Read csv for plotting - this is to avoid API calls while testing.
-    # compliance_df = plots.import_csv(
-    #    '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/compliance_df.csv')
-    # detailed_df = plots.import_csv(
-    #    '/home/rswilson1/Documents/Programming/Themis/themis/dxapp_compliance/detailed_df.csv')
 
     # Create tables and plots for html report
     compliance_stats_summary = audit.compliance_scores_for_each_measure(

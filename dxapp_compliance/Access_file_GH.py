@@ -92,7 +92,6 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         "ubuntu_comp_plot": ubuntu_comp_plot,
         "compliance_bycommitdate_plot": compliance_bycommitdate_plot,
         "ubuntu_versions_plot": ubuntu_versions_plot,
-        "compliance_stats_dict": compliance_stats_dict,
     }
     with open(filename, mode="w", encoding="utf-8") as results:
         results.write(template.render(context))

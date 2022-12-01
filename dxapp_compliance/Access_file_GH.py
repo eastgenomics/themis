@@ -75,15 +75,22 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     """
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("Report.html")
-    filename = "Audit_2022_11_30.html"
+    filename = "Audit_2022_11_30_newCond.html"
     compliance_html = compliance_df.to_html(table_id="comp")
     details_html = detailed_df.to_html(table_id="details")
+    #compliance_stats_summary_style = compliance_stats_summary.style.applymap(self.conditional_formatting,
+    #                                           subset=['Compliance %'])
 
-    compliance_stats_summary_html = compliance_stats_summary.to_html(
-        justify="left", table_id="compliance_stats_summary",
-        classes="table table-success table-striped table-hover", index=False,
-    )
-    compliance_stats_summary_html = compliance_stats_summary_html.replace('dataframe', '')
+    styled_df = compliance_stats_summary.style.apply(
+        lambda x: ['background-color: #FFB3BA' if value < 40 else 'background-color: #BAFFC9' if value > 80 else 'background-color: #FFBF00'
+                   for value in x],
+        subset=['Compliance %'])
+    compliance_stats_summary_html = styled_df.to_html()
+    #compliance_stats_summary_html = compliance_stats_summary.to_html(
+    #    justify="left", table_id="compliance_stats_summary",
+    #    classes="table table-success table-striped table-hover", index=False,
+    #)
+    #compliance_stats_summary_html = compliance_stats_summary_html.replace('dataframe', '')
     context = {
         "Compliance_table": compliance_html,
         "Details_table": details_html,
@@ -602,7 +609,8 @@ class audit_class:
             org_details['total_private_repos']
         logger.info(total_num_repos)
         per_page_num = 30
-        pages_total = ceil(total_num_repos/per_page_num)
+        # pages_total = ceil(total_num_repos/per_page_num)
+        pages_total = 1
         all_repos = []
         # The API response in paginated, so we need to loop through all pages
         for page in range(1, pages_total+1):
@@ -921,16 +929,6 @@ class audit_class:
 
         return compliance_df, detailed_df
 
-    def conditional_formatting(self, val):
-        if val < 40:
-            color = '#FFB3BA' # Red
-        elif val >= 40 and val < 80:
-            color = '#FFBF00' # Yellow
-        else:
-            color = '#BAFFC9' # Green
-        return 'background-color: {}'.format(color)
-
-
     def compliance_scores_for_each_measure(self, df):
         """
         This function takes the compliance dataframe and
@@ -986,7 +984,7 @@ class audit_class:
         summary_df = pd.DataFrame(columns_summed)
         summary_df = summary_df.sort_values(by=['Compliance %'])
 
-        return summary_df, columns_summed
+        return summary_df
 
     def compliance_df_format(self, compliance_df, detailed_df):
         """
@@ -1238,7 +1236,7 @@ def main():
                                                         detailed_df)
 
     # Create tables and plots for html report
-    compliance_stats_summary, compliance_stats_dict = audit.compliance_scores_for_each_measure(
+    compliance_stats_summary = audit.compliance_scores_for_each_measure(
         compliance_df)
     release_comp_plot = plots.release_date_compliance_plot(compliance_df)
     ubuntu_comp_plot = plots.ubuntu_compliance_timeseries(detailed_df)
@@ -1251,7 +1249,6 @@ def main():
                         release_comp_plot, ubuntu_comp_plot,
                         compliance_bycommitdate_plot,
                         ubuntu_versions_plot,
-                        compliance_stats_dict
                         )
 
 

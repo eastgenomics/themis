@@ -67,19 +67,23 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     ubuntu_versions_plot (plotly figure):
         Plotly figure of bar plot of counts of ubuntu versions used in apps.
 
-    Returns
+    Outputs
     -------
-    None
-    But writes html file of the report with provided variables.
+    .html
+        HTML report of all app compliances.
+        Including tables of compliance stats and plots.
     """
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("Report.html")
-    filename = "Audit_2022_11_08.html"
+    filename = "Audit_2022_11_30.html"
     compliance_html = compliance_df.to_html(table_id="comp")
     details_html = detailed_df.to_html(table_id="details")
+
     compliance_stats_summary_html = compliance_stats_summary.to_html(
-        table_id="compliance_stats_summary"
+        justify="left", table_id="compliance_stats_summary",
+        classes="table table-success table-striped table-hover", index=False,
     )
+    compliance_stats_summary_html = compliance_stats_summary_html.replace('dataframe', '')
     context = {
         "Compliance_table": compliance_html,
         "Details_table": details_html,
@@ -88,6 +92,7 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         "ubuntu_comp_plot": ubuntu_comp_plot,
         "compliance_bycommitdate_plot": compliance_bycommitdate_plot,
         "ubuntu_versions_plot": ubuntu_versions_plot,
+        "compliance_stats_dict": compliance_stats_dict,
     }
     with open(filename, mode="w", encoding="utf-8") as results:
         results.write(template.render(context))
@@ -170,8 +175,9 @@ class compliance_checks:
                 dxjson_content,
                 default_region
             )
+        # Convert list of regions to more readable string
+        regions = " ".join([x.split(':')[1].rstrip("']") for x in region_list])
 
-        regions = [x.split(':')[1].rstrip("']") for x in region_list]
 
         set_e_boolean, no_manual_compiling, asset_present = self.check_src_file_compliance(
             dxjson_content, src_file_contents)
@@ -236,7 +242,7 @@ class compliance_checks:
 
         Returns:
         -------
-            region_list (list):
+            regions (list):
                 list of regional options for the app/applet.
             correct_regional_boolean (boolean):
                 True/False whether only the correct region is selected
@@ -290,14 +296,14 @@ class compliance_checks:
             timeout_policy = True
 
         timeout_setting = []
-        list_of_time_units = {'days': 'd', 'hours': 'hrs', 'minutes': 'm'}
+        list_of_time_units = {'days': 'd', 'hours': 'h', 'minutes': 'm'}
         for key in timeout_policy_dict.keys():
             time_nomenclature = str(key)
             time = data.get('runSpec', {}).get(
                 'timeoutPolicy', {}).get('*', {}).get(f'{time_nomenclature}')
             # set timeout setting to a string in format of 1d, 30m, 12hrs.
             time_shorthand = list_of_time_units.get(time_nomenclature, ' ')
-            timeout_setting.append(f"{time} {time_shorthand})")
+            timeout_setting.append(f"{time}{time_shorthand}")
         if len(timeout_setting) == 0:
             timeout_setting = None
         elif len(timeout_setting) == 1:
@@ -724,8 +730,7 @@ class audit_class:
                 # Search contents for src file
                 for content in contents:
                     filename = content['name']
-                    if (re.search(r'.*sh', filename) or
-                        re.search(r'.*py', filename)):
+                    if re.search(r'(.py|.sh)$', filename):
                         try:
                             logger.info("src file found in src/ subfolder."
                                         "src file is named differently in dxapp.json.")
@@ -898,7 +903,7 @@ class audit_class:
         if len(list_apps) != len(list_of_json_contents):
             logger.error(
                 "Number of apps and list of json contents do not match.")
-            sys.exit(0)
+            raise AssertionError('List of apps and list of API jsons dont match')
 
         for index, (app, dxapp_contents) in enumerate(zip(list_apps, list_of_json_contents)):
             # The first item creates the dataframe
@@ -916,6 +921,16 @@ class audit_class:
                                         df_repo_details], ignore_index=True)
 
         return compliance_df, detailed_df
+
+    def conditional_formatting(self, val):
+        if val < 40:
+            color = '#FFB3BA' # Red
+        elif val >= 40 and val < 80:
+            color = '#FFBF00' # Yellow
+        else:
+            color = '#BAFFC9' # Green
+        return 'background-color: {}'.format(color)
+
 
     def compliance_scores_for_each_measure(self, df):
         """
@@ -947,29 +962,32 @@ class audit_class:
             'eggd_title_boolean',
         ]]
         columns_summed = []
+        new_col_names = {
+            'authorised_users': 'Auth Users',
+            'authorised_devs': 'Auth Devs',
+            'uptodate_ubuntu': 'Ubuntu 20+',
+            'timeout_policy': 'Timeout Policy',
+            'correct_regional_option': 'Correct Region',
+            'set_e': 'Set -e Present',
+            'no_manual_compiling': 'No Manual Compile',
+            'dxapp_boolean': 'DNAnexus App',
+            'eggd_name_boolean': 'eggd_ name',
+            'eggd_title_boolean': 'eggd_ title',
+        }
         for column in df:
             # Get number of true and false values for compliance measures
             no_true = len(df.query(f'{column} == True'))
             no_false = len(df.query(f'{column} == False'))
-            len_df = len(df)
 
-            # Get all non-boolean columns
-            non_boolean_rows = df.query(
-                f'{column} != True').query(f'{column} != False')
-
-            num_non_boolean_rows = len(non_boolean_rows)
-            total = len_df - num_non_boolean_rows
             complaince_stats = {
-                'name': column,
-                'true': no_true,
-                'false': no_false,
-                'total': total,
-                'compliance_percentage': round((no_true / (no_true + no_false))*100, 2)
+                'Name': new_col_names[column],
+                'Compliance %': round((no_true / (no_true + no_false))*100, 1)
             }
             columns_summed.append(complaince_stats)
         summary_df = pd.DataFrame(columns_summed)
+        summary_df = summary_df.sort_values(by=['Compliance %'])
 
-        return summary_df
+        return summary_df, columns_summed
 
     def compliance_df_format(self, compliance_df, detailed_df):
         """
@@ -1221,7 +1239,7 @@ def main():
                                                         detailed_df)
 
     # Create tables and plots for html report
-    compliance_stats_summary = audit.compliance_scores_for_each_measure(
+    compliance_stats_summary, compliance_stats_dict = audit.compliance_scores_for_each_measure(
         compliance_df)
     release_comp_plot = plots.release_date_compliance_plot(compliance_df)
     ubuntu_comp_plot = plots.ubuntu_compliance_timeseries(detailed_df)
@@ -1233,7 +1251,8 @@ def main():
     get_template_render(compliance_df, detailed_df, compliance_stats_summary,
                         release_comp_plot, ubuntu_comp_plot,
                         compliance_bycommitdate_plot,
-                        ubuntu_versions_plot
+                        ubuntu_versions_plot,
+                        compliance_stats_dict
                         )
 
 

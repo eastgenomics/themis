@@ -80,7 +80,7 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     details_html = detailed_df.to_html(table_id="details")
     # Set conditional formatting for compliance table
     styled_df = compliance_stats_summary.style.apply(
-        lambda x: ['background-color: #FFB3BA' if value < 40 else
+        lambda x: ['background-color: #FFB3BA' if value < 50 else
                    'background-color: #BAFFC9' if value > 80 else
                    'background-color: #FFBF00'
                    for value in x],

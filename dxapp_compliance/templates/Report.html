@@ -75,7 +75,7 @@
 
     <div class="container-sm" style="padding-right: 60px; padding-bottom: 50px; padding-left: 60px;">
         <p class="fw-bold"> Summary table of compliance by performa </p>
-        <table class="table table-striped"> {{ compliance_stats_summary | safe }} </table>
+        <div> {{ compliance_stats_summary | safe }} </div>
     </div>
     <script>
         // Sets up the DataTable

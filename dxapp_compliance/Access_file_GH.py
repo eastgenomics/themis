@@ -78,19 +78,20 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     filename = "Audit_2022_11_30_newCond.html"
     compliance_html = compliance_df.to_html(table_id="comp")
     details_html = detailed_df.to_html(table_id="details")
-    #compliance_stats_summary_style = compliance_stats_summary.style.applymap(self.conditional_formatting,
-    #                                           subset=['Compliance %'])
 
     styled_df = compliance_stats_summary.style.apply(
-        lambda x: ['background-color: #FFB3BA' if value < 40 else 'background-color: #BAFFC9' if value > 80 else 'background-color: #FFBF00'
+        lambda x: ['background-color: #FFB3BA' if value < 40 else
+                   'background-color: #BAFFC9' if value > 80 else
+                   'background-color: #FFBF00'
                    for value in x],
-        subset=['Compliance %'])
-    compliance_stats_summary_html = styled_df.to_html()
-    #compliance_stats_summary_html = compliance_stats_summary.to_html(
-    #    justify="left", table_id="compliance_stats_summary",
-    #    classes="table table-success table-striped table-hover", index=False,
-    #)
-    #compliance_stats_summary_html = compliance_stats_summary_html.replace('dataframe', '')
+        subset=['Compliance %']).hide(axis='index')
+    compliance_stats_summary_html = styled_df.to_html(
+        table_attributes="class = 'table table-striped table-hover'",
+        table_uuid="compliance_stats_summary",
+        bold_headers=True,
+        justify="left",
+    )
+
     context = {
         "Compliance_table": compliance_html,
         "Details_table": details_html,
@@ -183,7 +184,6 @@ class compliance_checks:
             )
         # Convert list of regions to more readable string
         regions = " ".join([x.split(':')[1].rstrip("']") for x in region_list])
-
 
         set_e_boolean, no_manual_compiling, asset_present = self.check_src_file_compliance(
             dxjson_content, src_file_contents)
@@ -910,7 +910,8 @@ class audit_class:
         if len(list_apps) != len(list_of_json_contents):
             logger.error(
                 "Number of apps and list of json contents do not match.")
-            raise AssertionError('List of apps and list of API jsons dont match')
+            raise AssertionError(
+                'List of apps and list of API jsons dont match')
 
         for index, (app, dxapp_contents) in enumerate(zip(list_apps, list_of_json_contents)):
             # The first item creates the dataframe

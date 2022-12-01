@@ -78,7 +78,7 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     filename = "Audit_2022_11_30_newCond.html"
     compliance_html = compliance_df.to_html(table_id="comp")
     details_html = detailed_df.to_html(table_id="details")
-    print(compliance_stats_summary)
+    # Set conditional formatting for compliance table
     styled_df = compliance_stats_summary.style.apply(
         lambda x: ['background-color: #FFB3BA' if value < 40 else
                    'background-color: #BAFFC9' if value > 80 else
@@ -91,8 +91,6 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         bold_headers=True,
         justify="left",
     )
-    print(compliance_stats_summary_html)
-
 
     context = {
         "Compliance_table": compliance_html,

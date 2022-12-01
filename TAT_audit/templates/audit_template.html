@@ -72,6 +72,9 @@
         <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
             {{ averages_1 }}
         </div>
+        <div style="padding-top: 30px; padding-bottom: 20px;">
+            {{ CEN_upload }}
+        </div>
             {% if runs_to_review_1 %}
                 <div style="padding-top: 30px; padding-bottom: 20px;">
                     <h5>Runs to review manually:</h5>
@@ -191,7 +194,7 @@
                         Date Jira ticket created: {{ run.date_jira_ticket_created }}
                     </li>
                     <li>
-                        Reason run not released: {{ run.reason_not_released }}
+                        Reason run not released: {{ run.jira_status }}
                     </li>
                 </ul>
                 <br>
@@ -208,6 +211,9 @@
         </div>
         <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
             {{ averages_2 }}
+        </div>
+        <div style="padding-top: 30px; padding-bottom: 20px;">
+            {{ MYE_upload }}
         </div>
         {% if runs_to_review_2 %}
             <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -328,7 +334,7 @@
                         Date Jira ticket created: {{ run.date_jira_ticket_created }}
                     </li>
                     <li>
-                        Reason run not released: {{ run.reason_not_released }}
+                        Reason run not released: {{ run.jira_status }}
                     </li>
                 </ul>
                 <br>
@@ -345,7 +351,9 @@
         <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
             {{ averages_3 }}
         </div>
-
+        <div style="padding-top: 30px; padding-bottom: 20px;">
+            {{ TSO500_upload }}
+        </div>
         {% if runs_to_review_3 %}
             <div style="padding-top: 30px; padding-bottom: 20px;">
                 <h5>Runs to review manually:</h5>
@@ -465,7 +473,7 @@
                         Date Jira ticket created: {{ run.date_jira_ticket_created }}
                     </li>
                     <li>
-                        Reason run not released: {{ run.reason_not_released }}
+                        Reason run not released: {{ run.jira_status }}
                     </li>
                 </ul>
                 <br>
@@ -482,7 +490,9 @@
         <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
             {{ averages_4 }}
         </div>
-
+        <div style="padding-top: 30px; padding-bottom: 20px;">
+            {{ TWE_upload }}
+        </div>
         {% if runs_to_review_4 %}
             <div style="padding-top: 30px; padding-bottom: 20px;">
                 <h5>Runs to review manually:</h5>
@@ -602,7 +612,7 @@
                         Date Jira ticket created: {{ run.date_jira_ticket_created }}
                     </li>
                     <li>
-                        Reason run not released: {{ run.reason_not_released }}
+                        Reason run not released: {{ run.jira_status }}
                     </li>
                 </ul>
                 <br>
@@ -619,7 +629,9 @@
         <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
             {{ averages_5 }}
         </div>
-
+        <div style="padding-top: 30px; padding-bottom: 20px;">
+            {{ SNP_upload }}
+        </div>
         {% if runs_to_review_5 %}
             <div style="padding-top: 30px; padding-bottom: 20px;">
                 <h5>Runs to review manually:</h5>
@@ -739,7 +751,7 @@
                         Date Jira ticket created: {{ run.date_jira_ticket_created }}
                     </li>
                     <li>
-                        Reason run not released: {{ run.reason_not_released }}
+                        Reason run not released: {{ run.jira_status }}
                     </li>
                 </ul>
                 <br>

@@ -609,8 +609,7 @@ class audit_class:
             org_details['total_private_repos']
         logger.info(total_num_repos)
         per_page_num = 30
-        # pages_total = ceil(total_num_repos/per_page_num)
-        pages_total = 1
+        pages_total = ceil(total_num_repos/per_page_num)
         all_repos = []
         # The API response in paginated, so we need to loop through all pages
         for page in range(1, pages_total+1):

@@ -88,10 +88,10 @@
                         </ul>
                     {% endif %}
 
-                    {% if runs_to_review_1.job_002_before_log %}
-                        <p><b>A job was run in the 002 project before upload in staging area</b></p>
+                    {% if runs_to_review_1.first_job_before_log %}
+                        <p><b>First job was run before upload in staging area</b></p>
                         <ul>
-                            {% for entry in runs_to_review_1.job_002_before_log  %}
+                            {% for entry in runs_to_review_1.first_job_before_log  %}
                             <li>{{ entry }}</li>
                             {% endfor %}
                         </ul>
@@ -115,10 +115,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_1.no_002_found %}
-                    <p><b>No 002 job was found:</b></p>
+                {% if runs_to_review_1.no_first_job_found %}
+                    <p><b>No first job was found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_1.no_002_found  %}
+                        {% for entry in runs_to_review_1.no_first_job_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>
@@ -228,10 +228,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_2.job_002_before_log %}
-                    <p><b>A job was run in the 002 project before upload in staging area</b></p>
+                {% if runs_to_review_2.first_job_before_log %}
+                    <p><b>First job was run before upload in staging area</b></p>
                         <ul>
-                            {% for entry in runs_to_review_2.job_002_before_log  %}
+                            {% for entry in runs_to_review_2.first_job_before_log  %}
                                 <li>{{ entry }}</li>
                             {% endfor %}
                         </ul>
@@ -255,10 +255,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_2.no_002_found %}
-                    <p><b>No 002 job was found:</b></p>
+                {% if runs_to_review_2.no_first_job_found %}
+                    <p><b>No first job was found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_2.no_002_found  %}
+                        {% for entry in runs_to_review_2.no_first_job_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>
@@ -367,10 +367,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_3.job_002_before_log %}
-                    <p><b>A job was run in the 002 project before upload in staging area</b></p>
+                {% if runs_to_review_3.first_job_before_log %}
+                    <p><b>First job was run before upload in staging area</b></p>
                     <ul>
-                    {% for entry in runs_to_review_3.job_002_before_log  %}
+                    {% for entry in runs_to_review_3.first_job_before_log  %}
                         <li>{{ entry }}</li>
                     {% endfor %}
                     </ul>
@@ -394,10 +394,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_3.no_002_found %}
-                    <p><b>No 002 job was found:</b></p>
+                {% if runs_to_review_3.no_first_job_found %}
+                    <p><b>No first job was found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_3.no_002_found  %}
+                        {% for entry in runs_to_review_3.no_first_job_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>
@@ -506,10 +506,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_4.job_002_before_log %}
-                    <p><b>A job was run in the 002 project before upload in staging area</b></p>
+                {% if runs_to_review_4.first_job_before_log %}
+                    <p><b>First job was run before upload in staging area</b></p>
                     <ul>
-                    {% for entry in runs_to_review_4.job_002_before_log  %}
+                    {% for entry in runs_to_review_4.first_job_before_log  %}
                         <li>{{ entry }}</li>
                     {% endfor %}
                     </ul>
@@ -533,10 +533,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_4.no_002_found %}
-                    <p><b>No 002 job was found:</b></p>
+                {% if runs_to_review_4.no_first_job_found %}
+                    <p><b>No first job was found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_4.no_002_found  %}
+                        {% for entry in runs_to_review_4.no_first_job_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>
@@ -645,10 +645,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_5.job_002_before_log %}
-                    <p><b>A job was run in the 002 project before upload in staging area</b></p>
+                {% if runs_to_review_5.first_job_before_log %}
+                    <p><b>First job was run before upload in staging area</b></p>
                     <ul>
-                    {% for entry in runs_to_review_5.job_002_before_log  %}
+                    {% for entry in runs_to_review_5.first_job_before_log  %}
                         <li>{{ entry }}</li>
                     {% endfor %}
                     </ul>
@@ -672,10 +672,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_5.no_002_found %}
-                    <p><b>No 002 job was found:</b></p>
+                {% if runs_to_review_5.no_first_job_found %}
+                    <p><b>No first job was found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_5.no_002_found  %}
+                        {% for entry in runs_to_review_5.no_first_job_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>

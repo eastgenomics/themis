@@ -270,7 +270,7 @@ class QueryPlotFunctions:
                     f'_{assay_type}'
                 )
             )
-            # Check if the date of the run is after the begin date of the audit
+            # Check if the date of the run is within audit dates
             # Because 002 project may have been made after actual run date
             run_name_date = run_name.split('_')[0]
             if (
@@ -497,11 +497,11 @@ class QueryPlotFunctions:
                             log_upload = self.find_log_file_time(
                                 files_in_folder
                             )
-                            # Get the earliest 002 job
+                            # Get the first job
                             # If log file was uploaded before the first 002 job
                             # Add in log file upload time
                             first_job = run_dict[run_name].get(
-                                'earliest_002_job'
+                                'first_job'
                             )
                             if first_job:
                                 if log_upload < first_job:
@@ -541,7 +541,7 @@ class QueryPlotFunctions:
         return updated_dict, typo_run_folders
 
 
-    def find_jobs_in_project(self, project_id):
+    def find_jobs_in_002_project(self, project_id):
         """
         Finds all the jobs in a project
 
@@ -569,10 +569,70 @@ class QueryPlotFunctions:
         return jobs
 
 
-    def find_earliest_job(self, jobs):
+    def find_staging_demultiplex_jobs(self):
+        """
+        Find jobs in staging area (always demultiplexing)
+
+        Returns
+        -------
+        demux_jobs : list
+            list of dicts with info about jobs in staging area
+        """
+        # Find the jobs in staging area in last X weeks that are done
+        demux_jobs = list(dx.search.find_jobs(
+            project=self.staging_id,
+            created_after=self.five_days_before_start,
+            state='done',
+            describe={
+                'fields': {
+                    'id': True,
+                    'name': True,
+                    'executableName': True,
+                    'created': True,
+                    'folder': True
+                }
+            }
+        ))
+
+        return demux_jobs
+
+
+    def add_demultiplex_start_time(self, demux_jobs, run_dict):
+        """
+        Add the demultiplexing start time for non-TSO500 and non-SNP runs
+
+        Parameters
+        ----------
+        demux_jobs : list
+            _description_
+        run_dict : dict
+            dict with each run and relevant audit info for an assay
+
+        Returns
+        -------
+        run_dict : dict
+            dict with each run and relevant audit info with demux time added
+        """
+        for demux_job in demux_jobs:
+            first, run_name, *rest = demux_job['describe']['folder'].split("/")
+            # If the run name from the job is in our dict
+            # Add the time demultiplex started to the dict
+            demux_start = demux_job['describe']['created'] / 1000
+            if run_name in run_dict:
+                if run_dict[run_name]['assay_type'] not in ['TSO500', 'SNP']:
+                    run_dict[run_name]['first_job'] = (
+                        time.strftime(
+                            '%Y-%m-%d %H:%M:%S', time.localtime(demux_start)
+                        )
+                    )
+
+        return run_dict
+
+
+    def find_earliest_002_job(self, jobs):
         """
         Finds and returns the earliest job created time (as str) from a list of
-        job dicts in a project
+        job dicts in a 002 project
 
         Parameters
         ----------
@@ -598,32 +658,35 @@ class QueryPlotFunctions:
         return first_job
 
 
-    def add_earliest_002_job(self, run_dict):
+    def add_earliest_002_job(self, run_dict, assay_type):
         """
         Adds the time the earliest job was run in the relevant 002 project for
-        that run
+        that run if TSO500 or SNP, as demultiplexing on instrument
         Parameters
         ----------
         run_dict :  collections.defaultdict(dict)
             dictionary where key is run name and dict inside with relevant info
             for that run
+        assay_type : str
+            the assay type e.g. 'CEN'
         Returns
         -------
         run_dict : collections.defaultdict(dict)
             dictionary where key is run name with dict inside and earliest_002
             job added
         """
-        # For run, use proj ID for 002 project and get all the jobs in the proj
-        for run in run_dict:
-            run_project_id = run_dict[run]['project_id']
-            jobs = self.find_jobs_in_project(run_project_id)
-            first_job = self.find_earliest_job(jobs)
+        if assay_type in ['TSO500', 'SNP']:
+            # Use proj ID for 002 project and get all the jobs in the proj
+            for run in run_dict:
+                run_project_id = run_dict[run]['project_id']
+                jobs = self.find_jobs_in_002_project(run_project_id)
+                first_job = self.find_earliest_002_job(jobs)
 
-            # For key with relevant run name
-            # Add earliest_002_job key with time of earliest job in datetime
-            # format
-            if first_job:
-                run_dict[run]['earliest_002_job'] = first_job
+                # For key with relevant run name
+                # Add first_job key with time of earliest job in datetime
+                # format
+                if first_job:
+                    run_dict[run]['first_job'] = first_job
 
         return run_dict
 
@@ -814,7 +877,7 @@ class QueryPlotFunctions:
                     excel_job['describe']['stoppedRunning'] / 1000
                 )
                 # If job finished before the Jira ticket was resolved
-                # Add to lists
+                # Add to list
                 if finished_running <= jira_res_epoch:
                     excel_jobs_before_resolution.append(finished_running)
             # If any jobs are before Jira ticket resolved, find time
@@ -929,8 +992,15 @@ class QueryPlotFunctions:
         # Get MultiQC finished time for MYE, TSO500 + SNP runs
         if assay_type not in ['CEN', 'TWE']:
             assay_run_dict = self.add_successful_multiqc_time(assay_run_dict)
-        assay_run_dict = self.add_earliest_002_job(assay_run_dict)
 
+        # Add earliest 002 for TSO500 and SNP runs
+        assay_run_dict = self.add_earliest_002_job(assay_run_dict, assay_type)
+
+        staging_area_jobs = self.find_staging_demultiplex_jobs()
+        # Add demultiplexing time for non-TSO500 and non-SNP runs
+        assay_run_dict = self.add_demultiplex_start_time(
+            staging_area_jobs, assay_run_dict
+        )
         assay_run_dict, typo_run_folders = self.add_upload_time(
             assay_run_dict, assay_type
         )
@@ -1307,13 +1377,13 @@ class QueryPlotFunctions:
 
         # Reorder columns
         all_assays_df = all_assays_df[[
-            'assay_type', 'run_name', 'upload_time', 'earliest_002_job',
+            'assay_type', 'run_name', 'upload_time', 'first_job',
             'processing_finished', 'last_multiQC_finished',  'jira_status',
             'jira_resolved'
         ]]
 
         cols_to_convert = [
-            'upload_time', 'earliest_002_job', 'processing_finished',
+            'upload_time', 'first_job', 'processing_finished',
             'last_multiQC_finished', 'jira_resolved'
         ]
 
@@ -1338,18 +1408,18 @@ class QueryPlotFunctions:
         all_assays_df : pd.DataFrame()
             dataframe with a row for each run and extra calculation columns
         """
-        # Add new column for time between log file and earliest 002 job
-        all_assays_df['upload_to_first_002_job'] = (
-            (all_assays_df['earliest_002_job'] - all_assays_df['upload_time'])
+        # Add new column for time between log file and first job
+        all_assays_df['upload_to_first_job'] = (
+            (all_assays_df['first_job'] - all_assays_df['upload_time'])
             / np.timedelta64(1, 'D')
         )
 
-        # Add new column for bioinfx processing time from earliest 002 job
+        # Add new column for bioinfx processing time from first job
         # To the time that the last successful MultiQC or excel job finished
         all_assays_df['processing_time'] = (
             (
                 all_assays_df['processing_finished']
-                - all_assays_df['earliest_002_job']
+                - all_assays_df['first_job']
             )
             / np.timedelta64(1, 'D')
         )
@@ -1370,7 +1440,7 @@ class QueryPlotFunctions:
                 all_assays_df['jira_resolved'] - all_assays_df['upload_time']
             ).where(
                 (all_assays_df['jira_status'] == "All samples released")
-                & (all_assays_df['upload_to_first_002_job'] >= 0)
+                & (all_assays_df['upload_to_first_job'] >= 0)
                 & (all_assays_df['processing_time'] >= 0)
                 & (all_assays_df['processing_end_to_release'] >= 0)
             ) / np.timedelta64(1, 'D')
@@ -1457,12 +1527,12 @@ class QueryPlotFunctions:
         ]
         assay_df = assay_df[~assay_df.jira_status.isin(cancelled_runs)]
 
-        # Add trace for Log file to first 002 job
+        # Add trace for Log file to first job
         fig = go.Figure()
         fig.add_trace(
             go.Bar(
                 x=assay_df["run_name"],
-                y=assay_df["upload_to_first_002_job"],
+                y=assay_df["upload_to_first_job"],
                 name="Upload to processing start",
                 legendrank=4
             )
@@ -1567,14 +1637,14 @@ class QueryPlotFunctions:
         compliant_runs = (
             assay_df.loc[
                 (assay_df['upload_to_release'] <= 3)
-                & (assay_df['upload_to_first_002_job'] >= 0)
+                & (assay_df['upload_to_first_job'] >= 0)
                 & (assay_df['processing_time'] >= 0)
                 & (assay_df['processing_end_to_release'] >= 0)
             ]
         ).shape[0]
 
         relevant_run_count = assay_df.loc[
-            (assay_df['upload_to_first_002_job'] >= 0)
+            (assay_df['upload_to_first_job'] >= 0)
             & (assay_df['processing_time'] >= 0)
             & (assay_df['processing_end_to_release'] >=0)
             & (
@@ -1589,7 +1659,7 @@ class QueryPlotFunctions:
             'Mean overall turnaround': assay_df['upload_to_release'].mean(),
             'Median overall turnaround': assay_df['upload_to_release'].median(),
             'Mean upload to processing start': (
-                assay_df['upload_to_first_002_job'].mean()
+                assay_df['upload_to_first_job'].mean()
             ),
             'Mean pipeline running': assay_df['processing_time'].mean(),
             'Mean processing end to release': (
@@ -1637,9 +1707,9 @@ class QueryPlotFunctions:
             assay_df.loc[(assay_df['jira_status'].isna())]['run_name']
         )
 
-        # If days between log file and 002 job is negative flag
-        manual_review_dict['job_002_before_log'] = list(
-            assay_df.loc[(assay_df['upload_to_first_002_job'] < 0)]['run_name']
+        # If days between log file and first job is negative flag
+        manual_review_dict['first_job_before_log'] = list(
+            assay_df.loc[(assay_df['upload_to_first_job'] < 0)]['run_name']
         )
 
         # If days between final multiQC + release is negative flag
@@ -1652,9 +1722,9 @@ class QueryPlotFunctions:
             assay_df.loc[(assay_df['upload_time'].isna())]['run_name']
         )
 
-        # If no 002 job was found flag
-        manual_review_dict['no_002_found'] = list(
-            assay_df.loc[(assay_df['earliest_002_job'].isna())]['run_name']
+        # If no 002 job or demux job was found flag
+        manual_review_dict['no_first_job_found'] = list(
+            assay_df.loc[(assay_df['first_job'].isna())]['run_name']
         )
 
         # If no MultiQC or excel job was found flag

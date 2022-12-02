@@ -730,7 +730,8 @@ class QueryPlotFunctions:
         -------
         run_dict : collections.defaultdict(dict)
             dictionary where key is run name with dict inside and
-            multiQC_finished key and val added
+            processing_finished key and val added (and last_multiQC_finished
+            if >1 job)
         """
         # For each run from the dict
         # Find executions that include the name *MultiQC*
@@ -741,12 +742,166 @@ class QueryPlotFunctions:
             (multi_qc_completed,
             last_multiqc_job) = self.get_relevant_multiqc_job(multi_qc_jobs)
 
-            # For key with relevant run name, add multiQC_finished value to dict
+            # For key with the run name, add multiQC_finished value to dict
             # For the first one and if there were >1 MultiQC job
-            run_dict[run]['multiQC_finished'] = multi_qc_completed
+            run_dict[run]['processing_finished'] = multi_qc_completed
             run_dict[run]['last_multiQC_finished'] = last_multiqc_job
 
         return run_dict
+
+    def find_excel_jobs(self, project_id):
+        """
+        Find jobs for eggd_generate_variant_workbook and eggd_vcf2xls_nirvana
+        in the 002 project
+
+        Parameters
+        ----------
+        project_id : str
+            str for the project's DX ID
+
+        Returns
+        -------
+        excel_jobs : list
+            list of dicts containing info about the excel jobs
+        """
+        excel_jobs = list(dx.search.find_jobs(
+            project=project_id,
+            state='done',
+            name='vcf2xls_nirvana|variant',
+            name_mode='regexp',
+            describe={
+                'fields': {
+                    'id': True,
+                    'name': True,
+                    'stoppedRunning': True,
+                }
+            }
+        ))
+
+        return excel_jobs
+
+
+    def get_relevant_excel_job(self, excel_jobs, jira_resolved_timestamp):
+        """
+        For CEN and TWE runs which are released, get the time that the
+        last generate excel job finished before the Jira ticket was resolved
+        (to prevent including reanalysis jobs)
+
+        Parameters
+        ----------
+        excel_jobs : list
+            list of dicts containing info about the excel jobs
+        jira_resolved_timestamp : str
+            timestamp that the Jira ticket for the run was resolved
+
+        Returns
+        -------
+        excel_completed : str or None
+            timestamp the last create excel job finished (or None if no excel
+            jobs)
+        """
+        excel_completed = None
+        excel_jobs_before_resolution = []
+        # Convert time the Jira ticket was resolved from epoch to timestamp
+        jira_res_epoch = time.mktime(
+            time.strptime(jira_resolved_timestamp, "%Y-%m-%d %H:%M:%S")
+        )
+
+        if excel_jobs:
+            for excel_job in excel_jobs:
+                # Get the time stopped running in epoch
+                finished_running = (
+                    excel_job['describe']['stoppedRunning'] / 1000
+                )
+                # If job finished before the Jira ticket was resolved
+                # Add to lists
+                if finished_running <= jira_res_epoch:
+                    excel_jobs_before_resolution.append(finished_running)
+            # If any jobs are before Jira ticket resolved, find time
+            # last Excel job finished and convert to timestamp
+            if excel_jobs_before_resolution:
+                excel_fin = max(excel_jobs_before_resolution)
+                excel_completed = time.strftime(
+                    '%Y-%m-%d %H:%M:%S', time.localtime(excel_fin)
+                )
+
+        return excel_completed
+
+
+    def get_last_excel_job(self, excel_jobs):
+        """
+        Get the time the last Excel job finished for unreleased runs
+
+        Parameters
+        ----------
+        excel_jobs : list
+            list of dicts containing info about the excel jobs
+
+        Returns
+        -------
+        excel_completed : str or None
+            timestamp the last create excel job finished (or None if no excel
+            jobs)
+        """
+        excel_completed = None
+
+        if excel_jobs:
+            excel_fin = max(
+                excel_job['describe']['stoppedRunning'] / 1000
+                for excel_job in excel_jobs
+            )
+            excel_completed = time.strftime(
+                '%Y-%m-%d %H:%M:%S', time.localtime(excel_fin)
+            )
+
+        return excel_completed
+
+
+    def add_excel_finished_time(self, all_assays_dict):
+        """
+        Add the time the relevant Excel job finished for the runs to the
+        dictionary for CEN and TWE runs
+
+        Parameters
+        ----------
+        all_assays_dict : dict
+            dict containing each run and relevant audit info as nested keys
+
+        Returns
+        -------
+        all_assays_dict : dict
+            dict with processing_finished key added for CEN + TWE runs
+            containing time last relevant Excel generation job finished
+        """
+        for run in all_assays_dict:
+            # If it's a CEN or TWE run
+            # Try and get the time Jira ticket was resolved and proj ID
+            if all_assays_dict[run]['assay_type'] in ['CEN', 'TWE']:
+                jira_resolved = all_assays_dict[run].get('jira_resolved')
+                project_id = all_assays_dict[run].get('project_id')
+                # Find all the Excel jobs run in that project
+                excel_jobs = self.find_excel_jobs(project_id)
+                # If the Jira ticket is resolved (All samples released)
+                # Get the time final Excel job finished before release
+                if jira_resolved:
+                    excel_finished = self.get_relevant_excel_job(
+                        excel_jobs, jira_resolved
+                    )
+                    # If found the relevant Excel job, add to dict
+                    if excel_finished:
+                        all_assays_dict[run]['processing_finished'] = (
+                            excel_finished
+                        )
+                else:
+                    # Jira ticket not resolved, just get last Excel job run
+                    # If exists, add the timestamp to dict
+                    excel_finished = self.get_last_excel_job(excel_jobs)
+                    if excel_finished:
+                        all_assays_dict[run]['processing_finished'] = (
+                            excel_finished
+                        )
+
+        return all_assays_dict
 
 
     def create_info_dict(self, assay_type):
@@ -771,7 +926,9 @@ class QueryPlotFunctions:
         assay_run_dict = self.create_run_dict_add_assay(
             assay_type, assay_response
         )
-        assay_run_dict = self.add_successful_multiqc_time(assay_run_dict)
+        # Get MultiQC finished time for MYE, TSO500 + SNP runs
+        if assay_type not in ['CEN', 'TWE']:
+            assay_run_dict = self.add_successful_multiqc_time(assay_run_dict)
         assay_run_dict = self.add_earliest_002_job(assay_run_dict)
 
         assay_run_dict, typo_run_folders = self.add_upload_time(
@@ -1151,12 +1308,12 @@ class QueryPlotFunctions:
         # Reorder columns
         all_assays_df = all_assays_df[[
             'assay_type', 'run_name', 'upload_time', 'earliest_002_job',
-            'multiQC_finished', 'last_multiQC_finished',  'jira_status',
+            'processing_finished', 'last_multiQC_finished',  'jira_status',
             'jira_resolved'
         ]]
 
         cols_to_convert = [
-            'upload_time', 'earliest_002_job', 'multiQC_finished',
+            'upload_time', 'earliest_002_job', 'processing_finished',
             'last_multiQC_finished', 'jira_resolved'
         ]
 
@@ -1188,20 +1345,20 @@ class QueryPlotFunctions:
         )
 
         # Add new column for bioinfx processing time from earliest 002 job
-        # To the time that the last successful MultiQC job finished
+        # To the time that the last successful MultiQC or excel job finished
         all_assays_df['processing_time'] = (
             (
-                all_assays_df['multiQC_finished']
+                all_assays_df['processing_finished']
                 - all_assays_df['earliest_002_job']
             )
             / np.timedelta64(1, 'D')
         )
 
-        # Add new column for time from MultiQC end to Jira resolution
+        # Add new column for time from MultiQC end or excel job to Jira res
         all_assays_df['processing_end_to_release'] = (
             (
                 all_assays_df['jira_resolved']
-                - all_assays_df['multiQC_finished']
+                - all_assays_df['processing_finished']
             ).where(
                 all_assays_df['jira_status'] == "All samples released"
             ) / np.timedelta64(1, 'D')
@@ -1222,7 +1379,7 @@ class QueryPlotFunctions:
         # Add the time since MultiQC to now for open tickets with urgents
         # released
         all_assays_df['urgents_time'] = (
-            (self.pd_current_time - all_assays_df['multiQC_finished']).where(
+            (self.pd_current_time - all_assays_df['processing_finished']).where(
                 all_assays_df['jira_status'] == 'Urgent samples released'
             ) / np.timedelta64(1, 'D')
         )
@@ -1500,9 +1657,9 @@ class QueryPlotFunctions:
             assay_df.loc[(assay_df['earliest_002_job'].isna())]['run_name']
         )
 
-        # If no MultiQC job was found flag
-        manual_review_dict['no_multiqc_found'] = list(
-            assay_df.loc[(assay_df['multiQC_finished'].isna())]['run_name']
+        # If no MultiQC or excel job was found flag
+        manual_review_dict['no_multiqc_or_excel_found'] = list(
+            assay_df.loc[(assay_df['processing_finished'].isna())]['run_name']
         )
 
         # If there are runs to be flagged in dict, pass
@@ -1692,6 +1849,8 @@ class QueryPlotFunctions:
         )
         # Set days in order
         fig.update_xaxes(
+            range=[-0.5, 6.5],
+            type='category',
             categoryorder='array',
             categoryarray= [
                 "Monday", "Tuesday", "Wednesday", "Thursday",
@@ -1706,7 +1865,7 @@ class QueryPlotFunctions:
                 'x':0.5
             },
             xaxis_title="Upload day of the week",
-            yaxis_title="Turnaround time",
+            yaxis_title="Turnaround time (days)",
             font_family='Helvetica',
             legend=dict(title='Within standards'),
             width=1000,
@@ -1752,11 +1911,13 @@ def main():
             all_assays_dict, open_jira_response
         )
     )
+    all_assays_df = tatq.add_excel_finished_time(all_assays_dict)
     all_typos_table = tatq.create_ticket_typo_df(
         closed_typo_tickets, open_typo_tickets
     )
     logger.info("Creating df for all assays")
     all_assays_df = tatq.create_all_assays_df(all_assays_dict)
+
     logger.info("Adding calculation columns")
     all_assays_df = tatq.add_calculation_columns(all_assays_df)
 

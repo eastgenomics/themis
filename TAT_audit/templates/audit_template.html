@@ -124,10 +124,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_1.no_multiqc_found %}
-                    <p><b>No successful MultiQC job found:</b></p>
+                {% if runs_to_review_1.no_multiqc_or_excel_found %}
+                    <p><b>No successful Excel workbook job found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_1.no_multiqc_found  %}
+                        {% for entry in runs_to_review_1.no_multiqc_or_excel_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>
@@ -264,10 +264,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_2.no_multiqc_found %}
+                {% if runs_to_review_2.no_multiqc_or_excel_found %}
                     <p><b>No successful MultiQC job found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_2.no_multiqc_found  %}
+                        {% for entry in runs_to_review_2.no_multiqc_or_excel_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>
@@ -403,10 +403,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_3.no_multiqc_found %}
+                {% if runs_to_review_3.no_multiqc_or_excel_found %}
                     <p><b>No successful MultiQC job found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_3.no_multiqc_found  %}
+                        {% for entry in runs_to_review_3.no_multiqc_or_excel_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>
@@ -542,10 +542,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_4.no_multiqc_found %}
-                    <p><b>No successful MultiQC job found:</b></p>
+                {% if runs_to_review_4.no_multiqc_or_excel_found %}
+                    <p><b>No successful Excel workbooks job found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_4.no_multiqc_found  %}
+                        {% for entry in runs_to_review_4.no_multiqc_or_excel_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>
@@ -681,10 +681,10 @@
                     </ul>
                 {% endif %}
 
-                {% if runs_to_review_5.no_multiqc_found %}
+                {% if runs_to_review_5.no_multiqc_or_excel_found %}
                     <p><b>No successful MultiQC job found:</b></p>
                     <ul>
-                        {% for entry in runs_to_review_5.no_multiqc_found  %}
+                        {% for entry in runs_to_review_5.no_multiqc_or_excel_found  %}
                             <li>{{ entry }}</li>
                         {% endfor %}
                     </ul>

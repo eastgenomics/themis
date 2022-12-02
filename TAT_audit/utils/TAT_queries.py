@@ -582,8 +582,8 @@ class QueryPlotFunctions:
         demux_jobs = list(dx.search.find_jobs(
             project=self.staging_id,
             created_after=self.five_days_before_start,
-            name='*BCL*',
-            name_mode='glob',
+            name='BCL|bcl',
+            name_mode='regexp',
             describe={
                 'fields': {
                     'id': True,

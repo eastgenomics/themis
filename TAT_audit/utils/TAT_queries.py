@@ -571,7 +571,7 @@ class QueryPlotFunctions:
 
     def find_staging_demultiplex_jobs(self):
         """
-        Find jobs in staging area (always demultiplexing)
+        Find demultiplexing jobs in staging area
 
         Returns
         -------
@@ -582,7 +582,8 @@ class QueryPlotFunctions:
         demux_jobs = list(dx.search.find_jobs(
             project=self.staging_id,
             created_after=self.five_days_before_start,
-            state='done',
+            name='*BCL*',
+            name_mode='glob',
             describe={
                 'fields': {
                     'id': True,

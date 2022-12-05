@@ -33,9 +33,12 @@
 
 </head>
 <body>
-    <div class="all_content" style="width:800px; margin:0 auto;">
-        <h2>Audit Results</h2>
-        <p>Audit standards:</p>
+    <div class="all_content" style="width:1200px; margin:0 auto; font-family: Helvetica;">
+    <!-- Opening section-->
+    <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+        <h4 class="card-header text-white" style="background-color: #34568B;">Audit Standards</h4>
+        <div class="card-body bg-white">
+        <p class="card-text">
         <ul>
             <li>
                 100% processing and releasing of CEN data in 3 calendar days
@@ -65,11 +68,34 @@
                 The ticket name has more than 2 differences compared to the run name and so they are not considered a match
             </li>
         </ul>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>CEN Runs</h4>
-            {{ chart_1 }}
+        </p>
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">Audit Results</h4>
+            <div class="card-body bg-white">
+            <h5 class="card-title">Period audited: {{ period_audited }}</h5>
+            <p class="card-text">
+            <ul>
+                <li>
+                    Number of runs found with 002 projects: {{ no_002_runs }}
+                </li>
+                <li>
+                    Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ no_of_runs_with_no_002 }}
+                </li>
+                <li>
+                    Additional runs which were not released: {{ no_of_cancelled_runs }}
+                </li>
+            </ul>
+            </p>
+        </div>
+        </div>
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">CEN Runs</h4>
+            <div class="card-body bg-white">
+            {{ chart_1 }}
+        <div class="averages" style="width: 700px; padding-left: 100px;">
             {{ averages_1 }}
         </div>
         <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -203,13 +229,14 @@
         </div>
         {% endif %}
         {% endif %}
-
-
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>MYE Runs</h4>
-            {{ chart_2 }}
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">MYE Runs</h4>
+            <div class="card-body bg-white">
+            {{ chart_2 }}
+        <div class="averages" style="width: 700px; padding-left: 100px;">
             {{ averages_2 }}
         </div>
         <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -343,12 +370,14 @@
         </div>
         {% endif %}
         {% endif %}
-
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>TSO500 Runs</h4>
-            {{ chart_3 }}
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">TSO500 Runs</h4>
+            <div class="card-body bg-white">
+            {{ chart_3 }}
+        <div class="averages" style="width: 700px; padding-left:100px;">
             {{ averages_3 }}
         </div>
         <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -482,12 +511,14 @@
         </div>
         {% endif %}
         {% endif %}
-
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>TWE Runs</h4>
-            {{ chart_4 }}
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">TWE Runs</h4>
+            <div class="card-body bg-white">
+            {{ chart_4 }}
+        <div class="averages" style="width: 700px; padding-left: 100px;">
             {{ averages_4 }}
         </div>
         <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -621,12 +652,14 @@
         </div>
         {% endif %}
         {% endif %}
-
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>SNP Runs</h4>
-            {{ chart_5 }}
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">SNP Runs</h4>
+            <div class="card-body bg-white">
+            {{ chart_5 }}
+        <div class="averages" style="width: 700px; padding-left: 100px;">
             {{ averages_5 }}
         </div>
         <div style="padding-top: 30px; padding-bottom: 20px;">
@@ -760,20 +793,32 @@
         </div>
         {% endif %}
         {% endif %}
-
-    {% if ticket_typos %}
-    <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>All mismatches between Staging_Area52 run folder name and Jira ticket name</h5>
-        {{ ticket_typos }}
     </div>
-    {% endif %}
-
-    {% if typo_folders %}
-    <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>All mismatches between Staging_Area52 run folder name and 002 project name</h5>
-        {{ typo_folders }}
     </div>
-    {% endif %}
+
+    <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+        <h4 class="card-header text-white" style="background-color: #34568B;">Recorded typos</h4>
+        <div class="card-body bg-white">
+            {% if ticket_typos %}
+                <h5 class="card-title">All mismatches between Staging_Area52 run folder name and Jira ticket name</h5>
+                <div class="ticket_typos" style="width: 900px;">
+                    {{ ticket_typos }}
+                </div>
+                <br>
+                <br>
+            {% endif %}
+
+            {% if typo_folders %}
+                <h5 class="card-title">All mismatches between Staging_Area52 run folder name and 002 project name</h5>
+                <div class="002_typos" style="width: 900px;">
+                    {{ typo_folders }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+
+    </div>
 
     <script>
         // Sets up DataTables

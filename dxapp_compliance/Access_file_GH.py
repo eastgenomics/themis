@@ -75,9 +75,13 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     """
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("Report.html")
-    filename = "Audit_2022_12_01.html"
-    compliance_html = compliance_df.to_html(table_id="comp")
-    details_html = detailed_df.to_html(table_id="details")
+    filename = "Audit_2022_12_06.html"
+    compliance_html = compliance_df.to_html(table_id="comp",
+                                            classes="table table-striped table-hover"
+                                            )
+    details_html = detailed_df.to_html(table_id="details",
+                                       classes="table table-striped table-hover"
+                                       )
     # Set conditional formatting for compliance table
     styled_df = compliance_stats_summary.style.apply(
         lambda x: ['background-color: #FFB3BA' if value < 50 else

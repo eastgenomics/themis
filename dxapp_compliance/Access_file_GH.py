@@ -114,7 +114,8 @@ def get_config():
     """
     Extracts the config from the json config file.
 
-    Returns:
+    Returns
+    -------
     github_token (str):
         Github API token for authentication.
 
@@ -164,7 +165,7 @@ class compliance_checks:
                 default region to check against.
 
 
-        Returns:
+        Returns
         -------
             compliance_dict (dict):
                 dict of compliance booleans for the app/applet.
@@ -250,7 +251,7 @@ class compliance_checks:
                 default region to check against.
 
 
-        Returns:
+        Returns
         -------
             regions (list):
                 list of regional options for the app/applet.
@@ -287,7 +288,7 @@ class compliance_checks:
                 dictionary with all the information on dxapp.json details.
 
 
-        Returns:
+        Returns
         -------
         timeout_policy (boolean):
             True/False whether timeout policy is set in dxapp.json.
@@ -333,7 +334,7 @@ class compliance_checks:
             dxjson_content (dict):
                 dictionary with all the information on dxapp.json details.
 
-        Returns:
+        Returns
         -------
             app_boolean (boolean):
                 True/False whether the repo is a dnanexus app.
@@ -372,7 +373,7 @@ class compliance_checks:
             src_file_contents (str):
                 str with the app source code file.
 
-        Returns:
+        Returns
         -------
             set_e_boolean (boolean):
                 True/False whether only the set -e option is used.
@@ -419,7 +420,7 @@ class compliance_checks:
             dxjson_content (dict):
                 dictionary with all the information on dxapp.json details.
 
-        Returns:
+        Returns
         -------
             interpreter (str):
                 The interpreter used for the app. i.e. bash or python
@@ -464,7 +465,7 @@ class compliance_checks:
             dxjson_content (dict):
                 dictionary with all the information on dxapp.json details.
 
-        Returns:
+        Returns
         -------
             authorised_users (list):
                 List of users who can run the app.
@@ -502,7 +503,7 @@ class compliance_checks:
             dxjson_content (dict):
                 dictionary with all the information on dxapp.json details.
 
-        Returns:
+        Returns
         -------
             eggd_name_boolean (boolean):
                 True/False whether the app/applet name conforms
@@ -553,7 +554,8 @@ class audit_class:
             dxjson_content (dict):
                 contents of the dxapp.json file for the app.
 
-        Returns:
+        Returns
+        -------
             compliance_df (pandas dataframe):
                 dataframe of compliance booleans for the app/applet.
             df_details (pandas dataframe):
@@ -707,7 +709,8 @@ class audit_class:
                 Authentication token for github.
                 Defaults to None. Therefore showing just public info.
 
-        Returns:
+        Returns
+        -------
             src_content_decoded (str):
                 the source code for the app/applet decoded.
             last_release_date (str):

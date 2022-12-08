@@ -218,6 +218,7 @@ class compliance_checks:
                            'last_release_date': last_release_date,
                            'latest_commit_date': latest_commit_date,
                            'timeout_setting': timeout_setting,
+                           'html_url': app['html_url'],
                            }
 
         details_dict = {'name': name,
@@ -236,6 +237,7 @@ class compliance_checks:
                         'last_release_date': last_release_date,
                         'latest_commit_date': latest_commit_date,
                         'timeout_setting': timeout_setting,
+                        'html_url': app['html_url'],
                         }
 
         return compliance_dict, details_dict

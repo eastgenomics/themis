@@ -99,9 +99,14 @@
                     'processing': 'Loading...'
                 },
                 paging: false,
-                columnDefs: [
-                    { "visible": false, "targets": 0 },
-                    { "width": "15%", "targets": 10}
+                columnDefs : [
+                { targets : [-1],
+                  render : function(data) {
+                    return '<a href="'+data+'" target_blank>'+LINK+'</a>'
+                  }
+                },
+                { "visible": false, "targets": 0 },
+                { "width": "15%", "targets": 10}
                 ],
                 dom: 'Bfrtip',
                 buttons: [

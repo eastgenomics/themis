@@ -102,11 +102,11 @@
                 columnDefs : [
                 { targets : [-1],
                   render : function(data) {
-                    return '<a href="'+data+'" target_blank>'+LINK+'</a>'
+                    return '<a href="'+data+'" target_blank>'+'link'+'</a>'
                   }
                 },
                 { "visible": false, "targets": 0 },
-                { "width": "15%", "targets": 10}
+                { "width": "7%", "targets": [3, 4, 7]}
                 ],
                 dom: 'Bfrtip',
                 buttons: [

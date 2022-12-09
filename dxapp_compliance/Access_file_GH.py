@@ -494,16 +494,15 @@ class compliance_checks:
             auth_devs_boolean = False
 
         # Extract the users and developers from the dxapp.json list
-        try:
-            authorised_users = authorised_users.join(', ')
-            print(authorised_users)
-        except AttributeError:
-            pass
-        try:
-            authorised_devs = authorised_devs.join(', ')
-            print(authorised_devs)
-        except AttributeError:
-            pass
+        if authorised_users:
+            authorised_users = ', '.join(authorised_users)
+        else:
+            authorised_users = ""
+
+        if authorised_devs:
+            authorised_devs = ', '.join(authorised_devs)
+        else:
+            authorised_devs = "None"
 
         return authorised_users, authorised_devs, auth_devs_boolean, auth_users_boolean
 

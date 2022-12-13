@@ -2067,7 +2067,6 @@ def main():
     )
 
     all_assays_df = tatq.add_in_cancelled_runs(all_assays_df, cancelled_runs)
-    #tatq.create_styled_xlsx(all_assays_df, tatq.audit_start, tatq.audit_end)
     all_assays_df.to_csv(
         f'audit_info_{tatq.audit_start}_{tatq.audit_end}.csv',
         float_format='%.3f',

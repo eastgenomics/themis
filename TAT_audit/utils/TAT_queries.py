@@ -1237,7 +1237,7 @@ class QueryPlotFunctions:
                         'run_name': ticket_name,
                         'assay_type': assay_type,
                         'date_jira_ticket_created': date_time_created,
-                        'reason_not_released': jira_status
+                        'jira_status': jira_status
                     })
                 else:
                     # If resolved add time of resolution in datetime
@@ -1685,8 +1685,8 @@ class QueryPlotFunctions:
                 )
 
             stats_df = pd.DataFrame({
-                'Mean overall turnaround': assay_df['upload_to_release'].mean(),
-                'Median overall turnaround': (
+                'Mean overall TAT': assay_df['upload_to_release'].mean(),
+                'Median overall TAT': (
                     assay_df['upload_to_release'].median()
                 ),
                 'Mean upload to processing start': (

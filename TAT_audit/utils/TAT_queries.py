@@ -19,7 +19,6 @@ from dateutil.relativedelta import relativedelta
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from requests.auth import HTTPBasicAuth
-from styleframe import StyleFrame, Styler
 
 
 warnings.filterwarnings("ignore")

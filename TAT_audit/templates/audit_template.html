@@ -4,7 +4,7 @@
   <title>Audit Results</title>
     <!-- Required meta tags -->
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!-- Import CSS, Bootstrap styling + Google font -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
@@ -33,7 +33,7 @@
 
 </head>
 <body>
-    <div class="all_content" style="width:1200px; margin:0 auto; font-family: Helvetica;">
+    <div class="all_content" style="width:1150px; margin:0 auto; font-family: Helvetica;">
     <!-- Opening section-->
     <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
         <h4 class="card-header text-white" style="background-color: #34568B;">Audit Standards</h4>
@@ -79,13 +79,13 @@
             <p class="card-text">
             <ul>
                 <li>
-                    Number of runs found with 002 projects: {{ no_002_runs }}
+                    Number of runs found with 002 projects: {{ no_of_002_runs }}
                 </li>
                 <li>
-                    Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ no_of_runs_with_no_002 }}
+                    Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002|length }}
                 </li>
                 <li>
-                    Additional runs which were not released: {{ no_of_cancelled_runs }}
+                    Additional runs which were not released: {{ cancelled_runs|length }}
                 </li>
             </ul>
             </p>
@@ -93,12 +93,25 @@
         </div>
         <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
             <h4 class="card-header text-white" style="background-color: #34568B;">CEN Runs</h4>
+            <p class="card-text">
+                <ul>
+                    <li>
+                        Number of runs with 002 projects: {{ no_of_CEN_runs }}
+                    </li>
+                    <li>
+                        Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "CEN") | list | count }}
+                    </li>
+                    <li>
+                        Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "CEN") | list | count }}
+                    </li>
+                </ul>
+            </p>
             <div class="card-body bg-white">
             {{ chart_1 }}
-        <div class="averages" style="width: 700px; padding-left: 100px;">
+        <div class="averages" style="width: 700px; margin-left: 200px;">
             {{ averages_1 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ CEN_upload }}
         </div>
             {% if runs_to_review_1 %}
@@ -235,11 +248,24 @@
         <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
             <h4 class="card-header text-white" style="background-color: #34568B;">MYE Runs</h4>
             <div class="card-body bg-white">
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: {{ no_of_MYE_runs }}
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "MYE") | list | count }}
+                        </li>
+                        <li>
+                            Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "MYE") | list | count }}
+                        </li>
+                    </ul>
+                </p>
             {{ chart_2 }}
-        <div class="averages" style="width: 700px; padding-left: 100px;">
+        <div class="averages" style="width: 700px; margin-left: 200px;">
             {{ averages_2 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ MYE_upload }}
         </div>
         {% if runs_to_review_2 %}
@@ -376,11 +402,24 @@
         <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
             <h4 class="card-header text-white" style="background-color: #34568B;">TSO500 Runs</h4>
             <div class="card-body bg-white">
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: {{ no_of_TSO500_runs }}
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "TSO500") | list | count }}
+                        </li>
+                        <li>
+                            Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "TSO500") | list | count }}
+                        </li>
+                    </ul>
+                </p>
             {{ chart_3 }}
-        <div class="averages" style="width: 700px; padding-left:100px;">
+        <div class="averages" style="width: 700px; margin-left: 200px;">
             {{ averages_3 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ TSO500_upload }}
         </div>
         {% if runs_to_review_3 %}
@@ -517,11 +556,24 @@
         <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
             <h4 class="card-header text-white" style="background-color: #34568B;">TWE Runs</h4>
             <div class="card-body bg-white">
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: {{ no_of_TWE_runs }}
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "TWE") | list | count }}
+                        </li>
+                        <li>
+                            Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "TWE") | list | count }}
+                        </li>
+                    </ul>
+                </p>
             {{ chart_4 }}
-        <div class="averages" style="width: 700px; padding-left: 100px;">
+        <div class="averages" style="width: 700px; margin-left: 200px;">
             {{ averages_4 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ TWE_upload }}
         </div>
         {% if runs_to_review_4 %}
@@ -658,11 +710,24 @@
         <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
             <h4 class="card-header text-white" style="background-color: #34568B;">SNP Runs</h4>
             <div class="card-body bg-white">
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: {{ no_of_SNP_runs }}
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "SNP") | list | count }}
+                        </li>
+                        <li>
+                            Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "SNP") | list | count }}
+                        </li>
+                    </ul>
+                </p>
             {{ chart_5 }}
-        <div class="averages" style="width: 700px; padding-left: 100px;">
+        <div class="averages" style="width: 700px; margin-left: 200px;">
             {{ averages_5 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ SNP_upload }}
         </div>
         {% if runs_to_review_5 %}
@@ -801,7 +866,7 @@
         <div class="card-body bg-white">
             {% if ticket_typos %}
                 <h5 class="card-title">All mismatches between Staging_Area52 run folder name and Jira ticket name</h5>
-                <div class="ticket_typos" style="width: 900px;">
+                <div class="ticket_typos">
                     {{ ticket_typos }}
                 </div>
                 <br>
@@ -810,7 +875,7 @@
 
             {% if typo_folders %}
                 <h5 class="card-title">All mismatches between Staging_Area52 run folder name and 002 project name</h5>
-                <div class="002_typos" style="width: 900px;">
+                <div class="002_typos">
                     {{ typo_folders }}
                 </div>
             {% endif %}

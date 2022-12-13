@@ -19,6 +19,7 @@ from dateutil.relativedelta import relativedelta
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from requests.auth import HTTPBasicAuth
+from styleframe import StyleFrame, Styler
 
 
 warnings.filterwarnings("ignore")
@@ -1555,7 +1556,7 @@ class QueryPlotFunctions:
                 go.Bar(
                     x=assay_df["run_name"],
                     y=assay_df["processing_end_to_release"],
-                    name="Processing end to All Samples Released",
+                    name="Processing end to all samples released",
                     legendrank=2,
                     text=round(assay_df['upload_to_release'], 1)
                 )
@@ -1680,11 +1681,15 @@ class QueryPlotFunctions:
             ].shape[0]
 
             if relevant_run_count:
-                compliance_percentage = (compliant_runs / relevant_run_count) * 100
+                compliance_percentage = (
+                    (compliant_runs / relevant_run_count) * 100
+                )
 
             stats_df = pd.DataFrame({
                 'Mean overall turnaround': assay_df['upload_to_release'].mean(),
-                'Median overall turnaround': assay_df['upload_to_release'].median(),
+                'Median overall turnaround': (
+                    assay_df['upload_to_release'].median()
+                ),
                 'Mean upload to processing start': (
                     assay_df['upload_to_first_job'].mean()
                 ),
@@ -1792,14 +1797,21 @@ class QueryPlotFunctions:
         upload_day_fig : str
             Plotly fig showing upload day of the week vs TAT for that assay
             as HTML string
+        assay_no_of_002_runs : int
+            the number of runs found for that assay through the number of
+            002 projects
         """
         assay_df = self.extract_assay_df(all_assays_df, assay_type)
         assay_stats = self.make_stats_table(assay_df)
         assay_issues = self.find_runs_for_manual_review(assay_df)
         assay_fig = self.create_TAT_fig(assay_df, assay_type)
         upload_day_fig = self.create_upload_day_fig(assay_df, assay_type)
+        assay_no_of_002_runs = assay_df.shape[0]
 
-        return assay_stats, assay_issues, assay_fig, upload_day_fig
+        return (
+            assay_stats, assay_issues, assay_fig, upload_day_fig,
+            assay_no_of_002_runs
+        )
 
 
     def create_ticket_typo_df(self, closed_typo_tickets, open_typo_tickets):
@@ -1978,8 +1990,8 @@ class QueryPlotFunctions:
             fig = go.Figure()
             fig.update_layout(
                 font_family='Helvetica',
-                xaxis =  { "visible": False },
-                yaxis = { "visible": False },
+                xaxis={"visible": False},
+                yaxis={"visible": False},
                 annotations = [
                     {
                         "text": "No data",
@@ -2020,8 +2032,6 @@ def main():
             all_assays_dict, closed_runs_response
         )
     )
-    no_of_cancelled_runs = len(cancelled_runs)
-    no_of_runs_with_no_002 = len(runs_no_002_proj)
 
     logger.info("Getting + adding JIRA ticket info for open seq runs")
     open_jira_response = tatq.get_jira_info(34)
@@ -2041,23 +2051,24 @@ def main():
     all_assays_df = tatq.add_calculation_columns(all_assays_df)
 
     logger.info("Generating objects for each assay")
-    CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig = (
+    CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig, CEN_runs = (
         tatq.create_assay_objects(all_assays_df, 'CEN')
     )
-    MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig = (
+    MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig, MYE_runs = (
         tatq.create_assay_objects(all_assays_df, 'MYE')
     )
-    TSO500_stats, TSO500_issues, TSO500_fig, TSO500_upload_fig = (
+    TSO500_stats, TSO500_issues, TSO500_fig, TSO500_upload_fig, TSO500_runs = (
         tatq.create_assay_objects(all_assays_df, 'TSO500')
     )
-    TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig = (
+    TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig, TWE_runs = (
         tatq.create_assay_objects(all_assays_df, 'TWE')
     )
-    SNP_stats, SNP_issues, SNP_fig, SNP_upload_fig = (
+    SNP_stats, SNP_issues, SNP_fig, SNP_upload_fig, SNP_runs = (
         tatq.create_assay_objects(all_assays_df, 'SNP')
     )
 
     all_assays_df = tatq.add_in_cancelled_runs(all_assays_df, cancelled_runs)
+    #tatq.create_styled_xlsx(all_assays_df, tatq.audit_start, tatq.audit_end)
     all_assays_df.to_csv(
         f'audit_info_{tatq.audit_start}_{tatq.audit_end}.csv',
         float_format='%.3f',
@@ -2078,25 +2089,28 @@ def main():
     # Render all the things to go in the template
     content = template.render(
         period_audited=period_audited,
-        no_002_runs=no_of_002_runs,
-        no_of_cancelled_runs=no_of_cancelled_runs,
-        no_of_runs_with_no_002=no_of_runs_with_no_002,
+        no_of_002_runs=no_of_002_runs,
+        no_of_CEN_runs=CEN_runs,
         chart_1=CEN_fig,
         averages_1=CEN_stats,
         CEN_upload=CEN_upload_fig,
         runs_to_review_1=CEN_issues,
+        no_of_MYE_runs=MYE_runs,
         chart_2=MYE_fig,
         averages_2=MYE_stats,
         MYE_upload=MYE_upload_fig,
         runs_to_review_2=MYE_issues,
+        no_of_TSO500_runs=TSO500_runs,
         chart_3=TSO500_fig,
         averages_3=TSO500_stats,
         TSO500_upload=TSO500_upload_fig,
         runs_to_review_3=TSO500_issues,
+        no_of_TWE_runs=TWE_runs,
         chart_4=TWE_fig,
         averages_4=TWE_stats,
         TWE_upload=TWE_upload_fig,
         runs_to_review_4=TWE_issues,
+        no_of_SNP_runs=SNP_runs,
         chart_5=SNP_fig,
         averages_5=SNP_stats,
         SNP_upload=SNP_upload_fig,

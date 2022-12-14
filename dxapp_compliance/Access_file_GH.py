@@ -1123,10 +1123,18 @@ class plotting:
             x=df_ordered['last_release_date'],
             y=df_ordered['compliance_score'],
             labels={
-                'x': 'Date of last release',
-                'y': 'Compliance (%)'
+                'last_release_date': 'Date of last release',
+                'compliance_score': 'Compliance (%)'
             },
         )
+
+        fig.update_layout(
+            font=dict(
+                size=18,  # Set the font size here
+                color="black"
+            )
+        )
+
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
         return html_fig
@@ -1155,11 +1163,19 @@ class plotting:
             x=df_ordered['latest_commit_date'],
             y=df_ordered['compliance_score'],
             labels={
-                'x': 'Date of last release',
-                'y': 'Compliance (%)'
+                'latest_commit_date': 'Date of last release',
+                'compliance_score': 'Compliance (%)'
             },
             trendline="lowess",
         )
+
+        fig.update_layout(
+            font=dict(
+                size=18,
+                color="black"
+            )
+        )
+
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
         return html_fig
@@ -1194,14 +1210,22 @@ class plotting:
             y=df_ordered['compliance_score'],
             color=df_ordered['dist_version'],
             labels={
-                'x': 'Date of last release',
-                'y': 'Compliance (%)',
-                'color': 'Ubuntu version',
+                'last_release_date': 'Date of last release',
+                'compliance_score': 'Compliance (%)',
+                'dist_version': 'Ubuntu version',
             },
             hover_name="name",
             hover_data=["last_release_date",
                         "dist_version"],
         )
+
+        fig.update_layout(
+            font=dict(
+                size=18,
+                color="black"
+            )
+        )
+
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
         return html_fig
@@ -1232,8 +1256,15 @@ class plotting:
                          "unique_versions": "Ubuntu version",
                          "counts": "Count",
                      },
-                     title="Version of Ubuntu by bash apps",
                      )
+
+        fig.update_layout(
+            font=dict(
+                size=18,
+                color="black"
+            )
+        )
+
         html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
 
         return html_fig

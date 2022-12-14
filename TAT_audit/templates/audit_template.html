@@ -4,9 +4,9 @@
   <title>Audit Results</title>
     <!-- Required meta tags -->
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Import CSS, Bootstrap styling + Google font -->
+    <!-- Import Bootstrap styling -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
 
     <!-- DataTables CSS -->
@@ -33,9 +33,12 @@
 
 </head>
 <body>
-    <div class="all_content" style="width:800px; margin:0 auto;">
-        <h2>Audit Results</h2>
-        <p>Audit standards:</p>
+    <div class="all_content" style="width:1150px; margin:0 auto; font-family: Helvetica;">
+    <!-- Opening section-->
+    <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+        <h4 class="card-header text-white" style="background-color: #34568B;">Audit Standards</h4>
+        <div class="card-body bg-white">
+        <p class="card-text">
         <ul>
             <li>
                 100% processing and releasing of CEN data in 3 calendar days
@@ -65,14 +68,97 @@
                 The ticket name has more than 2 differences compared to the run name and so they are not considered a match
             </li>
         </ul>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>CEN Runs</h4>
-            {{ chart_1 }}
+        </p>
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
-            {{ averages_1 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">Audit Results</h4>
+            <div class="card-body bg-white">
+            <h5 class="card-title">Period audited: <b>{{ period_audited }}</b></h5>
+            <p class="card-text">
+            <ul>
+                <li>
+                    Number of runs found with 002 projects: <b>{{ no_of_002_runs }}</b>
+                </li>
+                <li>
+                    Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002|length }}</b>
+                </li>
+                <li>
+                    Additional runs which were not released: <b>{{ cancelled_runs|length }}</b>
+                </li>
+                <li>
+                    Assay compliance:
+                    <ul>
+                        <li>
+                            {% if CEN_fraction %}
+                                CEN: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
+                            {% else %}
+                                CEN: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                        <li>
+                            {% if MYE_fraction %}
+                                MYE: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
+                            {% else %}
+                                MYE: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                        <li>
+                            {% if TSO_fraction %}
+                                TSO500: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
+                            {% else %}
+                                TSO500: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                        <li>
+                            {% if TWE_fraction %}
+                                TWE: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
+                            {% else %}
+                                TWE: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                        <li>
+                            {% if SNP_fraction %}
+                                SNP: <b>{{SNP_fraction}} <span class="complValue">{{ SNP_compliance }}</span>%</b>
+                            {% else %}
+                                SNP: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+            </p>
+        </div>
+        </div>
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">CEN Runs</h4>
+            <p class="card-text">
+                <ul>
+                    <li>
+                        Number of runs with 002 projects: <b>{{ no_of_CEN_runs }}</b>
+                    </li>
+                    <li>
+                        Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "CEN") | list | count }}</b>
+                    </li>
+                    <li>
+                        Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "CEN") | list | count }}</b>
+                    </li>
+                    <li>
+                        {% if CEN_fraction %}
+                            Assay compliance: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
+                        {% else %}
+                            Assay compliance: <b>No runs found</b>
+                        {% endif %}
+                    </li>
+                </ul>
+            </p>
+            <div class="card-body bg-white">
+                {{ chart_1 }}
+            <div class="averages" style="width: 100%;">
+                {{ averages_1 }}
+            </div>
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ CEN_upload }}
         </div>
             {% if runs_to_review_1 %}
@@ -98,7 +184,7 @@
                     {% endif %}
 
                 {% if runs_to_review_1.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                         {% for entry in runs_to_review_1.reports_before_multiqc  %}
                             <li>{{ entry }}</li>
@@ -203,16 +289,37 @@
         </div>
         {% endif %}
         {% endif %}
-
-
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>MYE Runs</h4>
-            {{ chart_2 }}
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">MYE Runs</h4>
+            <div class="card-body bg-white">
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: <b>{{ no_of_MYE_runs }}</b>
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "MYE") | list | count }}</b>
+                        </li>
+                        <li>
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "MYE") | list | count }}</b>
+                        </li>
+                        <li>
+                            {% if MYE_fraction %}
+                                Assay compliance: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </p>
+            {{ chart_2 }}
+        <div class="averages" style="width: 100%;">
             {{ averages_2 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ MYE_upload }}
         </div>
         {% if runs_to_review_2 %}
@@ -238,7 +345,7 @@
                 {% endif %}
 
                 {% if runs_to_review_2.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                         {% for entry in runs_to_review_2.reports_before_multiqc  %}
                             <li>{{ entry }}</li>
@@ -343,15 +450,37 @@
         </div>
         {% endif %}
         {% endif %}
-
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>TSO500 Runs</h4>
-            {{ chart_3 }}
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">TSO500 Runs</h4>
+            <div class="card-body bg-white">
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: <b>{{ no_of_TSO500_runs }}</b>
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "TSO500") | list | count }}</b>
+                        </li>
+                        <li>
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "TSO500") | list | count }}</b>
+                        </li>
+                        <li>
+                            {% if TSO_fraction %}
+                                Assay compliance: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </p>
+            {{ chart_3 }}
+        <div class="averages" style="width: 100%;">
             {{ averages_3 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ TSO500_upload }}
         </div>
         {% if runs_to_review_3 %}
@@ -377,7 +506,7 @@
                 {% endif %}
 
                 {% if runs_to_review_3.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                     {% for entry in runs_to_review_3.reports_before_multiqc  %}
                         <li>{{ entry }}</li>
@@ -482,15 +611,37 @@
         </div>
         {% endif %}
         {% endif %}
-
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>TWE Runs</h4>
-            {{ chart_4 }}
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">TWE Runs</h4>
+            <div class="card-body bg-white">
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: <b>{{ no_of_TWE_runs }}</b>
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "TWE") | list | count }}</b>
+                        </li>
+                        <li>
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "TWE") | list | count }}</b>
+                        </li>
+                        <li>
+                            {% if TWE_fraction %}
+                                Assay compliance: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </p>
+            {{ chart_4 }}
+        <div class="averages" style="width: 100%;">
             {{ averages_4 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ TWE_upload }}
         </div>
         {% if runs_to_review_4 %}
@@ -516,7 +667,7 @@
                 {% endif %}
 
                 {% if runs_to_review_4.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                     {% for entry in runs_to_review_4.reports_before_multiqc  %}
                         <li>{{ entry }}</li>
@@ -621,15 +772,37 @@
         </div>
         {% endif %}
         {% endif %}
-
-        <div style="padding-top: 30px; padding-bottom: 20px;">
-            <h4>SNP Runs</h4>
-            {{ chart_5 }}
         </div>
-        <div style="width: 600px; margin-left: 150px; padding-bottom: 20px;">
+        </div>
+
+        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+            <h4 class="card-header text-white" style="background-color: #34568B;">SNP Runs</h4>
+            <div class="card-body bg-white">
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: <b>{{ no_of_SNP_runs }}</b>
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "SNP") | list | count }}</b>
+                        </li>
+                        <li>
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "SNP") | list | count }}</b>
+                        </li>
+                        <li>
+                            {% if SNP_fraction %}
+                                Assay compliance: <b>{{SNP_fraction}} <span class="complValue">{{ SNP_compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </p>
+            {{ chart_5 }}
+        <div class="averages" style="width: 100%;">
             {{ averages_5 }}
         </div>
-        <div style="padding-top: 30px; padding-bottom: 20px;">
+        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
             {{ SNP_upload }}
         </div>
         {% if runs_to_review_5 %}
@@ -655,7 +828,7 @@
                 {% endif %}
 
                 {% if runs_to_review_5.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                     {% for entry in runs_to_review_5.reports_before_multiqc  %}
                         <li>{{ entry }}</li>
@@ -760,20 +933,32 @@
         </div>
         {% endif %}
         {% endif %}
-
-    {% if ticket_typos %}
-    <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>All mismatches between Staging_Area52 run folder name and Jira ticket name</h5>
-        {{ ticket_typos }}
     </div>
-    {% endif %}
-
-    {% if typo_folders %}
-    <div style="padding-top: 20px; padding-bottom: 20px;">
-        <h5>All mismatches between Staging_Area52 run folder name and 002 project name</h5>
-        {{ typo_folders }}
     </div>
-    {% endif %}
+
+    <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+        <h4 class="card-header text-white" style="background-color: #34568B;">Recorded typos</h4>
+        <div class="card-body bg-white">
+            {% if ticket_typos %}
+                <h5 class="card-title">All mismatches between Staging_Area52 run folder name and Jira ticket name</h5>
+                <div class="ticket_typos">
+                    {{ ticket_typos }}
+                </div>
+                <br>
+                <br>
+            {% endif %}
+
+            {% if typo_folders %}
+                <h5 class="card-title">All mismatches between Staging_Area52 run folder name and 002 project name</h5>
+                <div class="002_typos">
+                    {{ typo_folders }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+
+    </div>
 
     <script>
         // Sets up DataTables
@@ -791,6 +976,28 @@
             ordering: false
         });
     });
+
+    </script>
+    <style>
+        .text-red {
+            color: red;
+        }
+        .text-green {
+            color: green;
+        }
+    </style>
+    <!-- Colour conditional formatting for compliance percentage -->
+    <script>
+        $(document).ready(function() {
+            $('.complValue').each(function() {
+                const val = parseInt($(this).text());
+                if(!isNaN(val) && val < 100.0){
+                $(this).addClass("text-red");
+                } else if(!isNaN(val) && val == 100.0) {
+                $(this).addClass("text-green");
+                }
+            });
+        });
 
     </script>
     <!-- Optional JavaScript -->

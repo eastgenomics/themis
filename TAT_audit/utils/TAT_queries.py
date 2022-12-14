@@ -997,13 +997,13 @@ class QueryPlotFunctions:
         # Add earliest 002 for TSO500 and SNP runs
         assay_run_dict = self.add_earliest_002_job(assay_run_dict, assay_type)
 
+        assay_run_dict, typo_run_folders = self.add_upload_time(
+            assay_run_dict, assay_type
+        )
         staging_area_jobs = self.find_staging_demultiplex_jobs()
         # Add demultiplexing time for non-TSO500 and non-SNP runs
         assay_run_dict = self.add_demultiplex_start_time(
             staging_area_jobs, assay_run_dict
-        )
-        assay_run_dict, typo_run_folders = self.add_upload_time(
-            assay_run_dict, assay_type
         )
 
         return assay_run_dict, typo_run_folders
@@ -1237,7 +1237,7 @@ class QueryPlotFunctions:
                         'run_name': ticket_name,
                         'assay_type': assay_type,
                         'date_jira_ticket_created': date_time_created,
-                        'reason_not_released': jira_status
+                        'jira_status': jira_status
                     })
                 else:
                     # If resolved add time of resolution in datetime
@@ -1527,91 +1527,111 @@ class QueryPlotFunctions:
             'Data cannot be released'
         ]
         assay_df = assay_df[~assay_df.jira_status.isin(cancelled_runs)]
-
-        # Add trace for Log file to first job
-        fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=assay_df["run_name"],
-                y=assay_df["upload_to_first_job"],
-                name="Upload to processing start",
-                legendrank=4
-            )
-        )
-
-        # Add trace for bioinformatics run time
-        fig.add_trace(
-            go.Bar(
-                x=assay_df["run_name"],
-                y=assay_df["processing_time"],
-                name="Pipeline running",
-                legendrank=3
-            )
-        )
-
-        # Add trace for release, only add full TAT above bar if we have
-        # Upload to release time
-        fig.add_trace(
-            go.Bar(
-                x=assay_df["run_name"],
-                y=assay_df["processing_end_to_release"],
-                name="End of processing to release",
-                legendrank=2,
-                text=round(assay_df['upload_to_release'], 1)
-            )
-        )
-
-        if "Urgent samples released" in assay_df.jira_status.values:
+        if len(assay_df):
+            # Add trace for Log file to first job
+            fig = go.Figure()
             fig.add_trace(
                 go.Bar(
                     x=assay_df["run_name"],
-                    y=assay_df["urgents_time"],
-                    name="Urgent samples released",
-                    marker_color='#FFA15A'
+                    y=assay_df["upload_to_first_job"],
+                    name="Upload to processing start",
+                    legendrank=4
                 )
             )
 
-        if "On hold" in assay_df.jira_status.values:
+            # Add trace for bioinformatics run time
             fig.add_trace(
                 go.Bar(
                     x=assay_df["run_name"],
-                    y=assay_df["on_hold_time"],
-                    name="On hold",
-                    marker_color='#FECB52'
+                    y=assay_df["processing_time"],
+                    name="Pipeline running",
+                    legendrank=3
                 )
             )
 
-        fig.add_hline(y=3, line_dash="dash")
+            # Add trace for release, only add full TAT above bar if we have
+            # Upload to release time
+            fig.add_trace(
+                go.Bar(
+                    x=assay_df["run_name"],
+                    y=assay_df["processing_end_to_release"],
+                    name="Processing end to all samples released",
+                    legendrank=2,
+                    text=round(assay_df['upload_to_release'], 1)
+                )
+            )
 
-        fig.update_xaxes(tickangle=45, categoryorder='category ascending')
+            if "Urgent samples released" in assay_df.jira_status.values:
+                fig.add_trace(
+                    go.Bar(
+                        x=assay_df["run_name"],
+                        y=assay_df["urgents_time"],
+                        name="Processing end to now - Urgent samples released",
+                        marker_color='#FFA15A'
+                    )
+                )
 
-        fig.update_traces(
-            hovertemplate=(
-                '<br><b>Run</b>: %{x}<br>'
-                '<b>Stage</b>: %{data.name}<br>'
-                '<b>Days</b>: %{y:.2f}<br>'
-                '<extra></extra>'
-            ),
-            textposition='outside'
-        )
+            if "On hold" in assay_df.jira_status.values:
+                fig.add_trace(
+                    go.Bar(
+                        x=assay_df["run_name"],
+                        y=assay_df["on_hold_time"],
+                        name="Last processing step to now - On hold",
+                        marker_color='#FECB52'
+                    )
+                )
 
-        # Update relevant aspects of chart
-        fig.update_layout(
-            barmode='relative',
-            title={
-                'text': f"{assay_type} Turnaround Times "
-                        f"{self.audit_start} - {self.audit_end}",
-                'xanchor': 'center',
-                'x': 0.5,
-                'font_size': 20
-            },
-            xaxis_title="Run name",
-            yaxis_title="Number of days",
-            width=1100,
-            height=700,
-            font_family='Helvetica',
-            legend_traceorder="reversed"
-        )
+            fig.add_hline(y=3, line_dash="dash")
+
+            fig.update_xaxes(tickangle=45, categoryorder='category ascending')
+
+            fig.update_traces(
+                hovertemplate=(
+                    '<br><b>Run</b>: %{x}<br>'
+                    '<b>Stage</b>: %{data.name}<br>'
+                    '<b>Days</b>: %{y:.2f}<br>'
+                    '<extra></extra>'
+                ),
+                textposition='outside'
+            )
+
+            # Update relevant aspects of chart
+            fig.update_layout(
+                barmode='relative',
+                title={
+                    'text': f"{assay_type} Turnaround Times "
+                            f"{self.audit_start} - {self.audit_end}",
+                    'xanchor': 'center',
+                    'x': 0.5,
+                    'font_size': 20
+                },
+                xaxis_title="Run name",
+                yaxis_title="Number of days",
+                width=1100,
+                height=700,
+                font_family='Helvetica',
+                legend_traceorder="reversed"
+            )
+
+        # If empty show empty plot with message
+        else:
+            fig = go.Figure()
+            fig.update_layout(
+                font_family='Helvetica',
+                xaxis =  { "visible": False },
+                yaxis = { "visible": False },
+                annotations = [
+                    {
+                        "text": "No data",
+                        "xref": "paper",
+                        "yref": "paper",
+                        "showarrow": False,
+                        "font": {
+                            "size": 28
+                        }
+                    }
+                ]
+            )
 
         html_fig = fig.to_html(full_html=False, include_plotlyjs=False)
 
@@ -1629,54 +1649,73 @@ class QueryPlotFunctions:
         -------
         stats_table : str
             dataframe as a HTML string to pass to DataTables
+        compliance_fraction : str
+            fraction of runs compliant with audit standards
+        compliance_percentage : float
+            percentage of runs compliant with audit standards
         """
         # Count runs to include as compliant that are less than 3 days TAT
         # And don't have any issues in each step timings
         # Count runs to include overall
         # Add current turnaround for urgent samples released runs
         # To be included in compliance
-        compliant_runs = (
-            assay_df.loc[
-                (assay_df['upload_to_release'] <= 3)
-                & (assay_df['upload_to_first_job'] >= 0)
+        if assay_df.index.empty:
+            stats_df = pd.DataFrame({})
+            compliance_fraction = None
+            compliance_percentage = None
+
+        else:
+            compliant_runs = (
+                assay_df.loc[
+                    (assay_df['upload_to_release'] <= 3)
+                    & (assay_df['upload_to_first_job'] >= 0)
+                    & (assay_df['processing_time'] >= 0)
+                    & (assay_df['processing_end_to_release'] >= 0)
+                ]
+            ).shape[0]
+
+            relevant_run_count = assay_df.loc[
+                (assay_df['upload_to_first_job'] >= 0)
                 & (assay_df['processing_time'] >= 0)
-                & (assay_df['processing_end_to_release'] >= 0)
-            ]
-        ).shape[0]
+                & (assay_df['processing_end_to_release'] >=0)
+                & (
+                    assay_df['upload_to_release'].notna()
+                    | assay_df['urgents_time'].notna()
+                )
+            ].shape[0]
 
-        relevant_run_count = assay_df.loc[
-            (assay_df['upload_to_first_job'] >= 0)
-            & (assay_df['processing_time'] >= 0)
-            & (assay_df['processing_end_to_release'] >=0)
-            & (
-                assay_df['upload_to_release'].notna()
-                | assay_df['urgents_time'].notna()
+            if relevant_run_count:
+                compliance_percentage = (
+                    (compliant_runs / relevant_run_count) * 100
+                )
+
+            compliance_fraction = f"({compliant_runs}/{relevant_run_count}) "
+            compliance_percentage = round(compliance_percentage, 2)
+            compliance_string = (
+                    f"{compliance_fraction} "
+                    f"{compliance_percentage}%"
             )
-        ].shape[0]
 
-        compliance_percentage = (compliant_runs / relevant_run_count) * 100
+            stats_df = pd.DataFrame({
+                'Mean overall TAT': assay_df['upload_to_release'].mean(),
+                'Median overall TAT': (
+                    assay_df['upload_to_release'].median()
+                ),
+                'Mean upload to processing start': (
+                    assay_df['upload_to_first_job'].mean()
+                ),
+                'Mean pipeline running': assay_df['processing_time'].mean(),
+                'Mean processing end to release': (
+                    assay_df['processing_end_to_release'].mean()
+                ),
+                'Compliance with audit standards': compliance_string
+            }, index=[assay_df.index.values[-1]]).T.reset_index()
 
-        stats_df = pd.DataFrame({
-            'Mean overall turnaround': assay_df['upload_to_release'].mean(),
-            'Median overall turnaround': assay_df['upload_to_release'].median(),
-            'Mean upload to processing start': (
-                assay_df['upload_to_first_job'].mean()
-            ),
-            'Mean pipeline running': assay_df['processing_time'].mean(),
-            'Mean processing end to release': (
-                assay_df['processing_end_to_release'].mean()
-            ),
-            'Compliance with audit standards': (
-                f"({compliant_runs}/{relevant_run_count}) "
-                f"{round(compliance_percentage, 2)}%"
+            stats_df.rename(
+                columns={
+                    "index": "Metric", stats_df.columns[1]: "Time (days)"
+                }, inplace=True
             )
-        }, index=[assay_df.index.values[-1]]).T.reset_index()
-
-        stats_df.rename(
-            columns={
-                "index": "Metric", stats_df.columns[1]: "Time (days)"
-            }, inplace=True
-        )
 
         stats_table = stats_df.to_html(
             index=False,
@@ -1685,7 +1724,7 @@ class QueryPlotFunctions:
             justify='left'
         )
 
-        return stats_table
+        return stats_table, compliance_fraction, compliance_percentage
 
 
     def find_runs_for_manual_review(self, assay_df):
@@ -1766,14 +1805,27 @@ class QueryPlotFunctions:
         upload_day_fig : str
             Plotly fig showing upload day of the week vs TAT for that assay
             as HTML string
+        assay_no_of_002_runs : int
+            the number of runs found for that assay through the number of
+            002 projects
+        assay_fraction : str
+            fraction of runs compliant with audit standards
+        assay_percentage : float
+            percentage of runs compliant with audit standards
         """
         assay_df = self.extract_assay_df(all_assays_df, assay_type)
-        assay_stats = self.make_stats_table(assay_df)
+        assay_stats, assay_fraction, assay_percentage = self.make_stats_table(
+            assay_df
+        )
         assay_issues = self.find_runs_for_manual_review(assay_df)
         assay_fig = self.create_TAT_fig(assay_df, assay_type)
         upload_day_fig = self.create_upload_day_fig(assay_df, assay_type)
+        assay_no_of_002_runs = assay_df.shape[0]
 
-        return assay_stats, assay_issues, assay_fig, upload_day_fig
+        return (
+            assay_stats, assay_issues, assay_fig, upload_day_fig,
+            assay_no_of_002_runs, assay_fraction, assay_percentage
+        )
 
 
     def create_ticket_typo_df(self, closed_typo_tickets, open_typo_tickets):
@@ -1902,50 +1954,70 @@ class QueryPlotFunctions:
         html_fig : str
             Plotly figure as html string
         """
-        # Add df column with names of the day of the week that data were
-        # uploaded
-        assay_df['upload_day'] = assay_df['upload_time'].dt.day_name()
-        # Plot upload day vs TAT, if TAT is <=3.0 colour in green, otherwise
-        # colour in red
-        fig = px.scatter(
-            data_frame=assay_df,
-            x='upload_day',
-            y='upload_to_release',
-            custom_data=['run_name'],
-            color=assay_df["upload_to_release"] <= 3.0,
-            color_discrete_map={
-                True: "green",
-                False: "red"
-            },
-        )
-        # Set days in order
-        fig.update_xaxes(
-            range=[-0.5, 6.5],
-            type='category',
-            categoryorder='array',
-            categoryarray= [
-                "Monday", "Tuesday", "Wednesday", "Thursday",
-                "Friday", "Saturday", "Sunday"
-            ]
-        )
+        if len(assay_df):
+            # Add df column with names of the day of the week that data were
+            # uploaded
+            assay_df['upload_day'] = assay_df['upload_time'].dt.day_name()
+            # Plot upload day vs TAT, if TAT is <=3.0 colour in green
+            # otherwise colour in red
+            fig = px.scatter(
+                data_frame=assay_df,
+                x='upload_day',
+                y='upload_to_release',
+                custom_data=['run_name'],
+                color=assay_df["upload_to_release"] <= 3.0,
+                color_discrete_map={
+                    True: "green",
+                    False: "red"
+                },
+            )
+            # Set days in order
+            fig.update_xaxes(
+                range=[-0.5, 6.5],
+                type='category',
+                categoryorder='array',
+                categoryarray= [
+                    "Monday", "Tuesday", "Wednesday", "Thursday",
+                    "Friday", "Saturday", "Sunday"
+                ]
+            )
 
-        fig.update_layout(
-            title={
-                'text': f'{assay_type} Upload Day vs Turnaround Time',
-                'xanchor': 'center',
-                'x':0.5
-            },
-            xaxis_title="Upload day of the week",
-            yaxis_title="Turnaround time (days)",
-            font_family='Helvetica',
-            legend=dict(title='Within standards'),
-            width=1000,
-            height=500,
-        )
-        # Add run name to hovertext
-        fig.update_traces(
-            hovertemplate="Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f} days"
-        )
+            fig.update_layout(
+                title={
+                    'text': f'{assay_type} Upload Day vs Turnaround Time',
+                    'xanchor': 'center',
+                    'x':0.5
+                },
+                xaxis_title="Upload day of the week",
+                yaxis_title="Turnaround time (days)",
+                font_family='Helvetica',
+                legend=dict(title='Within standards'),
+                width=1000,
+                height=500,
+            )
+            # Add run name to hovertext
+            fig.update_traces(
+                hovertemplate="Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f} days"
+            )
+        # If empty show empty plot with message
+        else:
+            fig = go.Figure()
+            fig.update_layout(
+                font_family='Helvetica',
+                xaxis={"visible": False},
+                yaxis={"visible": False},
+                annotations = [
+                    {
+                        "text": "No data",
+                        "xref": "paper",
+                        "yref": "paper",
+                        "showarrow": False,
+                        "font": {
+                            "size": 28
+                        }
+                    }
+                ]
+            )
 
         html_fig = fig.to_html(full_html=False, include_plotlyjs=False)
 
@@ -1956,7 +2028,7 @@ def main():
     """Main function to create html report"""
     tatq = QueryPlotFunctions()
     tatq.login()
-
+    period_audited = f"{tatq.audit_start} to {tatq.audit_end}"
     logger.info("Creating dicts for each assay")
     all_assays_dict = {}
     typo_folders_list = []
@@ -1966,7 +2038,7 @@ def main():
         if typo_run_folders:
             typo_folders_list = typo_folders_list + typo_run_folders
     typo_folders_table = tatq.create_project_typo_df(typo_folders_list)
-
+    no_of_002_runs = len(all_assays_dict)
     logger.info("Getting + adding JIRA ticket info for closed seq runs")
     closed_runs_response = tatq.get_jira_info(35)
     all_assays_dict, closed_typo_tickets, runs_no_002_proj, cancelled_runs = (
@@ -1993,19 +2065,19 @@ def main():
     all_assays_df = tatq.add_calculation_columns(all_assays_df)
 
     logger.info("Generating objects for each assay")
-    CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig = (
+    CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig, CEN_runs, CEN_frac, CEN_compl = (
         tatq.create_assay_objects(all_assays_df, 'CEN')
     )
-    MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig = (
+    MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig, MYE_runs, MYE_frac, MYE_compl = (
         tatq.create_assay_objects(all_assays_df, 'MYE')
     )
-    TSO500_stats, TSO500_issues, TSO500_fig, TSO500_upload_fig = (
+    TSO_stats, TSO_issues, TSO_fig, TSO_upload_fig, TSO_runs, TSO_frac, TSO_compl = (
         tatq.create_assay_objects(all_assays_df, 'TSO500')
     )
-    TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig = (
+    TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig, TWE_runs, TWE_frac, TWE_compl = (
         tatq.create_assay_objects(all_assays_df, 'TWE')
     )
-    SNP_stats, SNP_issues, SNP_fig, SNP_upload_fig = (
+    SNP_stats, SNP_issues, SNP_fig, SNP_upload_fig, SNP_runs, SNP_frac, SNP_compl = (
         tatq.create_assay_objects(all_assays_df, 'SNP')
     )
 
@@ -2029,26 +2101,43 @@ def main():
 
     # Render all the things to go in the template
     content = template.render(
+        period_audited=period_audited,
+        no_of_002_runs=no_of_002_runs,
+        no_of_CEN_runs=CEN_runs,
         chart_1=CEN_fig,
         averages_1=CEN_stats,
         CEN_upload=CEN_upload_fig,
         runs_to_review_1=CEN_issues,
+        CEN_fraction=CEN_frac,
+        CEN_compliance=CEN_compl,
+        no_of_MYE_runs=MYE_runs,
         chart_2=MYE_fig,
         averages_2=MYE_stats,
         MYE_upload=MYE_upload_fig,
         runs_to_review_2=MYE_issues,
-        chart_3=TSO500_fig,
-        averages_3=TSO500_stats,
-        TSO500_upload=TSO500_upload_fig,
-        runs_to_review_3=TSO500_issues,
+        MYE_fraction=MYE_frac,
+        MYE_compliance=MYE_compl,
+        no_of_TSO500_runs=TSO_runs,
+        chart_3=TSO_fig,
+        averages_3=TSO_stats,
+        TSO500_upload=TSO_upload_fig,
+        runs_to_review_3=TSO_issues,
+        TSO_fraction=TSO_frac,
+        TSO_compliance=TSO_compl,
+        no_of_TWE_runs=TWE_runs,
         chart_4=TWE_fig,
         averages_4=TWE_stats,
         TWE_upload=TWE_upload_fig,
         runs_to_review_4=TWE_issues,
+        TWE_fraction=TWE_frac,
+        TWE_compliance=TWE_compl,
+        no_of_SNP_runs=SNP_runs,
         chart_5=SNP_fig,
         averages_5=SNP_stats,
         SNP_upload=SNP_upload_fig,
         runs_to_review_5=SNP_issues,
+        SNP_fraction=SNP_frac,
+        SNP_compliance=SNP_compl,
         open_runs=open_runs_list,
         runs_no_002=runs_no_002_proj,
         ticket_typos=all_typos_table,

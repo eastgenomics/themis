@@ -91,19 +91,39 @@
                     Assay compliance:
                     <ul>
                         <li>
-                            CEN: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
+                            {% if CEN_fraction %}
+                                CEN: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
+                            {% else %}
+                                CEN: <b>No runs found</b>
+                            {% endif %}
                         </li>
                         <li>
-                            MYE: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
+                            {% if MYE_fraction %}
+                                MYE: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
+                            {% else %}
+                                MYE: <b>No runs found</b>
+                            {% endif %}
                         </li>
                         <li>
-                            TSO500: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
+                            {% if TSO_fraction %}
+                                TSO500: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
+                            {% else %}
+                                TSO500: <b>No runs found</b>
+                            {% endif %}
                         </li>
                         <li>
-                            TWE: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
+                            {% if TWE_fraction %}
+                                TWE: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
+                            {% else %}
+                                TWE: <b>No runs found</b>
+                            {% endif %}
                         </li>
                         <li>
-                            SNP: <b>{{SNP_fraction}} <span class="complValue">{{ SNP_compliance }}</span>%</b>
+                            {% if SNP_fraction %}
+                                SNP: <b>{{SNP_fraction}} <span class="complValue">{{ SNP_compliance }}</span>%</b>
+                            {% else %}
+                                SNP: <b>No runs found</b>
+                            {% endif %}
                         </li>
                     </ul>
                 </li>
@@ -125,7 +145,11 @@
                         Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "CEN") | list | count }}</b>
                     </li>
                     <li>
-                        Assay compliance: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
+                        {% if CEN_fraction %}
+                            Assay compliance: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
+                        {% else %}
+                            Assay compliance: <b>No runs found</b>
+                        {% endif %}
                     </li>
                 </ul>
             </p>
@@ -283,7 +307,11 @@
                             Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "MYE") | list | count }}</b>
                         </li>
                         <li>
-                            Assay compliance: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
+                            {% if MYE_fraction %}
+                                Assay compliance: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
                         </li>
                     </ul>
                 </p>
@@ -440,7 +468,11 @@
                             Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "TSO500") | list | count }}</b>
                         </li>
                         <li>
-                            Assay compliance: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
+                            {% if TSO_fraction %}
+                                Assay compliance: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
                         </li>
                     </ul>
                 </p>
@@ -597,7 +629,11 @@
                             Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "TWE") | list | count }}</b>
                         </li>
                         <li>
-                            Assay compliance: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
+                            {% if TWE_fraction %}
+                                Assay compliance: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
                         </li>
                     </ul>
                 </p>
@@ -754,7 +790,11 @@
                             Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "SNP") | list | count }}</b>
                         </li>
                         <li>
-                            Assay compliance: <b>{{SNP_fraction}} <span class="complValue">{{ SNP_compliance }}</span>%</b>
+                            {% if SNP_fraction %}
+                                Assay compliance: <b>{{SNP_fraction}} <span class="complValue">{{ SNP_compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
                         </li>
                     </ul>
                 </p>

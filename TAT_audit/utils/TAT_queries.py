@@ -1659,9 +1659,10 @@ class QueryPlotFunctions:
         # Count runs to include overall
         # Add current turnaround for urgent samples released runs
         # To be included in compliance
-        compliance_percentage = 0.00
         if assay_df.index.empty:
             stats_df = pd.DataFrame({})
+            compliance_fraction = None
+            compliance_percentage = None
 
         else:
             compliant_runs = (

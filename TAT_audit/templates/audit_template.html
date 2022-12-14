@@ -75,17 +75,37 @@
         <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
             <h4 class="card-header text-white" style="background-color: #34568B;">Audit Results</h4>
             <div class="card-body bg-white">
-            <h5 class="card-title">Period audited: {{ period_audited }}</h5>
+            <h5 class="card-title">Period audited: <b>{{ period_audited }}</b></h5>
             <p class="card-text">
             <ul>
                 <li>
-                    Number of runs found with 002 projects: {{ no_of_002_runs }}
+                    Number of runs found with 002 projects: <b>{{ no_of_002_runs }}</b>
                 </li>
                 <li>
-                    Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002|length }}
+                    Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002|length }}</b>
                 </li>
                 <li>
-                    Additional runs which were not released: {{ cancelled_runs|length }}
+                    Additional runs which were not released: <b>{{ cancelled_runs|length }}</b>
+                </li>
+                <li>
+                    Assay compliance:
+                    <ul>
+                        <li>
+                            CEN: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
+                        </li>
+                        <li>
+                            MYE: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
+                        </li>
+                        <li>
+                            TSO500: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
+                        </li>
+                        <li>
+                            TWE: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
+                        </li>
+                        <li>
+                            SNP: <b>{{SNP_fraction}} <span class="complValue">{{ SNP_compliance }}</span>%</b>
+                        </li>
+                    </ul>
                 </li>
             </ul>
             </p>
@@ -96,13 +116,16 @@
             <p class="card-text">
                 <ul>
                     <li>
-                        Number of runs with 002 projects: {{ no_of_CEN_runs }}
+                        Number of runs with 002 projects: <b>{{ no_of_CEN_runs }}</b>
                     </li>
                     <li>
-                        Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "CEN") | list | count }}
+                        Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "CEN") | list | count }}</b>
                     </li>
                     <li>
-                        Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "CEN") | list | count }}
+                        Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "CEN") | list | count }}</b>
+                    </li>
+                    <li>
+                        Assay compliance: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
                     </li>
                 </ul>
             </p>
@@ -137,7 +160,7 @@
                     {% endif %}
 
                 {% if runs_to_review_1.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                         {% for entry in runs_to_review_1.reports_before_multiqc  %}
                             <li>{{ entry }}</li>
@@ -251,13 +274,16 @@
                 <p class="card-text">
                     <ul>
                         <li>
-                            Number of runs with 002 projects: {{ no_of_MYE_runs }}
+                            Number of runs with 002 projects: <b>{{ no_of_MYE_runs }}</b>
                         </li>
                         <li>
-                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "MYE") | list | count }}
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "MYE") | list | count }}</b>
                         </li>
                         <li>
-                            Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "MYE") | list | count }}
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "MYE") | list | count }}</b>
+                        </li>
+                        <li>
+                            Assay compliance: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
                         </li>
                     </ul>
                 </p>
@@ -291,7 +317,7 @@
                 {% endif %}
 
                 {% if runs_to_review_2.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                         {% for entry in runs_to_review_2.reports_before_multiqc  %}
                             <li>{{ entry }}</li>
@@ -405,13 +431,16 @@
                 <p class="card-text">
                     <ul>
                         <li>
-                            Number of runs with 002 projects: {{ no_of_TSO500_runs }}
+                            Number of runs with 002 projects: <b>{{ no_of_TSO500_runs }}</b>
                         </li>
                         <li>
-                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "TSO500") | list | count }}
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "TSO500") | list | count }}</b>
                         </li>
                         <li>
-                            Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "TSO500") | list | count }}
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "TSO500") | list | count }}</b>
+                        </li>
+                        <li>
+                            Assay compliance: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
                         </li>
                     </ul>
                 </p>
@@ -445,7 +474,7 @@
                 {% endif %}
 
                 {% if runs_to_review_3.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                     {% for entry in runs_to_review_3.reports_before_multiqc  %}
                         <li>{{ entry }}</li>
@@ -559,13 +588,16 @@
                 <p class="card-text">
                     <ul>
                         <li>
-                            Number of runs with 002 projects: {{ no_of_TWE_runs }}
+                            Number of runs with 002 projects: <b>{{ no_of_TWE_runs }}</b>
                         </li>
                         <li>
-                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "TWE") | list | count }}
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "TWE") | list | count }}</b>
                         </li>
                         <li>
-                            Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "TWE") | list | count }}
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "TWE") | list | count }}</b>
+                        </li>
+                        <li>
+                            Assay compliance: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
                         </li>
                     </ul>
                 </p>
@@ -599,7 +631,7 @@
                 {% endif %}
 
                 {% if runs_to_review_4.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                     {% for entry in runs_to_review_4.reports_before_multiqc  %}
                         <li>{{ entry }}</li>
@@ -713,13 +745,16 @@
                 <p class="card-text">
                     <ul>
                         <li>
-                            Number of runs with 002 projects: {{ no_of_SNP_runs }}
+                            Number of runs with 002 projects: <b>{{ no_of_SNP_runs }}</b>
                         </li>
                         <li>
-                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: {{ runs_no_002 | selectattr("assay_type", "equalto", "SNP") | list | count }}
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "SNP") | list | count }}</b>
                         </li>
                         <li>
-                            Additional runs which were not released: {{ cancelled_runs | selectattr("assay_type", "equalto", "SNP") | list | count }}
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "SNP") | list | count }}</b>
+                        </li>
+                        <li>
+                            Assay compliance: <b>{{SNP_fraction}} <span class="complValue">{{ SNP_compliance }}</span>%</b>
                         </li>
                     </ul>
                 </p>
@@ -753,7 +788,7 @@
                 {% endif %}
 
                 {% if runs_to_review_5.reports_before_multiqc %}
-                    <p><b>Reports were released before last MultiQC job:</b></p>
+                    <p><b>MultiQC was run after reports were released:</b></p>
                     <ul>
                     {% for entry in runs_to_review_5.reports_before_multiqc  %}
                         <li>{{ entry }}</li>
@@ -901,6 +936,28 @@
             ordering: false
         });
     });
+
+    </script>
+    <style>
+        .text-red {
+            color: red;
+        }
+        .text-green {
+            color: green;
+        }
+    </style>
+    <!-- Colour conditional formatting for compliance percentage -->
+    <script>
+        $(document).ready(function() {
+            $('.complValue').each(function() {
+                const val = parseInt($(this).text());
+                if(!isNaN(val) && val < 100.0){
+                $(this).addClass("text-red");
+                } else if(!isNaN(val) && val == 100.0) {
+                $(this).addClass("text-green");
+                }
+            });
+        });
 
     </script>
     <!-- Optional JavaScript -->

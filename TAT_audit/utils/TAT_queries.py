@@ -1649,6 +1649,10 @@ class QueryPlotFunctions:
         -------
         stats_table : str
             dataframe as a HTML string to pass to DataTables
+        compliance_fraction : str
+            fraction of runs compliant with audit standards
+        compliance_percentage : float
+            percentage of runs compliant with audit standards
         """
         # Count runs to include as compliant that are less than 3 days TAT
         # And don't have any issues in each step timings
@@ -1684,6 +1688,13 @@ class QueryPlotFunctions:
                     (compliant_runs / relevant_run_count) * 100
                 )
 
+            compliance_fraction = f"({compliant_runs}/{relevant_run_count}) "
+            compliance_percentage = round(compliance_percentage, 2)
+            compliance_string = (
+                    f"{compliance_fraction} "
+                    f"{compliance_percentage}%"
+            )
+
             stats_df = pd.DataFrame({
                 'Mean overall TAT': assay_df['upload_to_release'].mean(),
                 'Median overall TAT': (
@@ -1696,10 +1707,7 @@ class QueryPlotFunctions:
                 'Mean processing end to release': (
                     assay_df['processing_end_to_release'].mean()
                 ),
-                'Compliance with audit standards': (
-                    f"({compliant_runs}/{relevant_run_count}) "
-                    f"{round(compliance_percentage, 2)}%"
-                )
+                'Compliance with audit standards': compliance_string
             }, index=[assay_df.index.values[-1]]).T.reset_index()
 
             stats_df.rename(
@@ -1715,7 +1723,7 @@ class QueryPlotFunctions:
             justify='left'
         )
 
-        return stats_table
+        return stats_table, compliance_fraction, compliance_percentage
 
 
     def find_runs_for_manual_review(self, assay_df):
@@ -1799,9 +1807,15 @@ class QueryPlotFunctions:
         assay_no_of_002_runs : int
             the number of runs found for that assay through the number of
             002 projects
+        assay_fraction : str
+            fraction of runs compliant with audit standards
+        assay_percentage : float
+            percentage of runs compliant with audit standards
         """
         assay_df = self.extract_assay_df(all_assays_df, assay_type)
-        assay_stats = self.make_stats_table(assay_df)
+        assay_stats, assay_fraction, assay_percentage = self.make_stats_table(
+            assay_df
+        )
         assay_issues = self.find_runs_for_manual_review(assay_df)
         assay_fig = self.create_TAT_fig(assay_df, assay_type)
         upload_day_fig = self.create_upload_day_fig(assay_df, assay_type)
@@ -1809,7 +1823,7 @@ class QueryPlotFunctions:
 
         return (
             assay_stats, assay_issues, assay_fig, upload_day_fig,
-            assay_no_of_002_runs
+            assay_no_of_002_runs, assay_fraction, assay_percentage
         )
 
 
@@ -2050,19 +2064,19 @@ def main():
     all_assays_df = tatq.add_calculation_columns(all_assays_df)
 
     logger.info("Generating objects for each assay")
-    CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig, CEN_runs = (
+    CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig, CEN_runs, CEN_frac, CEN_compl = (
         tatq.create_assay_objects(all_assays_df, 'CEN')
     )
-    MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig, MYE_runs = (
+    MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig, MYE_runs, MYE_frac, MYE_compl = (
         tatq.create_assay_objects(all_assays_df, 'MYE')
     )
-    TSO500_stats, TSO500_issues, TSO500_fig, TSO500_upload_fig, TSO500_runs = (
+    TSO_stats, TSO_issues, TSO_fig, TSO_upload_fig, TSO_runs, TSO_frac, TSO_compl = (
         tatq.create_assay_objects(all_assays_df, 'TSO500')
     )
-    TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig, TWE_runs = (
+    TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig, TWE_runs, TWE_frac, TWE_compl = (
         tatq.create_assay_objects(all_assays_df, 'TWE')
     )
-    SNP_stats, SNP_issues, SNP_fig, SNP_upload_fig, SNP_runs = (
+    SNP_stats, SNP_issues, SNP_fig, SNP_upload_fig, SNP_runs, SNP_frac, SNP_compl = (
         tatq.create_assay_objects(all_assays_df, 'SNP')
     )
 
@@ -2093,26 +2107,36 @@ def main():
         averages_1=CEN_stats,
         CEN_upload=CEN_upload_fig,
         runs_to_review_1=CEN_issues,
+        CEN_fraction=CEN_frac,
+        CEN_compliance=CEN_compl,
         no_of_MYE_runs=MYE_runs,
         chart_2=MYE_fig,
         averages_2=MYE_stats,
         MYE_upload=MYE_upload_fig,
         runs_to_review_2=MYE_issues,
-        no_of_TSO500_runs=TSO500_runs,
-        chart_3=TSO500_fig,
-        averages_3=TSO500_stats,
-        TSO500_upload=TSO500_upload_fig,
-        runs_to_review_3=TSO500_issues,
+        MYE_fraction=MYE_frac,
+        MYE_compliance=MYE_compl,
+        no_of_TSO500_runs=TSO_runs,
+        chart_3=TSO_fig,
+        averages_3=TSO_stats,
+        TSO500_upload=TSO_upload_fig,
+        runs_to_review_3=TSO_issues,
+        TSO_fraction=TSO_frac,
+        TSO_compliance=TSO_compl,
         no_of_TWE_runs=TWE_runs,
         chart_4=TWE_fig,
         averages_4=TWE_stats,
         TWE_upload=TWE_upload_fig,
         runs_to_review_4=TWE_issues,
+        TWE_fraction=TWE_frac,
+        TWE_compliance=TWE_compl,
         no_of_SNP_runs=SNP_runs,
         chart_5=SNP_fig,
         averages_5=SNP_stats,
         SNP_upload=SNP_upload_fig,
         runs_to_review_5=SNP_issues,
+        SNP_fraction=SNP_frac,
+        SNP_compliance=SNP_compl,
         open_runs=open_runs_list,
         runs_no_002=runs_no_002_proj,
         ticket_typos=all_typos_table,

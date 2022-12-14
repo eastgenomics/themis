@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+from datetime import datetime
 # Fastcore extends the python standard library to allow for the use of ghapi.
 from math import ceil
 from pathlib import Path
@@ -9,7 +10,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import requests
 import statsmodels.api as sm
 from fastcore.all import *
 from ghapi.all import GhApi
@@ -22,6 +22,9 @@ from jinja2 import Environment, FileSystemLoader
 # TODO: Add instance type to the report.
 
 # Set-up
+# Get Date for today
+today_date = datetime.now().date()
+
 # Remove warnings from pandas which aren't relevant.
 pd.options.mode.chained_assignment = None
 # Set file path for root directory
@@ -75,7 +78,7 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     """
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("Report.html")
-    filename = "Audit_2022_12_06.html"
+    filename = f"Audit_{today_date}.html"
     compliance_html = compliance_df.to_html(table_id="comp",
                                             classes="table table-striped table-hover"
                                             )

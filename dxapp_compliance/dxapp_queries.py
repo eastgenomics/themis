@@ -48,7 +48,6 @@ logger = logging.getLogger("general log")
 def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
                         release_comp_plot, ubuntu_comp_plot,
                         compliance_bycommitdate_plot,
-                        ubuntu_versions_plot
                         ):
     """
     Render jinja2 template with provided variables.
@@ -67,8 +66,6 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         coloured by ubuntu version.
     compliance_bycommitdate_plot (plotly figure):
         Plotly figure of Scatter plot for compliance % by last commit date
-    ubuntu_versions_plot (plotly figure):
-        Plotly figure of bar plot of counts of ubuntu versions used in apps.
 
     Outputs
     -------
@@ -106,7 +103,6 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         "release_comp_plot": release_comp_plot,
         "ubuntu_comp_plot": ubuntu_comp_plot,
         "compliance_bycommitdate_plot": compliance_bycommitdate_plot,
-        "ubuntu_versions_plot": ubuntu_versions_plot,
     }
     with open(filename, mode="w", encoding="utf-8") as results:
         results.write(template.render(context))
@@ -988,7 +984,7 @@ class audit_class:
             'uptodate_ubuntu': 'Ubuntu 20+',
             'timeout_policy': 'Timeout Policy',
             'correct_regional_option': 'Correct Region',
-            'set_e': 'Set -e Present',
+            'set_e': '`set -e` Present',
             'no_manual_compiling': 'No Manual Compile',
             'dxapp_boolean': 'DNAnexus App',
             'eggd_name_boolean': 'eggd_ name',
@@ -1001,6 +997,7 @@ class audit_class:
 
             complaince_stats = {
                 'Name': new_col_names[column],
+                'No. Compliant / Total': f"{no_true}/{no_true + no_false}",
                 'Compliance %': round((no_true / (no_true + no_false))*100, 2)
             }
             columns_summed.append(complaince_stats)
@@ -1166,10 +1163,12 @@ class plotting:
             x=df_ordered['latest_commit_date'],
             y=df_ordered['compliance_score'],
             labels={
-                'latest_commit_date': 'Date of last release',
+                'latest_commit_date': 'Date of last commit',
                 'compliance_score': 'Compliance (%)'
             },
             trendline="lowess",
+            hover_name="name",
+            hover_data=["latest_commit_date"],
         )
 
         fig.update_layout(
@@ -1233,45 +1232,6 @@ class plotting:
 
         return html_fig
 
-    def bash_version(self, df):
-        """
-        Uses plotly to plot the distribution of bash ubuntu versions.
-
-        Parameters
-        ----------
-            df (pandas df): dataframe of apps compliance data.
-
-        Returns
-        -------
-            html_fig (plotly html plot):
-                plot of bash and python apps.
-        """
-        # Find all apps with bash as the interpreter
-        dfout = df[df['interpreter'] == 'bash']
-        dfout.sort_values(by=['dist_version'])
-        dfout["dist_version"] = dfout["dist_version"].values.astype('str')
-        dfout = dfout['dist_version'].value_counts().rename_axis(
-            'unique_versions').reset_index(name='counts')
-
-        fig = px.bar(dfout, x="unique_versions", y="counts",
-                     color="unique_versions",
-                     labels={
-                         "unique_versions": "Ubuntu version",
-                         "counts": "Count",
-                     },
-                     )
-
-        fig.update_layout(
-            font=dict(
-                size=18,
-                color="black"
-            )
-        )
-
-        html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
-
-        return html_fig
-        # TODO: Add a bar chart for other compliance stats.
 
 
 def main():
@@ -1296,13 +1256,11 @@ def main():
     ubuntu_comp_plot = plots.ubuntu_compliance_timeseries(detailed_df)
     compliance_bycommitdate_plot = plots.compliance_by_latest_activity_plot(
         compliance_df)
-    ubuntu_versions_plot = plots.bash_version(detailed_df)
     compliance_df, detailed_df = audit.compliance_df_format(compliance_df,
                                                             detailed_df)
     get_template_render(compliance_df, detailed_df, compliance_stats_summary,
                         release_comp_plot, ubuntu_comp_plot,
                         compliance_bycommitdate_plot,
-                        ubuntu_versions_plot,
                         )
 
 

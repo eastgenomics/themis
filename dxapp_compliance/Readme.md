@@ -4,7 +4,7 @@ This repo contains the script to generate an audit summary report for bioinforma
 
 ## **Installation**
 
-The required Python package dependencies to query the APIs and create the final HTML file can be installed with:
+The required Python package dependencies to query the GitHub API and create the final HTML file can be installed with:
 
 ### Using pip
 
@@ -27,8 +27,8 @@ Config variables should be passed in a CONFIG.json file. This should be placed w
 The script works by:
 
 Querying github's API using ghapi package - this has functions for querying all github endpoints.
-First all the repositories from the organisation are returns and then only repos with `dxapp.json` are kept.
-For all the selected apps/applets, these are then checked for compliance against the standards using the `checks` class.
+First all the repositories from the organisation are returned. Then, only repos with `dxapp.json` are kept.
+For all the selected apps/applets, these are then checked for compliance against the standards using the `compliance_checks` class.
 For each standard we check the compliance by:
 
 - **Prefixed with eggd_**
@@ -75,8 +75,10 @@ A HTML file is then created, which has interactive datatables for viewing compla
 
 ## **Usage**
 
-Run the script to query the last X (int supplied in credentials.json) number of months from today via:
+Run the script to query the current DNAnexus app/applet repositories in the organisation:
 
 `python dxapp_queries.py`
 
 The script will create a HTML file in the directory you're currently in. If the script is run twice for the same period, if a summary report has been previously generated this will be replaced.
+
+Note: This requires a GitHub access token with the correct permissions to access all the repositories in the organisation.

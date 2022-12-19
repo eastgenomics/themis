@@ -1135,7 +1135,7 @@ class plotting:
             )
         )
 
-        html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
+        html_fig = fig.to_html(full_html=True)
 
         return html_fig
 
@@ -1178,7 +1178,7 @@ class plotting:
             )
         )
 
-        html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
+        html_fig = fig.to_html(full_html=True)
 
         return html_fig
 
@@ -1228,7 +1228,7 @@ class plotting:
             )
         )
 
-        html_fig = fig.to_html(full_html=True, include_plotlyjs=True)
+        html_fig = fig.to_html(full_html=True)
 
         return html_fig
 

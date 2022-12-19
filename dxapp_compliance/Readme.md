@@ -73,7 +73,15 @@ For this, we check the src file using regex for any `set -e` or set -e derivativ
 
 A HTML file is then created, which has interactive datatables for viewing complaince for each app and interactive plots.
 
-## **Usage**
+## **Running**
+
+Change directory to dxapp_compliance
+
+`cd themis/dxapp_compliance`
+
+Activate environment with conda
+
+`conda activate <env-name>`
 
 Run the script to query the current DNAnexus app/applet repositories in the organisation:
 

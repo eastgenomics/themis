@@ -12,6 +12,10 @@ The required Python package dependencies to query the GitHub API and create the 
 
 ### Using Conda
 
+`conda env create -f environment.yml`
+
+or
+
 `conda create --name <env_name> --file requirements.txt`
 
 Config variables should be passed in a CONFIG.json file. This should be placed within dxapp_compliance. i.e. themis/dxapp_compliance/CONFIG.json

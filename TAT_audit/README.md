@@ -27,11 +27,11 @@ The script works by:
     - For non-SNP runs, this is the time the log file was uploaded for that run
     - For SNP runs, this is the time the first file was uploaded in the relevant Staging Area folder because files from the MiSeq are manually uploaded rather than with dx-streaming-upload
 - Finding the time the first job started running
-    - For CEN, MYE and TWE runs this is the time demultiplexing started in the Staging Area
+    - For CEN, MYE and TWE runs this is the time demultiplexing started in the Staging Area which is matched to a run based on the input Sentinel record
     - For TSO500 and SNP runs, this is the time the first job started in the relevant 002 project because demultiplexing is done within the app or on the instrument
 - Finding the time the last job was completed
     - For CEN and TWE runs this is the time the last Dias reports job completed. If all samples are released, this is the time the final job completed before the Jira ticket was resolved to prevent obtaining reanalysis jobs
-    - For MYE, TSO500 and SNP runs this is the time the first successful MultiQC job was completed
+    - For MYE, TSO500 and SNP runs this is the time the last successful MultiQC job was completed. If all samples are released, this is the time the final MultiQC job completed before the Jira ticket was resolved
 - Finding the relevant Jira ticket for the run (in both the Jira open and closed sequencing run ticket queues) to obtain the current status and/or resolution time
 
 - Timing calculations:

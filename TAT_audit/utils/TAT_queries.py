@@ -270,10 +270,10 @@ class QueryPlotFunctions:
                 )
             )
             # Check if the date of the run is within audit dates
-            # Because 002 project may have been made after actual run date
+            # because 002 project may have been made after actual run date
+            # Don't capture 002_vaf_checks project for checking VAF
             run_name_date = run_name.split('_')[0]
             first_part_of_name = run_name.split('_')[1]
-            # Don't capture 002_vaf_checks project for checking VAF
             if (
                 run_name_date >= self.audit_start_obj.strftime('%y%m%d')
                 and run_name_date <= self.audit_end_obj.strftime('%y%m%d')
@@ -330,7 +330,7 @@ class QueryPlotFunctions:
                 recurse=False
             )
         )
-
+        # Remove the '/processed/' from the run folder name for later matching
         processed_folders = [
             name.removeprefix('/processed/') for name in processed_folder_names
         ]
@@ -338,9 +338,10 @@ class QueryPlotFunctions:
         return processed_folders
 
 
-    def determine_folder_to_search(self, run_name, assay_type, log_file_bug):
+    def determine_folder_to_search(self, run_name, assay_type):
         """
-        Determine which folder in StagingArea_52 to search
+        Determine which folder in Staging Area 52 to search based on
+        which assay
 
         Parameters
         ----------
@@ -348,8 +349,6 @@ class QueryPlotFunctions:
             name of the run
         assay_type : str
             e.g. 'CEN'
-        log_file_bug : boolean True or False
-            whether the log file upload is affected by bug
         Returns
         -------
         file_names : str
@@ -368,11 +367,6 @@ class QueryPlotFunctions:
             # Files are within named folder but within sub-folder runs
             folder_to_search = f'/{run_name}/runs'
             file_names = "*.lane.all.log"
-
-        # If issues uploading to StagingArea
-        # The real log file is in processed/ folder
-        if log_file_bug:
-            folder_to_search = f'/processed/{run_name}/runs'
 
         return file_names, folder_to_search
 
@@ -444,8 +438,8 @@ class QueryPlotFunctions:
 
         Parameters
         ----------
-        log_file_info : list containing one dict containing log file info
-            _description_
+        log_file_info : list
+            list of one dict containing log file info
 
         Returns
         -------
@@ -462,7 +456,7 @@ class QueryPlotFunctions:
         return upload_time
 
 
-    def get_log_file_time_processed(self, run_name):
+    def get_file_info_processed(self, run_name, file_name):
         """
         Get the time the log file was uploaded for runs affected by
         dx-streaming-upload bug in the /processed/ folder
@@ -481,7 +475,7 @@ class QueryPlotFunctions:
             dx.find_data_objects(
                 project=self.staging_id,
                 folder=f'/processed/{run_name}/runs',
-                name="*.lane.all.log",
+                name=file_name,
                 name_mode='glob',
                 classname='file',
                 describe={
@@ -498,56 +492,99 @@ class QueryPlotFunctions:
 
     def add_processed_upload_time(self, run_dict, assay_type):
         """
-        _summary_
+        Add the upload time for runs affected by dx-streaming-upload bug
+        where real data is in the /processed/ folder in Staging Area
 
         Parameters
         ----------
-        run_dict : _type_
-            _description_
-        assay_type : _type_
-            _description_
+        run_dict : collections.defaultdict(dict)
+            dictionary where key is run name with nested dict containing
+            relevant info
+        assay_type : str
+            assay type e.g. 'CEN'
 
         Returns
         -------
-        _type_
-            _description_
+        run_dict : collections.defaultdict(dict)
+            dict with upload time added for runs affected by
+            dx-streaming-upload bug
         """
+        # Get the names of the folders in /processed/
         processed_folders = self.get_staging_processed_folders()
+        # If SNP, get all files in the folder
+        # otherwise get info on the log file
+        if assay_type == "SNP":
+            file_name = '*'
+        else:
+            file_name = '*.lane.all.log'
+        # Compare folder names and run names
         for processed_folder in processed_folders:
             for run_name in run_dict.keys():
-                if assay_type != 'SNP':
-                    distance = self.get_distance(processed_folder, run_name)
-                    if distance <= 2:
-                        log_file_info = self.get_log_file_time_processed(
-                            processed_folder
-                        )
-
-                        if log_file_info:
+                # Get number of differences between run name and processed
+                # folder, if less than 2 diffs, get file info in that folder
+                distance = self.get_distance(processed_folder, run_name)
+                if distance <= 2:
+                    file_info = self.get_file_info_processed(
+                        processed_folder, file_name
+                    )
+                    # If SNP, get earliest file upload time
+                    # otherwise get time log file uploaded
+                    # add upload time to dict
+                    if file_info:
+                        if assay_type == "SNP":
+                            upload_time = self.find_earliest_file_upload(
+                                file_info
+                            )
+                        else:
                             upload_time = self.find_log_file_time(
-                                log_file_info
+                                file_info
                             )
 
-                            run_dict[run_name]['upload_time'] = upload_time
+                        run_dict[run_name]['upload_time'] = upload_time
 
         return run_dict
 
 
     def add_upload_time(self, run_dict, assay_type):
+        """
+        Add upload time for runs not affected by upload bug
+
+        Parameters
+        ----------
+        run_dict : collections.defaultdict(dict)
+            dictionary where key is run name and dict inside with relevant info
+        assay_type : str
+            assay type e.g. 'CEN'
+
+        Returns
+        -------
+        run_dict : collections.defaultdict(dict)
+            dict with each run as key and info as nested dict with upload
+            time added
+        typo_run_folders : list
+            list of runs with typos in the 002 project name
+        """
         typo_run_folders = []
         typo_folder_info = None
         staging_folders = self.get_staging_folders()
 
+        # For each run, if it doesn't have upload time from /processed/ folder
+        # aka wasn't affected by dx-streaming-upload bug
         for run_name in run_dict.keys():
             if not run_dict[run_name].get('upload_time'):
                 for folder_name in staging_folders:
+                    # Get no. of differences between each run name and staging
+                    # folder name
                     distance = self.get_distance(folder_name, run_name)
+                    # If match with less than 2 differences
+                    # add nested key with the run folder name
                     if distance <= 2:
-                    # Add nested key with the run folder name
                         run_dict[run_name]['run_folder_name'] = folder_name
-
+                        # Work out which folder to search in Staging Area
+                        # search for either files or the log file in the folder
                         file_names, folder_to_search = (
                             self.determine_folder_to_search(
-                                folder_name, assay_type, False
+                                folder_name, assay_type
                             )
                         )
                         files_in_folder = self.find_files_or_log_in_folder(
@@ -571,12 +608,32 @@ class QueryPlotFunctions:
                                     files_in_folder
                                 )
                                 run_dict[run_name]['upload_time'] = upload_time
+                            # If not SNP get time the log file was created
                             else:
                                 upload_time = self.find_log_file_time(
                                     files_in_folder
                                 )
                                 run_dict[run_name]['upload_time'] = upload_time
 
+        return run_dict, typo_run_folders
+
+
+    def update_run_name(self, run_dict):
+        """
+        Update each main key in the dict representing the run name
+        to the run name according to what is in the Staging Area
+        so that the correct, non-typo name is used as base and plotted later
+
+        Parameters
+        ----------
+        run_dict : collections.defaultdict(dict)
+            dict with each run as key and info as nested dict
+
+        Returns
+        -------
+        updated_dict : collections.defaultdict(dict)
+            dict where the run name key is updated if it has a typo
+        """
         # Create new dict, where the main key for the run name is taken from
         # the run folder, instead of being the run name extracted
         # from the 002 project name
@@ -590,120 +647,7 @@ class QueryPlotFunctions:
             else:
                 updated_dict[run_name] = run_dict[run_name]
 
-        return updated_dict, typo_run_folders
-
-
-    # def add_upload_time(self, run_dict, assay_type):
-    #     """
-    #     Adds the time the log file was created for that run to a dict and
-    #     returns any mismatched names between run folders + 002 proj names
-    #     Parameters
-    #     ----------
-    #     run_dict : collections.defaultdict(dict)
-    #         dictionary where key is run name and dict inside with relevant info
-    #         for that run
-    #     assay_type : str
-    #         e.g. 'CEN'
-    #     Returns
-    #     -------
-    #     updated_dict : collections.defaultdict(dict)
-    #         dictionary where key is run name with dict inside and upload_time
-    #         added
-    #     typo_run_folders : defaultdict(list)
-    #         dict where key is assay type and value is list of dicts
-    #         containing each mismatched run for that assay type
-    #     """
-    #     staging_folders = self.get_staging_folders()
-    #     typo_run_folders = []
-    #     typo_folder_info = None
-
-    #     for folder_name in staging_folders:
-    #         for run_name in run_dict.keys():
-    #             print(run_name)
-    #             distance = self.get_distance(folder_name, run_name)
-    #             if distance <= 2:
-    #                 # Add nested key with the run folder name
-    #                 run_dict[run_name]['run_folder_name'] = folder_name
-
-    #                 file_names, folder_to_search = (
-    #                     self.determine_folder_to_search(
-    #                         folder_name, assay_type, False
-    #                     )
-    #                 )
-    #                 files_in_folder = self.find_files_or_log_in_folder(
-    #                     file_names, folder_to_search
-    #                 )
-    #                 if distance > 0:
-    #                     # If mismatches between names, create dict with info
-    #                     typo_folder_info = {
-    #                         'assay_type': assay_type,
-    #                         'folder_name': folder_name,
-    #                         'project_name_002': run_name
-    #                     }
-    #                     typo_run_folders.append(typo_folder_info)
-
-    #                 if files_in_folder:
-    #                     # If SNP run, files uploaded manually to staging area
-    #                     # So get time first file was uploaded (sometimes
-    #                     # people add random files later so can't use last file)
-    #                     if assay_type == 'SNP':
-    #                         upload_time = self.find_earliest_file_upload(
-    #                             files_in_folder
-    #                         )
-    #                         run_dict[run_name]['upload_time'] = upload_time
-
-    #                     else:
-    #                         # Non-SNP run so get the log file time
-    #                         log_upload = self.find_log_file_time(
-    #                             files_in_folder
-    #                         )
-    #                         # Get the first job
-    #                         # If log file was uploaded before the first 002 job
-    #                         # Add in log file upload time
-    #                         first_job = run_dict[run_name].get(
-    #                             'first_job'
-    #                         )
-    #                         if run_name == '220114_A01303_0053_AH577JDMXY':
-    #                             print(log_upload)
-    #                             print(first_job)
-    #                         if first_job:
-    #                             if log_upload < first_job:
-    #                                 upload_time = log_upload
-    #                             else:
-    #                                 file_names, folder_to_search = (
-    #                                     self.determine_folder_to_search(
-    #                                         run_name, assay_type, True
-    #                                     )
-    #                                 )
-    #                                 log_file_info = (
-    #                                     self.find_files_or_log_in_folder(
-    #                                         file_names, folder_to_search
-    #                                     )
-    #                                 )
-    #                                 if log_file_info:
-    #                                     upload_time = self.find_log_file_time(
-    #                                         log_file_info
-    #                                     )
-    #                         else:
-    #                             # No first job available to check against
-    #                             upload_time = log_upload
-
-    #                         run_dict[run_name]['upload_time'] = upload_time
-
-    #     # Create new dict, where the main key for the run name is taken from
-    #     # the run folder, instead of being the run name extracted
-    #     # from the 002 project name
-    #     updated_dict = defaultdict(dict)
-    #     for run_name in run_dict:
-    #         # If the run folder name is found, update the main key in new dict
-    #         if run_dict[run_name].get('run_folder_name'):
-    #             folder_name = run_dict[run_name]['run_folder_name']
-    #             updated_dict[folder_name] = run_dict[run_name]
-    #         # Otherwise just use the original run name from the 002 proj
-    #         else:
-    #             updated_dict[run_name] = run_dict[run_name]
-
-    #     return updated_dict, typo_run_folders
+        return updated_dict
 
 
     def find_jobs_in_002_project(self, project_id):
@@ -764,51 +708,88 @@ class QueryPlotFunctions:
         return demux_jobs
 
 
-    def add_demultiplex_start_time(self, demux_jobs, run_dict):
+    def get_demultiplex_start_time(self, demux_jobs):
         """
-        Add the demultiplexing start time for non-TSO500 and non-SNP runs
+        Get the demultiplexing start times for non-TSO500 and non-SNP runs
 
         Parameters
         ----------
         demux_jobs : list
-            _description_
-        run_dict : dict
-            dict with each run and relevant audit info for an assay
+            list of dicts with info about jobs in staging area
 
         Returns
         -------
-        run_dict : dict
-            dict with each run and relevant audit info with demux time added
+        demux_job_dict : collections.defaultdict(list)
+            dict with run name as key and all the matching demux jobs as list
         """
         demux_job_dict = defaultdict(list)
+        # for each demultiplexing job in Staging Area
+        # get the time it started and the runInput info
         for demux_job in demux_jobs:
             demux_start = demux_job['describe']['created'] / 1000
             sentinel = demux_job['describe']['runInput']
             input_sentinel = sentinel.get('upload_sentinel_record')
+            # if there was a sentinel input, its info is in the $dnanexus_link
+            # key which can be a string or a nested dict
             if input_sentinel:
                 sentinel_info = input_sentinel['$dnanexus_link']
                 if isinstance(sentinel_info, str):
                     sentinel_id = sentinel_info
                 else:
                     sentinel_id = sentinel_info['id']
-
-                run_name_from_sentinel = dx.describe(sentinel_id)['name'].split('.')[1]
+                # get the name of the sentinel file input and split it to get
+                # the run name
+                # append the start times to the list with the run name
+                # from the sentinel file as key
+                run_name_from_sentinel = dx.describe(
+                    sentinel_id
+                )['name'].split('.')[1]
                 demux_job_dict[run_name_from_sentinel].append(demux_start)
 
+        return demux_job_dict
+
+
+    def add_demultiplex_start_time(self, demux_job_dict, run_dict):
+        """
+        Add the time that demultiplexing started to the run dictionary
+
+        Parameters
+        ----------
+        demux_job_dict : collections.defaultdict(list)
+            dict with run name as key and all the matching demux jobs as list
+        run_dict : collections.defaultdict(dict)
+            dict with each run and relevant audit info
+
+        Returns
+        -------
+        run_dict : collections.defaultdict(dict)
+            dict with each run and relevant audit info with demux time added
+        """
         for run_name, start_times in demux_job_dict.items():
             if run_name in run_dict:
+                # If the stored assay type is not TSO500 or SNP
+                # because these are not demultiplexed by us
                 if run_dict[run_name]['assay_type'] not in ['TSO500', 'SNP']:
+                    # Get the upload time for the run we stored earlier
                     upload_time = run_dict[run_name].get(
-                                'upload_time'
-                            )
+                        'upload_time'
+                    )
+                    # If we have an upload time, get time the first demux
+                    # job started
                     if upload_time:
                         first_job_start = time.strftime(
                             '%Y-%m-%d %H:%M:%S', time.localtime(min(
                                 start_times
                             ))
                         )
+                        # If the upload time is before the first demux job
+                        # add to our dict
                         if upload_time < first_job_start:
                             run_dict[run_name]['first_job'] = first_job_start
+                        # otherwise get all the demux start times for that run
+                        # find the minimum of those after the upload time
+                        # since e.g. sometimes people start demux jobs before
+                        # the sentinel file is actually uploaded
                         else:
                             string_start_times = [
                                 time.strftime(
@@ -819,6 +800,9 @@ class QueryPlotFunctions:
                                 x for x in string_start_times
                                 if x > upload_time
                             ]
+                            # if there is a start time left after the upload
+                            # time, add the first job start time of these
+                            # to our dict
                             if start_times:
                                 first_job_start = time.strftime(
                                     '%Y-%m-%d %H:%M:%S', time.localtime(min(
@@ -927,7 +911,8 @@ class QueryPlotFunctions:
 
     def get_relevant_multiqc_job(self, multi_qc_jobs, jira_resolved_timestamp):
         """
-        Gets the time the successful MultiQC job completed before resolution
+        Gets the time the successful MultiQC job completed before the
+        run was released
 
         Parameters
         ----------
@@ -949,7 +934,7 @@ class QueryPlotFunctions:
         jira_res_epoch = time.mktime(
             time.strptime(jira_resolved_timestamp, "%Y-%m-%d %H:%M:%S")
         )
-
+        # If there are MultiQC jobs found, get the time the last one finished
         if multi_qc_jobs:
             last_multiqc_job = (
                 max(
@@ -963,8 +948,8 @@ class QueryPlotFunctions:
                     last_multiqc_job
                 ))
             )
+            # For each job, get time it stopped running in epoch
             for multi_qc_job in multi_qc_jobs:
-                # Get the time stopped running in epoch
                 finished_running = (
                     multi_qc_job['describe']['stoppedRunning'] / 1000
                 )
@@ -973,7 +958,7 @@ class QueryPlotFunctions:
                 if finished_running <= jira_res_epoch:
                     multi_qc_jobs_before_resolution.append(finished_running)
             # If any jobs are before Jira ticket resolved, find time
-            # last MultiQC job finished and convert to timestamp
+            # last MultiQC job finished of these and convert to timestamp
             if multi_qc_jobs_before_resolution:
                 multiQC_fin = max(multi_qc_jobs_before_resolution)
                 multiQC_completed = time.strftime(
@@ -1011,43 +996,6 @@ class QueryPlotFunctions:
 
         return multiQC_completed
 
-        # multi_qc_completed = None
-        # last_multiqc = None
-        # if multi_qc_jobs:
-        #     # If more than one MultiQC job, get earliest finish time
-        #     if len(multi_qc_jobs) > 1:
-        #         multiqc_fin = (
-        #             min(
-        #                 data['describe']['stoppedRunning']
-        #                 for data in multi_qc_jobs
-        #             ) / 1000
-        #         )
-
-        #         last_multiqc_job = (
-        #             max(
-        #                 data['describe']['stoppedRunning']
-        #                 for data in multi_qc_jobs
-        #             ) / 1000
-        #         )
-
-        #         last_multiqc = (
-        #             time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(
-        #                 last_multiqc_job
-        #             ))
-        #         )
-
-        #     # Otherwise just get the time
-        #     else:
-        #         multiqc_fin = (
-        #             multi_qc_jobs[0]['describe']['stoppedRunning'] / 1000
-        #         )
-
-        #     multi_qc_completed = (
-        #         time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(multiqc_fin))
-        #     )
-
-        # return multi_qc_completed, last_multiqc
-
 
     def add_successful_multiqc_time(self, all_assays_dict):
         """
@@ -1061,20 +1009,24 @@ class QueryPlotFunctions:
 
         Returns
         -------
-        run_dict : collections.defaultdict(dict)
+        all_assays_dict : collections.defaultdict(dict)
             dictionary where key is run name with dict inside and
-            processing_finished key and val added (and last_multiQC_finished
-            if >1 job)
+            processing_finished key and val added (and last_multiQC_finished)
         """
         # For each run from the dict
-        # Find executions that include the name *MultiQC*
-        # As both eggd_MultiQC and MultiQC_v1.1.2 used
+        # if not CEN or TWE, where last job is generating workbooks
+        # get time the Jira ticket was resolved (if resolved), and the
+        # DX project ID for the 002 project for that run
         for run in all_assays_dict:
             if all_assays_dict[run]['assay_type'] not in ['CEN', 'TWE']:
                 jira_resolved = all_assays_dict[run].get('jira_resolved')
                 project_id = all_assays_dict[run].get('project_id')
-
+                # find executions that include the name *MultiQC*
+                # as both eggd_MultiQC and MultiQC_v1.1.2 used
                 multi_qc_jobs = self.find_multiqc_jobs(project_id)
+                # if all samples are released (Jira resolved)
+                # get the last multiqc job before that and add to dict
+                # along with any MultiQC jobs after all samples released
                 if jira_resolved:
                     multiQC_completed, last_multiQC = self.get_relevant_multiqc_job(
                         multi_qc_jobs, jira_resolved
@@ -1087,6 +1039,8 @@ class QueryPlotFunctions:
                         all_assays_dict[run]['last_multiQC_finished'] = (
                             last_multiQC
                         )
+                # If run not resolved, just get the last MultiQC job
+                # add to dict
                 else:
                     multiQC_completed = self.get_last_multiQC_job(multi_qc_jobs)
                     if multiQC_completed:
@@ -1194,10 +1148,12 @@ class QueryPlotFunctions:
         excel_completed = None
 
         if excel_jobs:
+            # Get time last job finished in epoch
             excel_fin = max(
                 excel_job['describe']['stoppedRunning'] / 1000
                 for excel_job in excel_jobs
             )
+            # Convert to timestamp
             excel_completed = time.strftime(
                 '%Y-%m-%d %H:%M:%S', time.localtime(excel_fin)
             )
@@ -1274,20 +1230,27 @@ class QueryPlotFunctions:
         assay_run_dict = self.create_run_dict_add_assay(
             assay_type, assay_response
         )
+        # Add upload time for runs affected by dx-streaming-upload bug
+        assay_run_dict = self.add_processed_upload_time(
+            assay_run_dict, assay_type
+        )
+        # Add upload time for all other runs
         assay_run_dict, typo_run_folders = self.add_upload_time(
             assay_run_dict, assay_type
         )
-        # Get MultiQC finished time for MYE, TSO500 + SNP runs
-        # if assay_type not in ['CEN', 'TWE']:
-        #     assay_run_dict = self.add_successful_multiqc_time(assay_run_dict)
+        # Update the run name in dict according to Staging Area folders
+        assay_run_dict = self.update_run_name(assay_run_dict)
 
         # Add earliest 002 for TSO500 and SNP runs
         assay_run_dict = self.add_earliest_002_job(assay_run_dict, assay_type)
 
         staging_area_jobs = self.find_staging_demultiplex_jobs()
         # Add demultiplexing time for non-TSO500 and non-SNP runs
+        demux_job_dict = self.get_demultiplex_start_time(
+            staging_area_jobs
+        )
         assay_run_dict = self.add_demultiplex_start_time(
-            staging_area_jobs, assay_run_dict
+            demux_job_dict, assay_run_dict
         )
 
         return assay_run_dict, typo_run_folders
@@ -1435,7 +1398,7 @@ class QueryPlotFunctions:
         since when querying all tickets in a queue it is not correct
         Parameters
         ----------
-        ticket_data :  dict
+        ticket_data : dict
             dict of info about the ticket
         Returns
         -------
@@ -2037,6 +2000,7 @@ class QueryPlotFunctions:
         )
 
         # If days between log file and first job is negative flag
+        # unless it's a cancelled run
         manual_review_dict['first_job_before_log'] = list(
             assay_df.loc[
                 assay_df['upload_to_first_job'] < 0
@@ -2049,23 +2013,55 @@ class QueryPlotFunctions:
         )
 
         # If days between final multiQC + release is negative flag
+        # unless it's a cancelled run
         manual_review_dict['reports_before_multiqc'] = list(
-            assay_df.loc[(assay_df['final_multiqc_to_release'] < 0) & ~assay_df['jira_status'].isin(['Data cannot be processed', 'Data cannot be released', 'Data not received'])]['run_name']
+            assay_df.loc[
+                (assay_df['final_multiqc_to_release'] < 0)
+                & ~assay_df['jira_status'].isin([
+                    'Data cannot be processed',
+                    'Data cannot be released',
+                    'Data not received'
+                ])
+            ]['run_name']
         )
 
         # If related log file was never found flag
+        # unless it's a cancelled run
         manual_review_dict['no_log_file'] = list(
-            assay_df.loc[(assay_df['upload_time'].isna()) & ~assay_df['jira_status'].isin(['Data cannot be processed', 'Data cannot be released', 'Data not received'])]['run_name']
+            assay_df.loc[
+                (assay_df['upload_time'].isna())
+                & ~assay_df['jira_status'].isin([
+                    'Data cannot be processed',
+                    'Data cannot be released',
+                    'Data not received'
+                ])
+            ]['run_name']
         )
 
         # If no 002 job or demux job was found flag
+        # unless it's a cancelled run
         manual_review_dict['no_first_job_found'] = list(
-            assay_df.loc[(assay_df['first_job'].isna()) & ~assay_df['jira_status'].isin(['Data cannot be processed', 'Data cannot be released', 'Data not received'])]['run_name']
+            assay_df.loc[
+                (assay_df['first_job'].isna())
+                & ~assay_df['jira_status'].isin([
+                    'Data cannot be processed',
+                    'Data cannot be released',
+                    'Data not received'
+                ])
+            ]['run_name']
         )
 
         # If no MultiQC or excel job was found flag
+        # unless it's a cancelled run
         manual_review_dict['no_multiqc_or_excel_found'] = list(
-            assay_df.loc[(assay_df['processing_finished'].isna()) & ~assay_df['jira_status'].isin(['Data cannot be processed', 'Data cannot be released', 'Data not received'])]['run_name']
+            assay_df.loc[
+                (assay_df['processing_finished'].isna())
+                    & ~assay_df['jira_status'].isin([
+                    'Data cannot be processed',
+                    'Data cannot be released',
+                    'Data not received'
+                ])
+            ]['run_name']
         )
 
         # If there are runs to be flagged in dict, pass

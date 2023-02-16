@@ -918,17 +918,17 @@ class QueryPlotFunctions:
         ----------
         multi_qc_jobs : list
             list of dicts of MultiQC executions in that project
-
+        jira_resolved_timestamp : str
+            timestamp that the Jira ticket was resolved
         Returns
         -------
         multiQC_completed : str or None
-            timestamp of relevant multiQC job completed or None if no MQC job
-        # last_multiqc : str or None
-        #     the timestamp as str of the last multiQC job or None if there was
-        #     only 1 or no MQC job
+            timestamp the relevant multiQC job completed or None if no MQC job
+        last_multiqc : str or None
+            the timestamp of the last multiQC job which successfully
+            completed or None if there are no MQC jobs
         """
-        multiQC_completed = None
-        last_multiqc = None
+        multiQC_completed, last_multiqc = None, None
         multi_qc_jobs_before_resolution = []
         # Convert time the Jira ticket was resolved from epoch to timestamp
         jira_res_epoch = time.mktime(
@@ -974,13 +974,13 @@ class QueryPlotFunctions:
 
         Parameters
         ----------
-        excel_jobs : list
-            list of dicts containing info about the excel jobs
+        multiQC_jobs : list
+            list of dicts containing info about the MultiQC jobs
 
         Returns
         -------
-        excel_completed : str or None
-            timestamp the last create excel job finished (or None if no excel
+        multiQC_completed : str or None
+            timestamp the last MultiQC job finished (or None if no MultiQC
             jobs)
         """
         multiQC_completed = None

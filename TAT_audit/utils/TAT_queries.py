@@ -928,7 +928,7 @@ class QueryPlotFunctions:
             the timestamp of the last multiQC job which successfully
             completed or None if there are no MQC jobs
         """
-        multiQC_completed, last_multiqc = None, None
+        multiQC_completed = last_multiqc = None
         multi_qc_jobs_before_resolution = []
         # Convert time the Jira ticket was resolved from epoch to timestamp
         jira_res_epoch = time.mktime(

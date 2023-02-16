@@ -184,7 +184,7 @@ class TestFindEarliestJob():
     jobs_list_2 = []
 
     def test_find_earliest_002_job(self):
-        earliest_job = tatq.find_earliest_job(self.jobs_list)
+        earliest_job = tatq.find_earliest_002_job(self.jobs_list)
 
         assert earliest_job == '2022-04-22 13:12:40', (
             'Earliest 002 job incorrect'
@@ -194,13 +194,14 @@ class TestFindEarliestJob():
         )
 
     def test_find_earliest_002_job_2(self):
-        earliest_job2 = tatq.find_earliest_job(self.jobs_list_2)
+        earliest_job2 = tatq.find_earliest_002_job(self.jobs_list_2)
         assert earliest_job2 is None, (
             "Earliest job not None when response is empty"
         )
 
 
 class TestGetRelevantMultiQCJob():
+    # "2022-04-12 10:57"
     multi_qc_jobs = [
         {
             'id': 'job-G9BZXq84543zv6xX28k6y9kv',
@@ -214,6 +215,8 @@ class TestGetRelevantMultiQCJob():
         }
     ]
     multi_qc_jobs_2 = []
+     # "2022-05-11 10:25"
+     # "2022-05-03 16:24"
     multi_qc_jobs_3 = [
         {
             'id': 'job-G9xj0Fj40X8FG1QG6y4fJ0GY',
@@ -237,27 +240,29 @@ class TestGetRelevantMultiQCJob():
         }
     ]
 
+    jira_res_time_stamp = "2022-05-10 12:01:01"
+
     def test_get_relevant_multiqc_job(self):
-        multiqc_job_earliest_1 = tatq.get_relevant_multiqc_job(
-            self.multi_qc_jobs
+        relevant_multiqc_job_1 = tatq.get_relevant_multiqc_job(
+            self.multi_qc_jobs, self.jira_res_time_stamp
         )
-        assert multiqc_job_earliest_1 == ('2022-04-12 10:57:22', None), (
-            'Last MultiQC time incorrect when one MultiQC job'
-        )
+        assert relevant_multiqc_job_1 == (
+            '2022-04-12 10:57:22', '2022-04-12 10:57:22'
+        ), 'Last MultiQC time incorrect when one MultiQC job'
 
     def test_get_relevant_multiqc_job_2(self):
-        multiqc_job_earliest_2 = tatq.get_relevant_multiqc_job(
-            self.multi_qc_jobs_2
+        relevant_multiqc_job_2 = tatq.get_relevant_multiqc_job(
+            self.multi_qc_jobs_2, self.jira_res_time_stamp
         )
-        assert multiqc_job_earliest_2 == (None, None), (
+        assert relevant_multiqc_job_2 == (None, None), (
             "Last MultiQC time should be None when no MultiQC jobs in response"
         )
 
     def test_get_relevant_multiqc_job_3(self):
-        multiqc_job_earliest_3 = tatq.get_relevant_multiqc_job(
-            self.multi_qc_jobs_3
+        relevant_multiqc_job_3 = tatq.get_relevant_multiqc_job(
+            self.multi_qc_jobs_3, self.jira_res_time_stamp
         )
-        assert multiqc_job_earliest_3 == (
+        assert relevant_multiqc_job_3 == (
             '2022-05-03 16:24:07', '2022-05-11 10:25:06'
         ), ("Last MultiQC time incorrect when >1 MultiQC job found")
 
@@ -392,20 +397,18 @@ class TestGetStatusChangeTime():
 class TestDetermineFolderToSearch():
     def test_determine_folder_to_search(self):
         file_names, folder_to_search = tatq.determine_folder_to_search(
-            '220908_A01303_0096_BHGNJKDRX2', 'TSO500', False
+            '220908_A01303_0096_BHGNJKDRX2', 'TSO500'
         )
         assert file_names == "*.lane.all.log", (
             "Files to look for is not .lane.all.log when assay type not SNP"
-            " and bug is set to false"
         )
         assert folder_to_search == '/220908_A01303_0096_BHGNJKDRX2/runs', (
             "Folder to search is incorrect (not /runs) when assay type not SNP"
-            " and bug is set to false"
         )
 
     def test_determine_folder_to_search_2(self):
         file_names2, folder_to_search2 = tatq.determine_folder_to_search(
-            '220321_M03595_0374_000000000-KBH6H', 'SNP', False
+            '220321_M03595_0374_000000000-KBH6H', 'SNP'
         )
 
         assert file_names2 == "*", (
@@ -416,37 +419,6 @@ class TestDetermineFolderToSearch():
             "Folder to search is incorrect (not /run name/) when assay type SNP"
             " and bug set to false"
         )
-
-    def test_determine_folder_to_search_3(self):
-        file_names3, folder_to_search3 = tatq.determine_folder_to_search(
-            '220321_M03595_0374_000000000-KBH6H', 'SNP', True
-        )
-
-        assert file_names3 == "*", (
-            "Files to look for not all when assay type SNP and bug set to true"
-        )
-        assert folder_to_search3 == (
-            '/processed/220321_M03595_0374_000000000-KBH6H/runs'
-        ), (
-                "Folder to search is incorrect (not in processed folder) when"
-                " assay type is SNP and bug set to true"
-            )
-
-    def test_determine_folder_to_search_4(self):
-        file_names4, folder_to_search4 = tatq.determine_folder_to_search(
-            '220825_A01295_0122_BH7WG5DRX2', 'CEN', True
-        )
-
-        assert file_names4 == "*.lane.all.log", (
-            "Files to look for not .lane.all.log when assay type CEN and bug"
-            " set to true"
-        )
-        assert folder_to_search4 == (
-            '/processed/220825_A01295_0122_BH7WG5DRX2/runs'
-        ), (
-                "Folder to search incorrect (not in processed) when assay type"
-                " CEN and bug is set to true"
-            )
 
 
 class TestLogFileTime():
@@ -602,7 +574,7 @@ class TestAddCalculationColumns():
     test_csv = os.path.join(TEST_DATA_DIR, "all_assays_df_for_testing.csv")
     test_df = pd.read_csv(test_csv, sep=',')
     cols_to_convert = [
-        'upload_time', 'earliest_002_job', 'multiQC_finished', 'jira_resolved',
+        'upload_time', 'first_job', 'processing_finished', 'jira_resolved',
         'last_multiQC_finished'
     ]
 

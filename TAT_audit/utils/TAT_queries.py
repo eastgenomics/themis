@@ -13,6 +13,10 @@ import requests
 import sys
 import time
 import warnings
+import os
+import re
+import csv
+import subprocess
 
 from collections import defaultdict
 from dateutil.relativedelta import relativedelta
@@ -648,7 +652,174 @@ class QueryPlotFunctions:
                 updated_dict[run_name] = run_dict[run_name]
 
         return updated_dict
+    
+    def get_all_sample_sheets(self, outputPath):
+        # find project root
+        staging_area_project = self.staging_id
 
+        # find all folders in root
+        folders = self.get_staging_folders()
+        #print("Here are the folders: {0}".format(folders))
+        processed_folders = self.get_staging_processed_folders()
+        #print("Here are the processed folders: {0}".format(processed_folders))
+
+        os.system("mkdir {0}".format(outputPath))
+
+        # find sample sheet in each folder
+        for folder in folders:
+            if folder == "" or folder == "processed":
+                continue
+            folder_path = "/{0}".format(folder)
+            try:
+                sample_ID_list = self.find_sample_IDs_in_002_project(folder, folder_path)
+                if not sample_ID_list:
+                    continue
+                # store this info and write as file
+                with open("{0}/{1}_sample_IDs.csv".format(outputPath, folder), "w", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(sample_ID_list)
+            except IOError:
+                print("Sample sheet not found in folder " + folder)
+
+
+        # find sample sheet in each processed folder
+        for folder in processed_folders:
+            if folder == "" or folder == "processed":
+                continue
+            folder_path = "/processed/{0}".format(folder)
+            try:
+                sample_ID_list = self.find_sample_IDs_in_002_project(folder, folder_path)
+                if not sample_ID_list:
+                    continue
+                # store this info and write as file
+                with open("{0}/{1}_sample_IDs.csv".format(outputPath, folder), "w", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(sample_ID_list)
+            except IOError:
+                print("Sample sheet not found in folder processed/" + folder)
+
+        return
+    
+    def parse_sample_sheet(self, sampleSheet) -> list:
+        """
+        Parses list of sample names from given sampleSheet
+        Parameters
+        ----------
+        sampleSheet : file
+            sampleSheet to parse
+        Returns
+        -------
+        list
+            list of sample names
+        Raises
+        ------
+        AssertionError
+            Raised when no samples parsed from sampleSheet
+        """
+        sheet = pd.read_csv(sampleSheet, header=None, usecols=[0])
+        column = sheet[0].tolist()
+        sample_list = column[column.index('Sample_ID') + 1:]
+
+        # sense check some samples found and sampleSheet isn't malformed
+        #assert sample_list, Slack().send(
+        #    f"Sample list could not be parsed from sampleSheet: {sampleSheet}"
+        #)
+
+        return sample_list
+
+    def find_sample_IDs_in_002_project(self, folderName, folderPath) -> list:
+        """
+        Finds all sample IDs in a project from sample sheet
+
+        Parameters
+        ----------
+        project_id : str
+            dx ID of the project
+
+        Returns
+        -------
+        filteredSampleIDs : list
+            list of strings of sample IDs from the given project with controls filtered out
+        """
+
+        staging_area_project = self.staging_id
+        sampleSheetPathLocal = "{0}_SampleSheet.csv".format(folderName)
+
+        # download sample sheet from DNAnexus project
+
+        # find file with SampleSheet in name in specific folder
+        sample_sheet_info = list(
+            dx.find_data_objects(
+                project=staging_area_project,
+                folder=folderPath,
+                name="*SampleSheet*.csv",
+                name_mode='glob',
+                classname='file',
+                describe={
+                    'fields': {
+                        'id': True, 'name': True, 'archivalState': True
+                    }
+                }
+            )
+        )
+
+        # try looking in runs instead
+        if not sample_sheet_info:
+            sample_sheet_info = list(
+                dx.find_data_objects(
+                    project=staging_area_project,
+                    folder=folderPath + "/runs",
+                    name="*SampleSheet*.csv",
+                    name_mode='glob',
+                    classname='file',
+                    describe={
+                        'fields': {
+                            'id': True, 'name': True, 'archivalState': True
+                        }
+                    }
+                )
+            )
+
+        archival_state = ""
+        if sample_sheet_info:
+            archival_state = sample_sheet_info[0]['describe']['archivalState']
+
+        if not sample_sheet_info:
+            print("Sample sheet doesn't exist in project folder {0}, don't download it".format(folderPath))
+            return []
+        elif archival_state != "live":
+            print("A sample sheet exists in project folder {0}, but it is in the archival state".format(folderPath))
+            return []
+        else:
+            # If SampleSheet is found, download the file by it's ID and name it locally as 'my_sample_sheet'
+            print("Yes a sample sheet exists in project folder {0}, download it".format(folderPath))
+            try:
+                dx.download_dxfile(sample_sheet_info[0].get("id"), sampleSheetPathLocal)
+            except dx.exceptions.InvalidState:
+                print("However, the sample sheet in project folder {0} is in an invalid state while also being classed as live".format(folderPath))
+
+        # extract list of sample IDs from file
+        try:
+            sampleIDs = self.parse_sample_sheet(sampleSheetPathLocal)
+        except ValueError:
+            print("However, the sample sheet in project folder {0} has an invalid format".format(folderPath))
+            # delete sample sheet downloaded from DNAnexus
+            os.system("rm {0}".format(sampleSheetPathLocal))
+            return []
+        filteredSampleIDs = []
+
+        # regex for controls
+        controlRegex = r"^NA|^HD[0-9]{3}|Oncospan|-[0-9]+Q[0-9]+-"
+            
+        # get filtered sample IDs (excludes controls)
+        for sampleID in sampleIDs:
+            if not re.match(controlRegex, sampleID):
+                filteredSampleIDs.append(sampleID)
+
+        # delete sample sheet downloaded from DNAnexus
+        os.system("rm {0}".format(sampleSheetPathLocal))
+
+        return filteredSampleIDs
 
     def find_jobs_in_002_project(self, project_id):
         """
@@ -2325,6 +2496,9 @@ def main():
     logger.info("Creating dicts for each assay")
     all_assays_dict = {}
     typo_folders_list = []
+
+    tatq.get_all_sample_sheets("output_sample_IDs")
+
     for assay_type in tatq.assay_types:
         assay_run_dict, typo_run_folders = tatq.create_info_dict(assay_type)
         all_assays_dict.update(assay_run_dict)
@@ -2442,6 +2616,7 @@ def main():
     logger.info("Writing final report file")
     with open(filename, mode="w", encoding="utf-8") as message:
         message.write(content)
+
     beepy.beep(sound="ping")
 
 

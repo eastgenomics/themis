@@ -8,7 +8,7 @@ The required Python package dependencies to query the APIs and create the final 
 pip install -r requirements.txt
 ```
 
-Config variables should be passed in a `credentials.json` file. This should be placed within TAT_audit, the same directory level as `requirements.txt`. If no start and end dates are supplied as command line arguments, the default months argument will be used to determine the previous number of months to aduit from the date the script is run.
+Config variables should be passed in a `credentials.json` file. This should be placed within TAT_audit, the same directory level as `requirements.txt`. If no start and end dates are supplied as command line arguments, the default months argument will be used to determine the previous number of months to audit from the date the script is run.
 
 ```json
 {
@@ -16,7 +16,7 @@ Config variables should be passed in a `credentials.json` file. This should be p
     "JIRA_EMAIL": "XXX",
     "JIRA_TOKEN": "XXX",
     "STAGING_AREA_PROJ_ID": "XXX",
-    "DEFAULT_MONTHS" : "6"
+    "DEFAULT_MONTHS" : 6
 }
 ```
 ## Description

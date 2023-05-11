@@ -700,7 +700,7 @@ class QueryPlotFunctions:
 
         return
     
-    def parse_sample_sheet(self, sampleSheet) -> list:
+    def parse_sample_sheet(self, fileID) -> list:
         """
         Parses list of sample names from given sampleSheet
         Parameters
@@ -716,8 +716,9 @@ class QueryPlotFunctions:
         AssertionError
             Raised when no samples parsed from sampleSheet
         """
-        sheet = pd.read_csv(sampleSheet, header=None, usecols=[0])
-        column = sheet[0].tolist()
+        sheet = dx.open_dxfile(fileID)
+        parsed_sheet = pd.read_csv(sheet, header=None, usecols=[0])
+        column = parsed_sheet[0].tolist()
         sample_list = column[column.index('Sample_ID') + 1:]
 
         # sense check some samples found and sampleSheet isn't malformed
@@ -785,26 +786,21 @@ class QueryPlotFunctions:
             archival_state = sample_sheet_info[0]['describe']['archivalState']
 
         if not sample_sheet_info:
-            print("Sample sheet doesn't exist in project folder {0}, don't download it".format(folderPath))
+            print("Sample sheet doesn't exist in project folder {0}, don't try to parse it".format(folderPath))
             return []
         elif archival_state != "live":
             print("A sample sheet exists in project folder {0}, but it is in the archival state".format(folderPath))
             return []
-        else:
-            # If SampleSheet is found, download the file by it's ID and name it locally as 'my_sample_sheet'
-            print("Yes a sample sheet exists in project folder {0}, download it".format(folderPath))
-            try:
-                dx.download_dxfile(sample_sheet_info[0].get("id"), sampleSheetPathLocal)
-            except dx.exceptions.InvalidState:
-                print("However, the sample sheet in project folder {0} is in an invalid state while also being classed as live".format(folderPath))
 
         # extract list of sample IDs from file
         try:
-            sampleIDs = self.parse_sample_sheet(sampleSheetPathLocal)
+            print("A sample sheet exists in project folder {0} and will be parsed".format(folderPath))
+            sampleIDs = self.parse_sample_sheet(sample_sheet_info[0].get("id"))
         except ValueError:
             print("However, the sample sheet in project folder {0} has an invalid format".format(folderPath))
-            # delete sample sheet downloaded from DNAnexus
-            os.system("rm {0}".format(sampleSheetPathLocal))
+            return []
+        except dx.exceptions.InvalidState:
+            print("However, the sample sheet in project folder {0} is in an invalid state while also being classed as live".format(folderPath))
             return []
         filteredSampleIDs = []
 
@@ -815,9 +811,6 @@ class QueryPlotFunctions:
         for sampleID in sampleIDs:
             if not re.match(controlRegex, sampleID):
                 filteredSampleIDs.append(sampleID)
-
-        # delete sample sheet downloaded from DNAnexus
-        os.system("rm {0}".format(sampleSheetPathLocal))
 
         return filteredSampleIDs
 

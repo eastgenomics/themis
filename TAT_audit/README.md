@@ -76,3 +76,5 @@ If any arguments are entered, both start and end dates must be supplied. The scr
 ## Docker
 
 A Dockerfile has been written to wrap the script, this is available to run after building as such (assuming credentials are provided in an env file to Docker): `docker run --env-file tat_credentials.env python3 utils/TAT_queries.py -s 2022-05-01 -e 2022-11-01`
+
+An additional script has been written to wrap the above and push the report to Slack, to use this a Slack bot token and Slack channel must be provided in the environment variables (as `SLACK_TOKEN` and `SLACK_CHANNEL` respectively). This will run the audit for the prior 3 weeks starting from 3 days ago (assumed deployment is running on a Monday, to audit from the previous Friday), and push both the html and csv output to the specified Slack channel. This can be run with `docker run --env-file tat_credentials.env /bin/bash run.sh`

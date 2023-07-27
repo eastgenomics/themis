@@ -1,8 +1,14 @@
 #!/bin/bash
+# Script for wrapping running of TAT audit and pushing results to Slack
+#
+# Inputs:
+#   $1 -> days ago to start auditing from
+#   $2 -> days ago to end auditing to
 
-# define date range for running audit (intended to run on a Monday and audit 3 weeks from previous Friday)
-start=$(date -d "24 days ago" +%Y-%m-%d)
-end=$(date -d "3 days ago" +%Y-%m-%d)
+
+# define date range for running audit
+start=$(date -d "$1 days ago" +%Y-%m-%d)
+end=$(date -d "$2 days ago" +%Y-%m-%d)
 
 python3 TAT_queries.py -s $start -e $end
 

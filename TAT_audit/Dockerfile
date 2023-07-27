@@ -1,9 +1,9 @@
 FROM python:3.10-slim-buster
 
-RUN apt-get update && apt-get install -y curl jq
+RUN apt-get update && apt-get install -y curl jq nano
 
 COPY . /app/
 
 RUN pip install -r /app/requirements.txt
 
-WORKDIR /app 
+WORKDIR /app/utils

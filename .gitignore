@@ -17,3 +17,4 @@ TAT_audit/tests/__pycache__/*
 *.log
 *.Rhistory
 *.coverage
+TAT_audit/tat_credentials.env

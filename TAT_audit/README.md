@@ -24,6 +24,8 @@ Config variables should be passed in a `credentials.json` file. This should be p
     "DEFAULT_MONTHS" : 6
 }
 ```
+Alternatively, the above variables may be set to the environment instead of being provided in a file.
+
 ## Description
 The script works by:
 - Querying DNAnexus to find all of the 002 projects for each assay, either between the dates specified (+- 5 days either side) or, if no dates are specified, within the last X number of months from the date the script was run
@@ -74,3 +76,12 @@ python TAT_queries.py -s 2022-05-01 -e 2022-11-01
 ```
 
 If any arguments are entered, both start and end dates must be supplied. The script will create a HTML file in the directory you're currently in, named to include the start and end dates of the audit period. If the script is run twice for the same period, if a summary report has been previously generated for these dates this will be replaced.
+
+
+## Docker
+
+A Dockerfile has been written to wrap the script, this is available to run after building as such (assuming credentials are provided in an env file to Docker): `docker run --env-file tat_credentials.env python3 utils/TAT_queries.py -s 2022-05-01 -e 2022-11-01`
+
+An additional script has been written to wrap the above and push the report to Slack, to use this a Slack bot token and Slack channel must be provided in the environment variables (as `SLACK_TOKEN` and `SLACK_CHANNEL` respectively). This will run the audit and push both the html and csv output to the specified Slack channel. The only inputs are the number of days ago to start auditing from, and number of days ago to audit until.
+
+This can be run with `docker run --env-file tat_credentials.env /bin/bash run.sh 21 1`, which would audit the previous 3 weeks.

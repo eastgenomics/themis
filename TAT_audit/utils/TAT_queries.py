@@ -1,11 +1,11 @@
 import argparse
-import beepy
 import datetime as dt
 import dxpy as dx
 import json
 import Levenshtein
 import logging
 import numpy as np
+import os
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -93,7 +93,7 @@ def determine_start_and_end_date(no_of_months):
     # Work out default dates for audit if none supplied (today - X months)
     today_date = dt.date.today()
     today_str = today_date.strftime('%Y-%m-%d')
-    default_begin_date = today_date + relativedelta(months=-no_of_months)
+    default_begin_date = today_date + relativedelta(months=-int(no_of_months))
     default_begin_date_str = default_begin_date.strftime('%Y-%m-%d')
 
     # Check both start and end date are entered
@@ -147,17 +147,34 @@ def load_credential_info():
         are given
     """
     # Get tokens etc from credentials file
-    with open(
-        ROOT_DIR.joinpath("credentials.json"), "r", encoding='utf8'
-    ) as json_file:
-        credentials = json.load(json_file)
+    if os.path.exists(ROOT_DIR.joinpath("credentials.json")):
+        with open(
+            ROOT_DIR.joinpath("credentials.json"), "r", encoding='utf8'
+        ) as json_file:
+            credentials = json.load(json_file)
 
-    dx_token = credentials.get('DX_TOKEN')
-    jira_email = credentials.get('JIRA_EMAIL')
-    jira_token = credentials.get('JIRA_TOKEN')
-    staging_proj_id = credentials.get('STAGING_AREA_PROJ_ID')
-    default_months = credentials.get('DEFAULT_MONTHS')
+        dx_token = credentials.get('DX_TOKEN')
+        jira_email = credentials.get('JIRA_EMAIL')
+        jira_token = credentials.get('JIRA_TOKEN')
+        staging_proj_id = credentials.get('STAGING_AREA_PROJ_ID')
+        default_months = credentials.get('DEFAULT_MONTHS')
+    else:
+        # credentials file doesn't exist, assume credentials are in env
+        dx_token = os.environ.get('DX_TOKEN')
+        jira_email = os.environ.get('JIRA_EMAIL')
+        jira_token = os.environ.get('JIRA_TOKEN')
+        staging_proj_id = os.environ.get('STAGING_AREA_PROJ_ID')
+        default_months = os.environ.get('DEFAULT_MONTHS')
 
+    if not all([
+        dx_token, jira_email, jira_token, staging_proj_id, default_months
+    ]):
+        logger.error(
+            "Required credentials could not be parsed from "
+            "credentials.json or the env"
+        )
+        sys.exit()
+    
     return dx_token, jira_email, jira_token, staging_proj_id, default_months
 
 
@@ -2442,7 +2459,6 @@ def main():
     logger.info("Writing final report file")
     with open(filename, mode="w", encoding="utf-8") as message:
         message.write(content)
-    beepy.beep(sound="ping")
 
 
 if __name__ == "__main__":

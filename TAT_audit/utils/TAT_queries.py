@@ -145,6 +145,8 @@ def load_credential_info():
     default_months : int
         the default number of months to audit previous to today if no CLI args
         are given
+    tat_standard : int
+        number of days the audit standard is
     """
     # Get tokens etc from credentials file
     if os.path.exists(ROOT_DIR.joinpath("credentials.json")):
@@ -158,6 +160,8 @@ def load_credential_info():
         jira_token = credentials.get('JIRA_TOKEN')
         staging_proj_id = credentials.get('STAGING_AREA_PROJ_ID')
         default_months = credentials.get('DEFAULT_MONTHS')
+        tat_standard = credentials.get('TAT_STANDARD_DAYS')
+
     else:
         # credentials file doesn't exist, assume credentials are in env
         dx_token = os.environ.get('DX_TOKEN')
@@ -165,17 +169,19 @@ def load_credential_info():
         jira_token = os.environ.get('JIRA_TOKEN')
         staging_proj_id = os.environ.get('STAGING_AREA_PROJ_ID')
         default_months = os.environ.get('DEFAULT_MONTHS')
+        tat_standard = os.environ.get('TAT_STANDARD_DAYS')
 
     if not all([
-        dx_token, jira_email, jira_token, staging_proj_id, default_months
+        dx_token, jira_email, jira_token, staging_proj_id, default_months,
+        tat_standard
     ]):
         logger.error(
             "Required credentials could not be parsed from "
             "credentials.json or the env"
         )
         sys.exit()
-    
-    return dx_token, jira_email, jira_token, staging_proj_id, default_months
+
+    return dx_token, jira_email, jira_token, staging_proj_id, default_months, tat_standard
 
 
 class QueryPlotFunctions:
@@ -185,7 +191,8 @@ class QueryPlotFunctions:
         self.jira_email,
         self.jira_token,
         self.staging_id,
-        self.default_months) = load_credential_info()
+        self.default_months,
+        self.tat_standard) = load_credential_info()
         self.assay_types = ['TWE', 'CEN', 'MYE', 'TSO500', 'SNP']
         # Jira API things
         self.auth = HTTPBasicAuth(self.jira_email, self.jira_token)
@@ -1845,7 +1852,7 @@ class QueryPlotFunctions:
                     )
                 )
 
-            fig.add_hline(y=4, line_dash="dash")
+            fig.add_hline(y=self.tat_standard, line_dash="dash")
 
             fig.update_xaxes(tickangle=45, categoryorder='category ascending')
 
@@ -1929,7 +1936,7 @@ class QueryPlotFunctions:
         else:
             compliant_runs = (
                 assay_df.loc[
-                    (assay_df['upload_to_release'] <= 4)
+                    (assay_df['upload_to_release'] <= self.tat_standard)
                     & (assay_df['upload_to_first_job'] >= 0)
                     & (assay_df['processing_time'] >= 0)
                     & (assay_df['processing_end_to_release'] >= 0)
@@ -2268,14 +2275,14 @@ class QueryPlotFunctions:
             # Add df column with names of the day of the week that data were
             # uploaded
             assay_df['upload_day'] = assay_df['upload_time'].dt.day_name()
-            # Plot upload day vs TAT, if TAT is <=4.0 colour in green
+            # Plot upload day vs TAT, if TAT is <= tat_standard colour in green
             # otherwise colour in red
             fig = px.scatter(
                 data_frame=assay_df,
                 x='upload_day',
                 y='upload_to_release',
                 custom_data=['run_name'],
-                color=assay_df["upload_to_release"] <= 4.0,
+                color=assay_df["upload_to_release"] <= float(self.tat_standard),
                 color_discrete_map={
                     True: "green",
                     False: "red"

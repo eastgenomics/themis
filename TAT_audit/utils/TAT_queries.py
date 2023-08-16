@@ -2250,11 +2250,23 @@ class QueryPlotFunctions:
             subset=['run_name'], keep='last', inplace=True
         )
 
-        # Sort assay types so match the report
+        # Create new date column extracted from the run name
+        all_assays_df['date'] = all_assays_df['run_name'].str.split('_').str[0]
+        # Convert date column to datetime
+        all_assays_df['date'] = pd.to_datetime(
+            all_assays_df['date'], format="%y%m%d"
+        )
+
+        # Sort chronologically by date for each assay type
+        all_assays_df.sort_values(by=['assay_type', 'date'], inplace=True)
+        # Sort assay types so order matches the report
         custom_dict = {'CEN': 0, 'MYE': 1, 'TSO500': 2, 'TWE': 3, 'SNP': 4}
         all_assays_df = all_assays_df.sort_values(
             by=['assay_type'], key=lambda x: x.map(custom_dict)
         )
+
+        # Remove the date column
+        all_assays_df.drop(columns=['date'], inplace=True)
 
         return all_assays_df
 

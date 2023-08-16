@@ -2243,11 +2243,30 @@ class QueryPlotFunctions:
         # Append the list of dicts as new rows
         all_assays_df = all_assays_df.append(cancelled_runs, ignore_index=True)
 
-        # Sort assay types so match the report
+        # Remove duplicates if a failed run is still named as a '002' project
+        # otherwise both the failed 002 project and failed ticket would be
+        # returned
+        all_assays_df.drop_duplicates(
+            subset=['run_name'], keep='last', inplace=True
+        )
+
+        # Create new date column extracted from the run name
+        all_assays_df['date'] = all_assays_df['run_name'].str.split('_').str[0]
+        # Convert date column to datetime
+        all_assays_df['date'] = pd.to_datetime(
+            all_assays_df['date'], format="%y%m%d"
+        )
+
+        # Sort chronologically by date for each assay type
+        all_assays_df.sort_values(by=['assay_type', 'date'], inplace=True)
+        # Sort assay types so order matches the report
         custom_dict = {'CEN': 0, 'MYE': 1, 'TSO500': 2, 'TWE': 3, 'SNP': 4}
         all_assays_df = all_assays_df.sort_values(
             by=['assay_type'], key=lambda x: x.map(custom_dict)
         )
+
+        # Remove the date column
+        all_assays_df.drop(columns=['date'], inplace=True)
 
         return all_assays_df
 
@@ -2341,6 +2360,28 @@ class QueryPlotFunctions:
         return html_fig
 
 
+    def write_to_csv(self, all_assays_df, audit_start, audit_end) -> None:
+        """
+        Write the dataframe of all runs in the audit period and all of
+        the associated info to CSV
+
+        Parameters
+        ----------
+        all_assays_df : pd.DataFrame
+            dataframe with all of the runs in the audit period and
+            all of the relevant info
+        audit_start : str
+            the date of the audit start
+        audit_end : str
+            the date of the audit end
+        """
+        all_assays_df.to_csv(
+            f'audit_info_{audit_start}_{audit_end}.csv',
+            float_format='%.3f',
+            index=False
+        )
+
+
 def main():
     """Main function to create html report"""
     tatq = QueryPlotFunctions()
@@ -2400,11 +2441,8 @@ def main():
     )
 
     all_assays_df = tatq.add_in_cancelled_runs(all_assays_df, cancelled_runs)
-    all_assays_df.to_csv(
-        f'audit_info_{tatq.audit_start}_{tatq.audit_end}.csv',
-        float_format='%.3f',
-        index=False
-    )
+    tatq.write_to_csv(all_assays_df, tatq.audit_start, tatq.audit_end)
+
     # Load Jinja2 template
     # Add the charts, tables and issues into the template
     environment = Environment(loader=FileSystemLoader(

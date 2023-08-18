@@ -160,7 +160,7 @@ def load_credential_info():
         jira_token = credentials.get('JIRA_TOKEN')
         staging_proj_id = credentials.get('STAGING_AREA_PROJ_ID')
         default_months = credentials.get('DEFAULT_MONTHS')
-        tat_standard = credentials.get('TAT_STANDARD_DAYS')
+        tat_standard = int(credentials.get('TAT_STANDARD_DAYS'))
 
     else:
         # credentials file doesn't exist, assume credentials are in env
@@ -169,7 +169,7 @@ def load_credential_info():
         jira_token = os.environ.get('JIRA_TOKEN')
         staging_proj_id = os.environ.get('STAGING_AREA_PROJ_ID')
         default_months = os.environ.get('DEFAULT_MONTHS')
-        tat_standard = os.environ.get('TAT_STANDARD_DAYS')
+        tat_standard = int(os.environ.get('TAT_STANDARD_DAYS'))
 
     if not all([
         dx_token, jira_email, jira_token, staging_proj_id, default_months,

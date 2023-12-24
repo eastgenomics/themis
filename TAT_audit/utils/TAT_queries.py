@@ -1642,6 +1642,7 @@ class QueryPlotFunctions:
             all_assays_dict.values()
         ).assign(run_name=all_assays_dict.keys())
 
+        print(all_assays_df)
         # Check dataframe is not empty, if it is exit
         if all_assays_df.empty:
             logger.error("No runs were found within the audit period")
@@ -2458,6 +2459,7 @@ def main():
     # Render all the things to go in the template
     content = template.render(
         period_audited=period_audited,
+        datetime_now=dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
         no_of_002_runs=no_of_002_runs,
         no_of_CEN_runs=CEN_runs,
         chart_1=CEN_fig,

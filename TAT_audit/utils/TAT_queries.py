@@ -18,6 +18,7 @@ from collections import defaultdict
 from dateutil.relativedelta import relativedelta
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
+from plotly.subplots import make_subplots
 from requests.auth import HTTPBasicAuth
 
 
@@ -149,6 +150,11 @@ def load_credential_info():
         number of days the audit standard is
     TODO: finish docstring
     """
+    keys = [
+        'DX_TOKEN', 'JIRA_EMAIL', 'JIRA_TOKEN', 'STAGING_AREA_PROJ_ID',
+        'DEFAULT_MONTHS', 'TAT_STANDARD_DAYS', 'ASSAYS',
+        'CANCELLED_STATUSES', 'OPEN_STATUSES', 'LAST_JOBS'
+    ]
     # Get tokens etc from credentials file
     if os.path.exists(ROOT_DIR.joinpath("credentials.json")):
         with open(
@@ -156,29 +162,15 @@ def load_credential_info():
         ) as json_file:
             credentials = json.load(json_file)
 
-        dx_token = credentials.get('DX_TOKEN')
-        jira_email = credentials.get('JIRA_EMAIL')
-        jira_token = credentials.get('JIRA_TOKEN')
-        staging_proj_id = credentials.get('STAGING_AREA_PROJ_ID')
-        default_months = credentials.get('DEFAULT_MONTHS')
-        tat_standard = int(credentials.get('TAT_STANDARD_DAYS'))
-        assay_types = credentials.get('ASSAYS')
-        cancelled_statuses = credentials.get('CANCELLED_STATUSES')
-        open_statuses = credentials.get('OPEN_STATUSES')
-        last_jobs = credentials.get('LAST_JOBS')
+        (dx_token, jira_email, jira_token, staging_proj_id, default_months,
+        tat_standard, assay_types, cancelled_statuses, open_statuses,
+        last_jobs) = list(map(credentials.get, keys))
 
     else:
         # credentials file doesn't exist, assume credentials are in env
-        dx_token = os.environ.get('DX_TOKEN')
-        jira_email = os.environ.get('JIRA_EMAIL')
-        jira_token = os.environ.get('JIRA_TOKEN')
-        staging_proj_id = os.environ.get('STAGING_AREA_PROJ_ID')
-        default_months = os.environ.get('DEFAULT_MONTHS')
-        tat_standard = int(os.environ.get('TAT_STANDARD_DAYS'))
-        assay_types = os.environ.get('ASSAYS')
-        cancelled_statuses = os.environ.get('CANCELLED_STATUSES')
-        open_statuses = os.environ.get('OPEN_STATUSES')
-        last_jobs = os.environ.get('LAST_JOBS')
+        (dx_token, jira_email, jira_token, staging_proj_id, default_months,
+        tat_standard, assay_types, cancelled_statuses, open_statuses,
+        last_jobs) = list(map(os.environ.get, keys))
 
     if not all([
         dx_token, jira_email, jira_token, staging_proj_id, default_months,
@@ -191,7 +183,11 @@ def load_credential_info():
         )
         sys.exit()
 
-    return dx_token, jira_email, jira_token, staging_proj_id, default_months, tat_standard, assay_types, cancelled_statuses, open_statuses, last_jobs
+    return (
+        dx_token, jira_email, jira_token, staging_proj_id, default_months,
+        int(tat_standard), assay_types, cancelled_statuses, open_statuses,
+        last_jobs
+    )
 
 
 class QueryPlotFunctions:
@@ -252,13 +248,13 @@ class QueryPlotFunctions:
     def get_002_projects_within_buffer_period(self):
         """
         Gets all the 002 projects ending with the relevant assay types from
-        DNAnexus that have been created between the audit period dates (with
-        a 5 day buffer period)
+        DNAnexus that have been created within the audit period (plus
+        a 5 day buffer)
 
         Returns
         -------
         projects_dx_response : list
-            list of dicts, each with info for a project
+            list of dicts, each with info about a project
         """
         assay_conditional = "|".join(x for x in self.assay_types)
 
@@ -424,9 +420,30 @@ class QueryPlotFunctions:
         return upload_time
 
 
+    def get_distance(self, string1, string2):
+        """
+        Get the distance as integer between two strings
+        (do not have to be equal length)
+
+        Parameters
+        ----------
+        string1 : str
+            the first string
+        string2 : str
+            the second string
+        Returns
+        -------
+        distance : int
+            the number of differences between the strings
+        """
+        distance = Levenshtein.distance(string1, string2)
+
+        return distance
+
+
     def add_upload_time(self, staging_folders, run_dict):
         """
-        Add upload time for runs
+        Add upload time for each run and get any typos in 002 project name
 
         Parameters
         ----------
@@ -440,39 +457,37 @@ class QueryPlotFunctions:
         run_dict : collections.defaultdict(dict)
             dict with each run as key and info as nested dict with upload
             time added
-        typo_run_folders : list
-            list of runs with typos in the 002 project name
+        Example:
+        {
+            '240124_A01295_0305_AHW725DRX3': {
+                'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
+                'assay_type': 'TSO500',
+                'run_folder_name': '240124_A01295_0305_AHW725DRX3',
+                'upload_time': '2024-01-25 08:52:27'
+            },
+             '240122_A01295_0303_AHTNWYDRX3': {
+                'project_id': 'project-GfgyZJ84J4xg8jK0Yb8XFxpf',
+                'assay_type': 'TWE',
+                'run_folder_name': '240122_A01295_0303_AHTNWYDRX3',
+                'upload_time': '2024-01-23 16:29:19'
+            }
+        }
         """
-        typo_run_folders = []
-
         # For each run, if it doesn't have upload time from /processed/ folder
         # aka wasn't affected by dx-streaming-upload bug
         for run_name in run_dict.keys():
-            assay_type = run_dict[run_name]['assay_type']
-
             if not run_dict[run_name].get('upload_time'):
                 for folder_name in staging_folders:
                     # Get differences between run name and staging folder name
                     distance = self.get_distance(folder_name, run_name)
-                    # If match with less than 2 differences
-                    # add nested key with the run folder name
+                    # If match with less than 2 differences, add run folder
+                    # name as nested key
                     if distance <= 2:
-                        if distance > 0:
-                            # If ticket mismatches, add typo info to list
-                            typo_run_folders.append({
-                                'assay_type': assay_type,
-                                'folder_name': folder_name,
-                                'project_name_002': run_name
-                            })
-
-                        # Add relevant folder to our dict
-                        # Search for the log file in the folder
-                        # If find log file, add its created time as upload time
                         run_dict[run_name]['run_folder_name'] = folder_name
+                        # Search for log file in folder
                         files_in_folder = self.find_log_file_in_folder(
                             folder_name
                         )
-
                         # Add log file time as upload time
                         if files_in_folder:
                             upload_time = self.get_log_file_created_time(
@@ -480,7 +495,7 @@ class QueryPlotFunctions:
                             )
                             run_dict[run_name]['upload_time'] = upload_time
 
-        return run_dict, typo_run_folders
+        return run_dict
 
 
     def update_run_name(self, run_dict):
@@ -498,20 +513,33 @@ class QueryPlotFunctions:
         -------
         updated_dict : collections.defaultdict(dict)
             dict where the run name key is updated if it has a typo
+        typo_run_folders : list
+            list of runs with typos in the 002 project name
         """
         updated_dict = defaultdict(dict)
-
+        typo_run_folders = []
         # For each run, get name of the 001_Staging_Area52 folder if exists.
         # Add new key of folder name and make the value all the existing info
         # for that run
         for run_name, run_info in run_dict.items():
             if run_info.get('run_folder_name'):
                 folder_name = run_dict[run_name]['run_folder_name']
+                assay_type = run_dict[run_name]['assay_type']
+
+                distance = self.get_distance(folder_name, run_name)
+                if distance > 0:
+                    # If ticket mismatches, add typo info to list
+                    typo_run_folders.append({
+                        'assay_type': assay_type,
+                        'folder_name': folder_name,
+                        'project_name_002': run_name
+                    })
+
                 updated_dict[folder_name] = run_dict[run_name]
             else:
                 updated_dict[run_name] = run_dict[run_name]
 
-        return updated_dict
+        return updated_dict, typo_run_folders
 
 
     def find_conductor_jobs(self):
@@ -534,7 +562,8 @@ class QueryPlotFunctions:
                 'fields': {
                     'id': True,
                     'name': True,
-                    'created': True
+                    'created': True,
+                    'originalInput': True
                 }
             }
         ))
@@ -542,7 +571,7 @@ class QueryPlotFunctions:
         return conductor_jobs
 
 
-    def get_earliest_conductor_job(self, conductor_jobs):
+    def get_earliest_conductor_job_for_each_run(self, conductor_jobs):
         """
         Get the time the earliest conductor job for each run started
 
@@ -554,14 +583,26 @@ class QueryPlotFunctions:
         Returns
         -------
         conductor_job_dict : dict
-            dict with run name as key and the earliest conductor job as value
+            dict with run name as key and the earliest conductor job (epoch
+            time) as value
+        Example:
+        {
+            '240124_A01295_0305_AHW725DRX3': 1706172760.815,
+            '240122_A01295_0303_AHTNWYDRX3': 1706027377.209,
+            '240119_A01295_0301_AHW5LGDRX3': 1705752954.959,
+        }
         """
         # For each eggd_conductor job in Staging Area
         # get the time it started and the relevant run from the job name
         conductor_job_dict = defaultdict(list)
         for conductor_job in conductor_jobs:
             job_start = conductor_job['describe']['created'] / 1000
-            run_name = conductor_job['describe']['name'].split('-')[1:2][0]
+            job_name = conductor_job['describe']['name']
+            try:
+                run_name = job_name.split('-')[1:2][0]
+            except:
+                run_name = job_name
+
             conductor_job_dict[run_name].append(job_start)
 
         for run_name, conductor_jobs in conductor_job_dict.items():
@@ -585,6 +626,22 @@ class QueryPlotFunctions:
         -------
         run_dict : dict
             dict with each run plus first job time added
+        {
+            '240124_A01295_0305_AHW725DRX3': {
+                'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
+                'assay_type': 'TSO500',
+                'run_folder_name': '240124_A01295_0305_AHW725DRX3',
+                'upload_time': '2024-01-25 08:52:27',
+                'first_job': '2024-01-25 08:52:40'
+            },
+             '240122_A01295_0303_AHTNWYDRX3': {
+                'project_id': 'project-GfgyZJ84J4xg8jK0Yb8XFxpf',
+                'assay_type': 'TWE',
+                'run_folder_name': '240122_A01295_0303_AHTNWYDRX3',
+                'upload_time': '2024-01-23 16:29:19',
+                'first_job': '2024-01-23 16:29:37'
+            }
+        }
         """
         # Add the time of the eggd_conductor job, making sure the conductor
         # job start time is after the upload time
@@ -603,7 +660,346 @@ class QueryPlotFunctions:
         return run_dict
 
 
-    def get_final_jobs(self, project_id, job_name_to_search):
+    def get_closest_match_in_dict(self, ticket_name, run_dict):
+        """
+        Checks for run names in the dict that are only off by 2 characters
+        in the Jira ticket name
+
+        Parameters
+        ----------
+        ticket_name :  str
+            the summary name of the Jira ticket (should be run name)
+        my_dict : collections.defaultdict
+            dict that contains run as key and all audit info as key val pairs
+
+        Returns
+        -------
+        closest_key_in_dict : str or None
+            the key in the dict that either matches the ticket name completely
+            or is off by 2. If no relevant key found returns none
+        typo_ticket_info : dict or None
+            info of the tickets where they mismatch by 2
+        """
+        typo_ticket_info = None
+        closest_key = None
+
+        for run_name in run_dict.keys():
+            # Get the distance between the names
+            # If 1 or 0 get the closest key in the dict
+            distance = self.get_distance(ticket_name, run_name)
+            if distance <= 2:
+                closest_key = run_name
+                if distance > 0:
+                    typo_ticket_info = {
+                        'assay_type': run_dict[closest_key]['assay_type'],
+                        'run_name': closest_key,
+                        'jira_ticket_name': ticket_name
+                    }
+
+        return closest_key, typo_ticket_info
+
+
+    def query_jira_tickets_in_queue(self, queue_id):
+        """
+        Get the info from Jira API. As can't change size of response and seems
+        to be limited to 50, loop over each page of response to get all tickets
+        until response is empty
+        Parameters
+        ----------
+        queue_id :  int
+            int of the ID for the relevant servicedesk queue
+        Returns
+        -------
+        response_data :  list
+            list of dicts with response from Jira API request
+        """
+        base_url = (
+            "https://cuhbioinformatics.atlassian.net/rest/servicedeskapi/"
+            f"servicedesk/4/queue/{queue_id}/issue"
+        )
+
+        response_data = []
+        new_data = True
+        start = 0
+        page_size = 50
+
+        while new_data:
+            queue_response = requests.request(
+                "GET",
+                url=f"{base_url}?start={start}",
+                headers=self.headers,
+                auth=self.auth
+            )
+            # Check request response OK, otherwise exit as would be key error
+            if queue_response.ok:
+                new_data = json.loads(queue_response.text)['values']
+                response_data += new_data
+                start += page_size
+            else:
+                logger.error("Issue with Jira response - check credentials")
+                sys.exit(1)
+
+        return response_data
+
+
+    def get_ticket_transition_times(self, ticket_id):
+        """
+        Get the times of all the Jira ticket transitions to different statuses
+
+        Parameters
+        ----------
+        ticket_id : int
+            the ID of the Jira ticket
+
+        Returns
+        -------
+        transitions_dict : dict
+            _description_
+        """
+        transitions_dict = defaultdict(list)
+        url = f"https://cuhbioinformatics.atlassian.net/rest/api/3/issue/{ticket_id}/changelog"
+
+        log_response = requests.request(
+            "GET",
+            url,
+            headers=self.headers,
+            auth=self.auth
+        )
+
+        change_info = json.loads(log_response.text)['values']
+        for change in change_info:
+            status_details = [
+                x for x in change['items'] if x['field'] == 'status'
+            ]
+
+            if status_details:
+                status_date, status_time = change['created'].split('T')
+                status_time = status_time.split('.', 3)[0]
+                status_date_time = f"{status_date} {status_time}"
+                new_state = status_details[0]['toString']
+
+                transitions_dict[new_state].append(status_date_time)
+
+        for status_key, status_change_times in transitions_dict.items():
+            transitions_dict[status_key] = max(status_change_times)
+
+        return transitions_dict
+
+
+    def create_jira_info_dict(self, jira_api_response):
+        """
+        Create a dictionary with only relevant info from all of the Jira
+        tickets in a queue
+
+        Parameters
+        ----------
+        jira_api_response : list
+            list of dicts, each dict info about a Jira ticket from a
+            specific helpdesk queue
+        Example:
+        {
+            '240130_A01303_0329_BH2HWHDRX5': {
+                'ticket_key': 'EBH-2377',
+                'ticket_id': '21865',
+                'jira_status': 'All samples released',
+                'assay_type': 'CEN',
+                'date_jira_ticket_created': datetime.datetime(2024, 1, 30, 16, 52, 18)
+            },
+            '240130_A01303_0330_AHWL32DRX3': {
+                'ticket_key': 'EBH-2376',
+                'ticket_id': '21864',
+                'jira_status': 'All samples released',
+                'assay_type': 'MYE',
+                'date_jira_ticket_created': datetime.datetime(2024, 1, 30, 16, 49, 38)
+            }
+        }
+        """
+        jira_run_dict = defaultdict(dict)
+        for issue in jira_api_response:
+            ticket_name = issue['fields']['summary']
+            start_date, start_time = issue['fields']['created'].split("T")
+            start_time = start_time.split(".")[0]
+            date_time_created = dt.datetime.strptime(
+                f"{start_date} {start_time}", '%Y-%m-%d %H:%M:%S'
+            )
+
+            # Get assay type info
+            assay_type_field = issue.get('fields').get('customfield_10070')
+            if assay_type_field:
+                assay_type_val = assay_type_field[0].get('value')
+                assay_type = assay_type_val.replace(' Genotyping', '')
+            else:
+                assay_type = 'Unknown'
+
+            if (
+                (assay_type in self.assay_types)
+                and (date_time_created >= dt.datetime.strptime(
+                    self.five_days_before_start, '%Y-%m-%d'
+                ))
+                and (date_time_created <= dt.datetime.strptime(
+                    self.five_days_after, '%Y-%m-%d'
+                ))
+            ):
+                jira_run_dict[ticket_name]['ticket_key'] = issue['key']
+                jira_run_dict[ticket_name]['ticket_id'] = issue['id']
+                jira_run_dict[ticket_name]['jira_status'] = (
+                    issue['fields']['status']['name']
+                )
+                jira_run_dict[ticket_name]['assay_type'] = assay_type
+
+                jira_run_dict[ticket_name]['date_jira_ticket_created'] = (
+                    date_time_created
+                )
+
+        return jira_run_dict
+
+
+    def add_jira_ticket_info(self, run_dict, jira_run_dict):
+        """
+        Add more information about the run from the JIRA ticket or if
+        we're missing it for some reason add it to the relevant list to be
+        returned in the report
+
+        Parameters
+        ----------
+        run_dict : _type_
+            _description_
+        jira_run_dict : _type_
+            _description_
+
+        Returns
+        -------
+            run_dict : dict
+            typo_tickets : list
+            runs_no_002_proj: list
+            cancelled_list : list
+            open_runs_list : list
+        """
+        typo_tickets = []
+        runs_no_002_proj = []
+        cancelled_list = []
+        open_runs_list = []
+
+        for ticket_name, ticket_info in jira_run_dict.items():
+            ticket_id = ticket_info['ticket_id']
+            assay_type = ticket_info['assay_type']
+            jira_status = ticket_info['jira_status']
+            date_time_created = ticket_info['date_jira_ticket_created']
+            ticket_key = ticket_info['ticket_key']
+            # If this matches run name in our dict (or is off by 2 chars)
+            # Get relevant run name key in dict + return any with mismatches
+            closest_key, typo_ticket_info = (
+                self.get_closest_match_in_dict(ticket_name, run_dict)
+            )
+            if typo_ticket_info:
+                typo_tickets.append(typo_ticket_info)
+
+            if closest_key:
+                run_dict[closest_key]['jira_status'] = jira_status
+                run_dict[closest_key]['ticket_key'] = ticket_key
+                run_dict[closest_key]['ticket_id'] = ticket_id
+
+                # If the run matches a run in our dict (has a 002 project)
+                # but is cancelled (has not been changed to a 003 project yet)
+                # add to list of cancelled runs
+                if jira_status in self.cancelled_statuses:
+                    cancelled_list.append({
+                        'run_name': ticket_name,
+                        'assay_type': assay_type,
+                        'date_jira_ticket_created': date_time_created,
+                        'jira_status': jira_status
+                    })
+
+            else:
+                # We don't have a 002 project for the ticket
+                # Check whether the ticket is for an assay we're auditing and
+                # within audit period
+                if (
+                    (assay_type in self.assay_types)
+                    and (date_time_created >= self.audit_start_obj)
+                    and (date_time_created <= self.audit_end_obj)
+                ):
+                    # If it's cancelled, add to list of cancelled runs
+                    if jira_status in self.cancelled_statuses:
+                        # Data was not released, add to cancelled list
+                            cancelled_list.append({
+                                'run_name': ticket_name,
+                                'assay_type': assay_type,
+                                'date_jira_ticket_created': date_time_created,
+                                'jira_status': jira_status
+                            })
+
+                    # If ticket is open, we just don't have a 002 project yet
+                    # so add to open runs list
+                    elif jira_status in self.open_statuses:
+                        open_runs_list.append({
+                            'run_name': ticket_name,
+                            'assay_type': assay_type,
+                            'date_jira_ticket_created': date_time_created,
+                            'current_status': jira_status
+                        })
+
+                    # Ticket must be at 'All samples released', so get
+                    # an estimated TAT
+                    else:
+                        change_log = self.get_ticket_transition_times(ticket_id)
+                        res_time_str = change_log.get('All samples released')
+                        if res_time_str:
+                            res_time = dt.datetime.strptime(
+                                res_time_str, '%Y-%m-%d %H:%M:%S'
+                            )
+                            turnaround_time_days = (
+                                res_time - date_time_created
+                            ).days
+                            remainder = round(
+                                ((res_time - date_time_created).seconds)
+                                / 86400, 1
+                            )
+
+                            turnaround_time = turnaround_time_days + remainder
+                            runs_no_002_proj.append({
+                                'run_name': ticket_name,
+                                'assay_type': assay_type,
+                                'jira_ticket_created': date_time_created,
+                                'jira_ticket_resolved': res_time_str,
+                                'estimated_TAT': turnaround_time
+                            })
+
+        return (
+            run_dict, typo_tickets, runs_no_002_proj, cancelled_list,
+            open_runs_list
+        )
+
+
+    def add_transition_times(self, run_dict):
+        """
+        Add a dictionary of the time the ticket transition to a certain state
+        to the run dictionary
+
+        Parameters
+        ----------
+        run_dict : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        for run_name, run_info in run_dict.items():
+            ticket_id = run_info['ticket_id']
+            change_log = self.get_ticket_transition_times(ticket_id)
+
+            run_dict[run_name]['change_log'] = change_log
+
+            jira_resolved = change_log.get('All samples released')
+            if jira_resolved:
+                run_dict[run_name]['jira_resolved'] = jira_resolved
+
+        return run_dict
+
+
+    def search_for_final_jobs(self, project_id, job_name_to_search):
         """
         In a project, find all of the jobs that are the last job to be run
         for that assay type
@@ -687,26 +1083,25 @@ class QueryPlotFunctions:
 
     def get_last_job(self, final_jobs):
         """
-        Get the time the last Excel job finished for unreleased runs
+        Get the time the last job finished for unreleased runs
 
         Parameters
         ----------
-        excel_jobs : list
-            list of dicts containing info about the excel jobs
+        final_jobs : list
+            list of dicts containing info about the final jobs
 
         Returns
         -------
-        excel_completed : str or None
-            timestamp the last create excel job finished (or None if no excel
-            jobs)
+        job_completed : str or None
+            timestamp the last job finished (or None if no jobs)
         """
         job_completed = None
 
         if final_jobs:
-            # Get time last job finished in epoch
+            # Get time last job finished (epoch)
             job_fin = max(
-                excel_job['describe']['stoppedRunning'] / 1000
-                for excel_job in final_jobs
+                final_job['describe']['stoppedRunning'] / 1000
+                for final_job in final_jobs
             )
             # Convert to timestamp
             job_completed = time.strftime(
@@ -731,6 +1126,26 @@ class QueryPlotFunctions:
         all_assays_dict : dict
             dict with processing_finished key added for CEN + TWE runs
             containing time last relevant Excel generation job finished
+        Example:
+        {
+            '240124_A01295_0305_AHW725DRX3': {
+                'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
+                'assay_type': 'TSO500',
+                'run_folder_name': '240124_A01295_0305_AHW725DRX3',
+                'upload_time': '2024-01-25 08:52:27',
+                'first_job': '2024-01-25 08:52:40',
+                'jira_status': 'All samples released',
+                'ticket_key': 'EBH-2364',
+                'ticket_id': '21822',
+                'change_log': {
+                    'Data Received': '2024-01-26 09:38:42',
+                    'Data processed': '2024-01-26 09:38:43',
+                    'All samples released': '2024-01-26 11:48:31'
+                },
+                'jira_resolved': '2024-01-26 11:48:31',
+                'processing_finished': '2024-01-26 11:29:14'
+            },
+        }
         """
         for run, run_info in run_dict.items():
             project_id = run_info.get('project_id')
@@ -739,7 +1154,7 @@ class QueryPlotFunctions:
             jira_resolved = run_info.get('jira_resolved')
 
             if job_to_search:
-                final_jobs = self.get_final_jobs(project_id, job_to_search)
+                final_jobs = self.search_for_final_jobs(project_id, job_to_search)
 
                 if jira_resolved:
                     job_finished = self.get_final_job_before_ticket_resolved(
@@ -766,321 +1181,6 @@ class QueryPlotFunctions:
                 )
 
         return run_dict
-
-
-    def query_jira_tickets_in_queue(self, queue_id):
-        """
-        Get the info from Jira API. As can't change size of response and seems
-        to be limited to 50, loop over each page of response to get all tickets
-        until response is empty
-        Parameters
-        ----------
-        queue_id :  int
-            int of the ID for the relevant servicedesk queue
-        Returns
-        -------
-        response_data :  list
-            list of dicts with response from Jira API request
-        """
-        base_url = (
-            "https://cuhbioinformatics.atlassian.net/rest/servicedeskapi/"
-            f"servicedesk/4/queue/{queue_id}/issue"
-        )
-
-        response_data = []
-        new_data = True
-        start = 0
-        page_size = 50
-
-        while new_data:
-            queue_response = requests.request(
-                "GET",
-                url=f"{base_url}?start={start}",
-                headers=self.headers,
-                auth=self.auth
-            )
-            # Check request response OK, otherwise exit as would be key error
-            if queue_response.ok:
-                new_data = json.loads(queue_response.text)['values']
-                response_data += new_data
-                start += page_size
-            else:
-                logger.error("Issue with Jira response - check credentials")
-                sys.exit(1)
-
-        return response_data
-
-
-    def get_distance(self, string1, string2):
-        """
-        Get the distance as integer between two strings
-        (do not have to be equal length)
-
-        Parameters
-        ----------
-        string1 : str
-            the first string
-        string2 : str
-            the second string
-        Returns
-        -------
-        distance : int
-            the number of differences between the strings
-        """
-        distance = Levenshtein.distance(string1, string2)
-
-        return distance
-
-
-    def get_ticket_transition_times(self, ticket_id):
-        """
-        Get the times of all the Jira ticket transitions to different statuses
-
-        Parameters
-        ----------
-        ticket_id : int
-            the ID of the Jira ticket
-
-        Returns
-        -------
-        transitions_dict : dict
-            _description_
-        """
-        transitions_dict = defaultdict(list)
-        url = f"https://cuhbioinformatics.atlassian.net/rest/api/3/issue/{ticket_id}/changelog"
-
-        log_response = requests.request(
-            "GET",
-            url,
-            headers=self.headers,
-            auth=self.auth
-        )
-
-        for change, value in enumerate(json.loads(log_response.text)['values']):
-            status_details = [
-                x for x in value['items'] if x['field'] == 'status'
-            ]
-
-            if status_details:
-                status_date, status_time = value['created'].split('T')
-                status_time = status_time.split('.', 3)[0]
-                status_date_time = f"{status_date} {status_time}"
-                new_state = status_details[0]['toString']
-
-                transitions_dict[new_state].append(status_date_time)
-
-        for status_key, status_change_times in transitions_dict.items():
-            transitions_dict[status_key] = max(status_change_times)
-
-        return transitions_dict
-
-
-    def get_closest_match_in_dict(self, ticket_name, run_dict):
-        """
-        Checks for run names in the dict that are only off by 2 characters
-        in the Jira ticket name
-
-        Parameters
-        ----------
-        ticket_name :  str
-            the summary name of the Jira ticket (should be run name)
-        my_dict : collections.defaultdict
-            dict that contains run as key and all audit info as key val pairs
-
-        Returns
-        -------
-        closest_key_in_dict : str or None
-            the key in the dict that either matches the ticket name completely
-            or is off by 2. If no relevant key found returns none
-        typo_ticket_info : dict or None
-            info of the tickets where they mismatch by 2
-        """
-        typo_ticket_info = None
-        closest_key = None
-
-        for run_name in run_dict.keys():
-            # Get the distance between the names
-            # If 1 or 0 get the closest key in the dict
-            distance = self.get_distance(ticket_name, run_name)
-            if distance <= 2:
-                closest_key = run_name
-                if distance > 0:
-                    typo_ticket_info = {
-                        'assay_type': run_dict[closest_key]['assay_type'],
-                        'run_name': closest_key,
-                        'jira_ticket_name': ticket_name
-                    }
-
-        return closest_key, typo_ticket_info
-
-
-    def create_jira_info_dict(self, jira_api_response):
-        """
-        Create a dictionary with only relevant info from all of the Jira
-        tickets in a queue
-
-        Parameters
-        ----------
-        jira_api_response : list
-            list of dicts, each dict info about a Jira ticket from a
-            specific helpdesk queue
-        """
-        jira_run_dict = defaultdict(dict)
-        for issue in jira_api_response:
-            ticket_name = issue['fields']['summary']
-            start_date, start_time = issue['fields']['created'].split("T")
-            start_time = start_time.split(".")[0]
-            date_time_created = dt.datetime.strptime(
-                f"{start_date} {start_time}", '%Y-%m-%d %H:%M:%S'
-            )
-
-            # Get assay type info
-            assay_type_field = issue.get('fields').get('customfield_10070')
-            if assay_type_field:
-                assay_type_val = assay_type_field[0].get('value')
-                assay_type = assay_type_val.replace(' Genotyping', '')
-            else:
-                assay_type = 'Unknown'
-
-            if (
-                (assay_type in self.assay_types)
-                and (date_time_created >= dt.datetime.strptime(self.five_days_before_start, '%Y-%m-%d'))
-                and (date_time_created <= dt.datetime.strptime(self.five_days_after, '%Y-%m-%d'))
-            ):
-                jira_run_dict[ticket_name]['ticket_key'] = issue['key']
-                jira_run_dict[ticket_name]['ticket_id'] = issue['id']
-                jira_run_dict[ticket_name]['jira_status'] = (
-                    issue['fields']['status']['name']
-                )
-                jira_run_dict[ticket_name]['assay_type'] = assay_type
-
-                jira_run_dict[ticket_name]['date_jira_ticket_created'] = (
-                    date_time_created
-                )
-
-        return jira_run_dict
-
-
-    def add_jira_ticket_info(self, run_dict, jira_run_dict):
-        """
-        Add more information about the run from the JIRA ticket or if
-        we're missing it for some reason add it to the relevant list to be
-        returned in the report
-
-        Parameters
-        ----------
-        run_dict : _type_
-            _description_
-        jira_run_dict : _type_
-            _description_
-
-        Returns
-        -------
-        _type_
-            _description_
-        """
-        typo_tickets = []
-        runs_no_002_proj = []
-        cancelled_list = []
-        open_runs_list = []
-
-        for ticket_name, ticket_info in jira_run_dict.items():
-            ticket_id = ticket_info['ticket_id']
-            assay_type = ticket_info['assay_type']
-            jira_status = ticket_info['jira_status']
-            date_time_created = ticket_info['date_jira_ticket_created']
-            ticket_key = ticket_info['ticket_key']
-            # If this matches run name in our dict (or is off by 2 chars)
-            # Get relevant run name key in dict + return any with mismatches
-            closest_key, typo_ticket_info = (
-                self.get_closest_match_in_dict(ticket_name, run_dict)
-            )
-            if typo_ticket_info:
-                typo_tickets.append(typo_ticket_info)
-
-            if closest_key:
-                run_dict[closest_key]['jira_status'] = jira_status
-                run_dict[closest_key]['ticket_key'] = ticket_key
-
-                # If the run matches a run in our dict (has a 002 project)
-                # but is cancelled (has not been changed to a 003 project yet)
-                # add to list of cancelled runs
-                if jira_status in self.cancelled_statuses:
-                    cancelled_list.append({
-                        'run_name': ticket_name,
-                        'assay_type': assay_type,
-                        'date_jira_ticket_created': date_time_created,
-                        'jira_status': jira_status
-                    })
-                else:
-                    # Get all of the status change times and add to the dict
-                    change_log = self.get_ticket_transition_times(ticket_id)
-                    run_dict[closest_key]['change_log'] = change_log
-
-                    jira_resolved = change_log.get('All samples released')
-                    if jira_resolved:
-                        run_dict[closest_key]['jira_resolved'] = jira_resolved
-
-            else:
-                # We don't have a 002 project for the ticket
-                # Check whether the ticket is for an assay we're auditing and
-                # within audit period
-                if (
-                    (assay_type in self.assay_types)
-                    and (date_time_created >= self.audit_start_obj)
-                    and (date_time_created <= self.audit_end_obj)
-                ):
-                    change_log = self.get_ticket_transition_times(ticket_id)
-
-                    # If it's cancelled, add to list of cancelled runs
-                    if jira_status in self.cancelled_statuses:
-                        # Data was not released, add to cancelled list
-                            cancelled_list.append({
-                                'run_name': ticket_name,
-                                'assay_type': assay_type,
-                                'date_jira_ticket_created': date_time_created,
-                                'jira_status': jira_status
-                            })
-
-                    # If ticket is open, we just don't have a 002 project yet
-                    # so add to open runs list
-                    elif jira_status in self.open_statuses:
-                        open_runs_list.append({
-                            'run_name': ticket_name,
-                            'assay_type': assay_type,
-                            'date_jira_ticket_created': date_time_created,
-                            'current_status': jira_status
-                        })
-
-                    # Ticket must be at 'All samples released', so get
-                    # an estimated TAT
-                    else:
-                        res_time_str = change_log.get('All samples released')
-                        if res_time_str:
-                            res_time = dt.datetime.strptime(
-                                res_time_str, '%Y-%m-%d %H:%M:%S'
-                            )
-                            turnaround_time_days = (
-                                res_time - date_time_created
-                            ).days
-                            remainder = round(
-                                ((res_time - date_time_created).seconds)
-                                / 86400, 1
-                            )
-
-                            turnaround_time = turnaround_time_days + remainder
-                            runs_no_002_proj.append({
-                                'run_name': ticket_name,
-                                'assay_type': assay_type,
-                                'jira_ticket_created': date_time_created,
-                                'jira_ticket_resolved': res_time_str,
-                                'estimated_TAT': turnaround_time
-                            })
-
-        return (
-            run_dict, typo_tickets, runs_no_002_proj, cancelled_list,
-            open_runs_list
-        )
 
 
     def add_in_empty_keys(self, run_dict):
@@ -1149,19 +1249,99 @@ class QueryPlotFunctions:
 
 
     def generate_hyperlink(self, row):
+        """
+        Create a hyperlink for the run, where the text is the run name but
+        it links to the Jira ticket for the run
+        """
         url = """<a href="https://cuhbioinformatics.atlassian.net/browse/{}">{}</a>""".format(row['ticket_key'], row['run_name'])
 
         return url
 
 
     def add_jira_ticket_hyperlink(self, run_df):
+        """
+        _summary_
 
+        Parameters
+        ----------
+        run_df : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
         run_df['ticket_hyperlink'] = run_df.apply(
             lambda row: row['run_name'] if pd.isnull(row['ticket_key']) else self.generate_hyperlink(row),
             axis=1
         )
 
         return run_df
+
+
+    def add_run_week(self, run_df):
+        """
+        _summary_
+
+        Parameters
+        ----------
+        run_df : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        run_df['run_date'] = run_df['run_name'].str.split('_').str[0]
+        # Convert date column to datetime
+        run_df['run_date'] = pd.to_datetime(
+            run_df['run_date'], format="%y%m%d"
+        )
+
+        # Sort chronologically by date for each assay type
+        run_df.sort_values(by='run_date', inplace=True)
+        run_df['week_start'] = run_df['run_date'].dt.to_period('W').dt.start_time.dt.strftime('%d-%m-%y')
+        #run_df["week_start"] = "w/c<br>" + run_df["week_begin"].astype(str)
+
+        return run_df
+
+
+    def create_typo_df(self, typo_list):
+        """
+        Create table of typos between the Jira ticket and run name
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        ticket_typos_html : str
+            dataframe of runs with typos in the Jira ticket as html string
+        """
+        typo_df_html = None
+
+        if typo_list:
+            typo_df = pd.DataFrame(typo_list)
+            typo_df.rename(
+                {
+                    'jira_ticket_name': 'Jira ticket name',
+                    'run_name': 'Run name',
+                    'folder_name': 'Run name',
+                    'project_name_002': '002 project name',
+                    'assay_type': 'Assay type'
+                }, axis=1, inplace=True
+            )
+
+            typo_df.sort_values('Assay type', inplace=True)
+            typo_df_html = typo_df.to_html(
+                index=False,
+                classes='table table-striped"',
+                justify='left'
+            )
+
+        return typo_df_html
 
 
     def add_calculation_columns(self, run_df):
@@ -1267,6 +1447,146 @@ class QueryPlotFunctions:
         return assay_df
 
 
+    def create_tat_fig2(self, assay_df, assay_type):
+
+        # Get all possible week starts between the two dates
+        date_weeks = [
+            period.start_time for period in pd.period_range(
+                start=self.audit_start,
+                end=self.audit_end,
+            freq='W'
+        )]
+        weeks = assay_df['week_start'].unique()
+        totals = []
+        for week in weeks:
+            df = assay_df.loc[assay_df['week_start'] == week]
+            df_len = len(df)
+            totals.append(df_len)
+        norm = [float(i)/sum(totals) for i in totals]
+        # melt_df = assay_df.melt(
+        #     id_vars=['ticket_hyperlink', 'week_start'],
+        #     value_vars=[
+        #         'upload_to_first_job', 'processing_time',
+        #         'processing_end_to_release'
+        #     ],
+        #     var_name='category',
+        #     value_name='time'
+        # )
+
+        fig = make_subplots(
+            rows=1,
+            cols=len(weeks),
+            shared_yaxes=True,
+            subplot_titles=["w/c<br>" + str(week) for week in weeks],
+            column_widths=norm,
+            horizontal_spacing=0.03
+        )
+
+        for idx, week in enumerate(weeks):
+            new_df = assay_df.loc[assay_df['week_start'] == week]
+            fig.append_trace(
+                go.Bar(
+                    x=new_df['ticket_hyperlink'],
+                    y=new_df['upload_to_first_job'],
+                    name='Upload to processing start',
+                    marker={'color': '#636EFA'},
+                    customdata=assay_df['run_name'],
+                    legendgroup="group1",
+                ), row=1, col=idx+1
+            )
+
+            fig.append_trace(
+                go.Bar(
+                    x=new_df['ticket_hyperlink'],
+                    y=new_df['processing_time'],
+                    name='Pipeline running',
+                    marker={'color': '#EF553B'},
+                    customdata=assay_df['run_name'],
+                    legendgroup='group2'
+                ), row=1, col=idx+1
+            )
+
+            fig.append_trace(
+                go.Bar(
+                    x=new_df['ticket_hyperlink'],
+                    y=new_df['processing_end_to_release'],
+                    name='Processing end to all samples released',
+                    marker={'color': '#00CC96'},
+                    customdata=assay_df['run_name'],
+                    text=round(assay_df['upload_to_release'], 1),
+                    legendgroup='group3'
+                ), row=1, col=idx+1
+            )
+        # fig = px.bar(
+        #     melt_df,
+        #     x='ticket_hyperlink',
+        #     y='time',
+        #     color='category',
+        #     facet_col='week_number'
+        # )
+
+
+        # fig.update_xaxes(matches=None)
+        # fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+        fig.add_hline(y=self.tat_standard, line_dash="dash")
+
+        fig.update_xaxes(
+            tickangle=45, categoryorder='category ascending',
+        )
+
+        fig.update_layout(
+            barmode='relative',
+            title={
+                'text': f"{assay_type} Turnaround Times "
+                        f"{self.audit_start} - {self.audit_end}",
+                'xanchor': 'center',
+                'x': 0.5,
+                'font_size': 20
+            },
+            yaxis_title="Number of days",
+            width=1100,
+            height=700,
+            font_family='Helvetica',
+            legend_traceorder="reversed"
+        )
+
+        fig.update_traces(
+            hovertemplate=(
+                '<br><b>Run</b>: %{customdata}<br>'
+                '<b>Stage</b>: %{data.name}<br>'
+                '<b>Days</b>: %{y:.2f}<br>'
+                '<extra></extra>'
+            ),
+            textposition='outside',
+            width=0.7
+        )
+
+        names = set()
+        fig.for_each_trace(
+            lambda trace:
+                trace.update(showlegend=False)
+                if (trace.name in names) else names.add(trace.name))
+
+        fig.update_annotations(font_size=12)
+
+        fig.add_annotation(
+            x=0.5,
+            xanchor='center',
+            xref='paper',
+            y=0,
+            yanchor='top',
+            yref='paper',
+            showarrow=False,
+            text='Run name',
+            yshift=-160
+        )
+
+        html_fig = fig.to_html(full_html=False, include_plotlyjs=False)
+
+        return html_fig
+
+
     def create_TAT_fig(self, assay_df, assay_type):
         """
         Creates stacked bar for each run of that assay type
@@ -1291,11 +1611,14 @@ class QueryPlotFunctions:
             if not assay_df['upload_to_first_job'].isnull().all():
                 fig.add_trace(
                     go.Bar(
-                        x=assay_df['ticket_hyperlink'],
+                        x=[
+                            assay_df['week_start'],
+                            assay_df["ticket_hyperlink"]
+                        ],
                         y=assay_df["upload_to_first_job"],
                         name="Upload to processing start",
                         customdata=assay_df['run_name'],
-                        legendrank=4
+                        legendrank=4,
                     )
                 )
 
@@ -1303,11 +1626,14 @@ class QueryPlotFunctions:
             if not assay_df['processing_time'].isnull().all():
                 fig.add_trace(
                     go.Bar(
-                        x=assay_df["ticket_hyperlink"],
+                        x=[
+                            assay_df['week_start'],
+                            assay_df["ticket_hyperlink"]
+                        ],
                         y=assay_df["processing_time"],
                         name="Pipeline running",
                         customdata=assay_df['run_name'],
-                        legendrank=3
+                        legendrank=3,
                     )
                 )
 
@@ -1316,34 +1642,43 @@ class QueryPlotFunctions:
             if not assay_df['processing_end_to_release'].isnull().all():
                 fig.add_trace(
                     go.Bar(
-                        x=assay_df["ticket_hyperlink"],
+                        x=[
+                            assay_df['week_start'],
+                            assay_df["ticket_hyperlink"]
+                        ],
                         y=assay_df["processing_end_to_release"],
-                        name="Processing end to all samples released",
+                        name="Processing end to release",
                         customdata=assay_df['run_name'],
                         legendrank=2,
-                        text=round(assay_df['upload_to_release'], 1)
+                        text=round(assay_df['upload_to_release'], 1),
                     )
                 )
 
             if "Urgent samples released" in assay_df.jira_status.values:
                 fig.add_trace(
                     go.Bar(
-                        x=assay_df["ticket_hyperlink"],
+                        x=[
+                            assay_df['week_start'],
+                            assay_df["ticket_hyperlink"]
+                        ],
                         y=assay_df["urgents_time"],
                         customdata=assay_df['run_name'],
                         name="Processing end to now - Urgent samples released",
-                        marker_color='#FFA15A'
+                        marker_color='#FFA15A',
                     )
                 )
 
             if "On hold" in assay_df.jira_status.values:
                 fig.add_trace(
                     go.Bar(
-                        x=assay_df["ticket_hyperlink"],
+                        x=[
+                            assay_df['week_start'],
+                            assay_df["ticket_hyperlink"]
+                        ],
                         y=assay_df["on_hold_time"],
                         customdata=assay_df['run_name'],
                         name="Last processing step to now - On hold",
-                        marker_color='#FECB52'
+                        marker_color='#FECB52',
                     )
                 )
 
@@ -1351,7 +1686,8 @@ class QueryPlotFunctions:
                 fig.add_hline(y=self.tat_standard, line_dash="dash")
 
                 fig.update_xaxes(
-                    tickangle=45, categoryorder='category ascending'
+                    tickangle=90, categoryorder='category ascending',
+                    tickprefix=" "
                 )
 
                 fig.update_traces(
@@ -1361,7 +1697,8 @@ class QueryPlotFunctions:
                         '<b>Days</b>: %{y:.2f}<br>'
                         '<extra></extra>'
                     ),
-                    textposition='outside'
+                    textposition='outside',
+                    width=0.7
                 )
 
                 # Update relevant aspects of chart
@@ -1372,14 +1709,21 @@ class QueryPlotFunctions:
                                 f"{self.audit_start} - {self.audit_end}",
                         'xanchor': 'center',
                         'x': 0.5,
-                        'font_size': 20
+                        'font_size': 16
                     },
                     xaxis_title="Run name",
                     yaxis_title="Number of days",
-                    width=1100,
-                    height=700,
+                    width=1150,
+                    height=800,
                     font_family='Helvetica',
-                    legend_traceorder="reversed"
+                    legend_traceorder="reversed",
+                    # legend=dict(
+                    #     orientation="v",
+                    #     yanchor="bottom",
+                    #     y=1.02,
+                    #     xanchor="right",
+                    #     x=1
+                    # )
                 )
                 if len(fig.data) == 1:
                     fig['data'][0]['showlegend'] = True
@@ -1572,7 +1916,6 @@ class QueryPlotFunctions:
             ]['run_name']
         )
 
-
         # If no final job was found flag unless it's a cancelled run
         manual_review_dict['no_final_job_found'] = list(
             assay_df.loc[
@@ -1625,50 +1968,14 @@ class QueryPlotFunctions:
             assay_df
         )
         assay_issues = self.find_runs_for_manual_review(assay_df)
-        assay_fig = self.create_TAT_fig(assay_df, assay_type)
+        assay_fig = self.create_tat_fig2(assay_df, assay_type)
         upload_day_fig = self.create_upload_day_fig(assay_df, assay_type)
         assay_no_of_002_runs = assay_df.shape[0]
 
         return (
-            assay_stats, assay_issues, assay_fig, upload_day_fig,
+            assay_df, assay_stats, assay_issues, assay_fig, upload_day_fig,
             assay_no_of_002_runs, assay_fraction, assay_percentage
         )
-
-
-    def create_typo_df(self, typo_list):
-        """
-        Create table of typos between the Jira ticket and run name
-
-        Parameters
-        ----------
-
-        Returns
-        -------
-        ticket_typos_html : str
-            dataframe of runs with typos in the Jira ticket as html string
-        """
-        typo_df_html = None
-
-        if typo_list:
-            typo_df = pd.DataFrame(typo_list)
-            typo_df.rename(
-                {
-                    'jira_ticket_name': 'Jira ticket name',
-                    'run_name': 'Run name',
-                    'folder_name': 'Run name',
-                    'project_name_002': '002 project name',
-                    'assay_type': 'Assay type'
-                }, axis=1, inplace=True
-            )
-
-            typo_df.sort_values('Assay type', inplace=True)
-            typo_df_html = typo_df.to_html(
-                index=False,
-                classes='table table-striped"',
-                justify='left'
-            )
-
-        return typo_df_html
 
 
     def add_in_cancelled_runs(self, all_assays_df, cancelled_runs):
@@ -1709,7 +2016,7 @@ class QueryPlotFunctions:
         # Sort chronologically by date for each assay type
         all_assays_df.sort_values(by=['assay_type', 'date'], inplace=True)
         # Sort assay types so order matches the report
-        custom_dict = {'CEN': 0, 'MYE': 1, 'TSO500': 2, 'TWE': 3, 'SNP': 4}
+        custom_dict = {'CEN': 0, 'MYE': 1, 'TSO500': 2, 'TWE': 3}
         all_assays_df = all_assays_df.sort_values(
             by=['assay_type'], key=lambda x: x.map(custom_dict)
         )
@@ -1854,15 +2161,15 @@ def main():
     staging_folders = tatq.get_staging_folders(processed=False)
 
     # Add upload time
-    projects_002_dict, typo_002_list = tatq.add_upload_time(
+    projects_002_dict = tatq.add_upload_time(
         staging_folders, projects_002_dict
     )
-    projects_002_dict = tatq.update_run_name(projects_002_dict)
+    projects_002_dict, typo_002_list = tatq.update_run_name(projects_002_dict)
 
     logger.info("Finding first job for all runs")
     # Get conductor jobs and add first job time
     conductor_jobs = tatq.find_conductor_jobs()
-    conductor_run_dict = tatq.get_earliest_conductor_job(
+    conductor_run_dict = tatq.get_earliest_conductor_job_for_each_run(
         conductor_jobs
     )
     projects_002_dict = tatq.add_first_job_time(
@@ -1874,13 +2181,13 @@ def main():
     # sequencing run queue
     jira_closed_queue_tickets = tatq.query_jira_tickets_in_queue(35)
     jira_open_queue_tickets = tatq.query_jira_tickets_in_queue(34)
-
     all_jira_tickets = jira_closed_queue_tickets + jira_open_queue_tickets
-    jira_ticket_dict = tatq.create_jira_info_dict(all_jira_tickets)
 
+    jira_ticket_dict = tatq.create_jira_info_dict(all_jira_tickets)
     projects_002_dict, typo_tickets, runs_no_002_proj, cancelled_runs, open_runs_list = tatq.add_jira_ticket_info(
         projects_002_dict, jira_ticket_dict
     )
+    projects_002_dict = tatq.add_transition_times(projects_002_dict)
 
     # ADD final job
     projects_002_dict = tatq.add_last_job_time(projects_002_dict)
@@ -1890,28 +2197,32 @@ def main():
     # Create df for all runs
     run_df = tatq.create_run_df(projects_002_dict)
     run_df = tatq.add_jira_ticket_hyperlink(run_df)
+    run_df = tatq.add_run_week(run_df)
 
     # Sort out typos
     typo_folders_table = tatq.create_typo_df(typo_002_list)
     typo_tickets_table = tatq.create_typo_df(typo_tickets)
 
-
     logger.info("Adding calculation columns")
     run_df = tatq.add_calculation_columns(run_df)
 
     logger.info("Generating objects for each assay")
-    CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig, CEN_runs, CEN_frac, CEN_compl = (
+    CEN_df, CEN_stats, CEN_issues, CEN_fig, CEN_upload_fig, CEN_runs, CEN_frac, CEN_compl = (
         tatq.create_assay_objects(run_df, 'CEN')
     )
-    MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig, MYE_runs, MYE_frac, MYE_compl = (
+    # tatq.create_tat_fig2(CEN_df, 'CEN')
+    MYE_df, MYE_stats, MYE_issues, MYE_fig, MYE_upload_fig, MYE_runs, MYE_frac, MYE_compl = (
         tatq.create_assay_objects(run_df, 'MYE')
     )
-    TSO_stats, TSO_issues, TSO_fig, TSO_upload_fig, TSO_runs, TSO_frac, TSO_compl = (
+    # tatq.create_tat_fig2(MYE_df, 'MYE')
+    TSO_df, TSO_stats, TSO_issues, TSO_fig, TSO_upload_fig, TSO_runs, TSO_frac, TSO_compl = (
         tatq.create_assay_objects(run_df, 'TSO500')
     )
-    TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig, TWE_runs, TWE_frac, TWE_compl = (
+    # tatq.create_tat_fig2(TSO_df, 'TSO500')
+    TWE_df, TWE_stats, TWE_issues, TWE_fig, TWE_upload_fig, TWE_runs, TWE_frac, TWE_compl = (
         tatq.create_assay_objects(run_df, 'TWE')
     )
+    # tatq.create_tat_fig2(TWE_df, 'TWE')
 
     run_df = tatq.add_in_cancelled_runs(run_df, cancelled_runs)
     tatq.write_to_csv(run_df, tatq.audit_start, tatq.audit_end)

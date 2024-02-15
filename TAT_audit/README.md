@@ -1,5 +1,5 @@
 # Turnaround times
-This repo contains the script to generate an audit summary report for bioinformatics processing turnaround times (TAT) for our CEN, MYE, TWE, TSO500 and SNP services.
+This repo contains the script to generate an audit summary report for bioinformatics processing turnaround times (TATs) for our CEN, MYE, TWE and TSO500 services.
 
 ## Installation
 The required Python package dependencies to query the APIs and create the final HTML file can be installed with:
@@ -17,9 +17,18 @@ Config variables should be passed in a `credentials.json` file. This should be p
     "DX_TOKEN": "XXX",
     "JIRA_EMAIL": "XXX",
     "JIRA_TOKEN": "XXX",
-    "STAGING_AREA_PROJ_ID": "XXX",
-    "DEFAULT_MONTHS" : 6,
-    "TAT_STANDARD_DAYS": 3
+    "STAGING_AREA_PROJ_ID": "project-FpVG0G84X7kzq58g19vF1YJQ",
+    "DEFAULT_MONTHS": 6,
+    "TAT_STANDARD_DAYS": 3,
+    "ASSAYS": ["TWE", "CEN", "MYE", "TSO500"],
+    "CANCELLED_STATUSES": ["Data cannot be processed", "Data cannot be released", "Data not received"],
+    "OPEN_STATUSES": ["New", "Data Received", "Data processed", "Urgent samples released"],
+    "LAST_JOBS": {
+        "TWE": "eggd_generate_variant_workbook",
+        "CEN": "eggd_artemis",
+        "MYE": "eggd_MultiQC",
+        "TSO500": "eggd_MultiQC"
+    }
 }
 ```
 Alternatively, the above variables may be set to the environment instead of being provided in a file.
@@ -29,14 +38,11 @@ The script works by:
 - Querying DNAnexus to find all of the 002 projects for each assay, either between the dates specified (+- 5 days either side) or, if no dates are specified, within the last X number of months from the date the script was run
     - Checking the run date within the 002 project name is within the audit period
 - Finding the time the files were uploaded to the Staging Area
-    - For non-SNP runs, this is the time the log file was uploaded for that run
-    - For SNP runs, this is the time the first file was uploaded in the relevant Staging Area folder because files from the MiSeq are manually uploaded rather than with dx-streaming-upload
+    - This is the time the log file was uploaded for that run
 - Finding the time the first job started running
-    - For CEN, MYE and TWE runs this is the time demultiplexing started in the Staging Area which is matched to a run based on the input Sentinel record
-    - For TSO500 and SNP runs, this is the time the first job started in the relevant 002 project because demultiplexing is done within the app or on the instrument
+    - For all assays this is via the eggd_conductor job
 - Finding the time the last job was completed
-    - For CEN and TWE runs this is the time the last Dias reports job completed. If all samples are released, this is the time the final job completed before the Jira ticket was resolved to prevent obtaining reanalysis jobs
-    - For MYE, TSO500 and SNP runs this is the time the last successful MultiQC job was completed. If all samples are released, this is the time the final MultiQC job completed before the Jira ticket was resolved
+    - The job to search for is included in the config file and we take the time the final job completed before the Jira ticket was resolved to prevent obtaining reanalysis jobs
 - Finding the relevant Jira ticket for the run (in both the Jira open and closed sequencing run ticket queues) to obtain the current status and/or resolution time
 
 - Timing calculations:
@@ -71,6 +77,10 @@ If you would like to specify the start and end dates, you can enter these as arg
 
 ```
 python TAT_queries.py -s 2022-05-01 -e 2022-11-01
+```
+You can also enter a font size for the title of the TAT subplots as this might depend on the length of the period being audited, e.g.:
+```
+python TAT_queries.py -s 2022-05-01 -e 2022-11-01 -f 14
 ```
 
 If any arguments are entered, both start and end dates must be supplied. The script will create a HTML file in the directory you're currently in, named to include the start and end dates of the audit period. If the script is run twice for the same period, if a summary report has been previously generated for these dates this will be replaced.

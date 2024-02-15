@@ -17,9 +17,18 @@ Config variables should be passed in a `credentials.json` file. This should be p
     "DX_TOKEN": "XXX",
     "JIRA_EMAIL": "XXX",
     "JIRA_TOKEN": "XXX",
-    "STAGING_AREA_PROJ_ID": "XXX",
-    "DEFAULT_MONTHS" : 6,
-    "TAT_STANDARD_DAYS": 3
+    "STAGING_AREA_PROJ_ID": "project-FpVG0G84X7kzq58g19vF1YJQ",
+    "DEFAULT_MONTHS": 6,
+    "TAT_STANDARD_DAYS": 3,
+    "ASSAYS": ["TWE", "CEN", "MYE", "TSO500"],
+    "CANCELLED_STATUSES": ["Data cannot be processed", "Data cannot be released", "Data not received"],
+    "OPEN_STATUSES": ["New", "Data Received", "Data processed", "Urgent samples released"],
+    "LAST_JOBS": {
+        "TWE": "eggd_generate_variant_workbook",
+        "CEN": "eggd_artemis",
+        "MYE": "eggd_MultiQC",
+        "TSO500": "eggd_MultiQC"
+    }
 }
 ```
 Alternatively, the above variables may be set to the environment instead of being provided in a file.

@@ -1652,7 +1652,7 @@ class QueryPlotFunctions:
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
                         y=week_df['processing_end_to_release'],
-                        name='Processing end to all samples released',
+                        name='Pipeline end to all samples released',
                         marker={'color': '#00CC96'},
                         customdata=week_df['run_name'],
                         text=round(week_df['upload_to_release'], 1),

@@ -172,14 +172,18 @@ class JiraFunctions():
                 'ticket_id': '21865',
                 'jira_status': 'All samples released',
                 'assay_type': 'CEN',
-                'date_jira_ticket_created': datetime.datetime(2024, 1, 30, 16, 52, 18)
+                'date_jira_ticket_created': (
+                    datetime.datetime(2024, 1, 30, 16, 52, 18)
+                )
             },
             '240130_A01303_0330_AHWL32DRX3': {
                 'ticket_key': 'EBH-2376',
                 'ticket_id': '21864',
                 'jira_status': 'All samples released',
                 'assay_type': 'MYE',
-                'date_jira_ticket_created': datetime.datetime(2024, 1, 30, 16, 49, 38)
+                'date_jira_ticket_created': (
+                    datetime.datetime(2024, 1, 30, 16, 49, 38)
+                )
             }
         }
         """

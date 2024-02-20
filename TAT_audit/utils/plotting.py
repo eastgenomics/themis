@@ -246,7 +246,9 @@ class PlottingFunctions():
                 x='upload_day',
                 y='upload_to_release',
                 custom_data=['run_name'],
-                color=assay_df["upload_to_release"] <= float(self.tat_standard),
+                color=(
+                    assay_df["upload_to_release"] <= float(self.tat_standard)
+                ),
                 color_discrete_map={
                     True: "green",
                     False: "red"
@@ -279,7 +281,8 @@ class PlottingFunctions():
             # Add run name to hovertext
             fig.update_traces(
                 hovertemplate=(
-                    "Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f}" " days"
+                    "Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f}"
+                    " days"
                 )
             )
         # If empty show empty plot with message

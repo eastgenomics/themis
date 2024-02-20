@@ -155,15 +155,19 @@ class Arguments():
             ) as json_file:
                 credentials = json.load(json_file)
 
-            (dx_token, jira_email, jira_token, staging_proj_id, default_months,
-            tat_standard, assay_types, cancelled_statuses, open_statuses,
-            last_jobs) = list(map(credentials.get, keys))
+            (
+                dx_token, jira_email, jira_token, staging_proj_id,
+                default_months, tat_standard, assay_types, cancelled_statuses,
+                open_statuses, last_jobs
+            ) = list(map(credentials.get, keys))
 
         else:
             # credentials file doesn't exist, assume credentials are in env
-            (dx_token, jira_email, jira_token, staging_proj_id, default_months,
-            tat_standard, assay_types, cancelled_statuses, open_statuses,
-            last_jobs) = list(map(os.environ.get, keys))
+            (
+                dx_token, jira_email, jira_token, staging_proj_id,
+                default_months, tat_standard, assay_types, cancelled_statuses,
+                open_statuses, last_jobs
+            ) = list(map(os.environ.get, keys))
 
         # Check all are present
         if not all([
@@ -183,7 +187,6 @@ class Arguments():
             last_jobs
         )
 
-
     def determine_start_and_end_date(self):
         """
         Determine the start and end dates of the audit based on CLI arguments
@@ -195,8 +198,8 @@ class Arguments():
         audit_end_date : str
             the end date of the audit e.g. '2022-10-01'
         audit_begin_date_obj : dt.date obj
-            the begin date as a date obj so can be formatted as different strings
-            later
+            the begin date as a date obj so can be formatted as different
+            strings later
         audit_end_date_obj : dt.date obj
             the end date as a date obj so can be formatted as different strings
             later

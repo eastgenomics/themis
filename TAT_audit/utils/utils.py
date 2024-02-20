@@ -126,7 +126,9 @@ class GeneralFunctions():
         url : str
             string representing a hyperlink to the Jira ticket for a run
         """
-        url = """<a href="https://cuhbioinformatics.atlassian.net/browse/{}">{}</a>""".format(row['ticket_key'], row['run_name'])
+        url = """<a href="https://cuhbioinformatics.atlassian.net/browse/{}">{}</a>""".format(
+            row['ticket_key'], row['run_name']
+        )
 
         return url
 

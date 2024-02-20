@@ -58,10 +58,9 @@ class DXFunctions():
             logger.error("Error logging in to DNAnexus")
             sys.exit(1)
 
-
     def get_002_projects_within_buffer_period(
-            self, assay_types, five_days_after, five_days_before_start
-        ):
+        self, assay_types, five_days_after, five_days_before_start
+    ):
         """
         Get all the 002 projects ending in the assay types being audited from
         DNAnexus that have been created within the audit period (plus
@@ -94,7 +93,6 @@ class DXFunctions():
 
         return projects_dx_response
 
-
     def get_staging_folders(self, staging_id):
         """
         Gets the names of all of the folders in Staging Area to be used for
@@ -120,7 +118,6 @@ class DXFunctions():
         ]
 
         return staging_folders
-
 
     def find_log_file_in_folder(self, run_name, staging_id):
         """
@@ -153,10 +150,9 @@ class DXFunctions():
 
         return log_file_info
 
-
     def find_conductor_jobs(
-            self, staging_id, five_days_after, five_days_before_start
-        ):
+        self, staging_id, five_days_after, five_days_before_start
+    ):
         """
         Find eggd_conductor_jobs in the Staging Area
 
@@ -183,7 +179,6 @@ class DXFunctions():
         ))
 
         return conductor_jobs
-
 
     def search_for_final_jobs(self, project_id, job_name_to_search):
         """
@@ -217,10 +212,9 @@ class DXFunctions():
 
         return final_jobs
 
-
     def create_run_dictionary(
-            self, projects_dx_response, audit_start_obj, audit_end_obj
-        ):
+        self, projects_dx_response, audit_start_obj, audit_end_obj
+    ):
         """
         Add run name, DX project ID and assay type for each run to dict
 
@@ -269,7 +263,6 @@ class DXFunctions():
 
         return run_dict
 
-
     def update_run_name(self, run_dict):
         """
         Update each main key in the dict (the run name) to the run name
@@ -314,7 +307,6 @@ class DXFunctions():
 
         return updated_dict, typo_run_folders
 
-
     def get_log_file_created_time(self, log_file_info):
         """
         Finds the time the log was was created
@@ -337,7 +329,6 @@ class DXFunctions():
         )
 
         return upload_time
-
 
     def add_upload_time(self, staging_folders, run_dict, staging_id):
         """
@@ -392,7 +383,6 @@ class DXFunctions():
 
         return run_dict
 
-
     def get_earliest_conductor_job_for_each_run(self, conductor_jobs):
         """
         Get the time the earliest conductor job for each run started
@@ -424,7 +414,7 @@ class DXFunctions():
             # Try and get the run name from the job name
             try:
                 run_name = job_name.split('-')[1:2][0]
-            except:
+            except ValueError:
                 run_name = job_name
             # Add each time a conductor job started for that run
             conductor_job_dict[run_name].append(job_start)
@@ -434,7 +424,6 @@ class DXFunctions():
             conductor_job_dict[run_name] = min(conductor_jobs)
 
         return conductor_job_dict
-
 
     def add_first_job_time(self, conductor_job_dict, run_dict):
         """
@@ -482,10 +471,9 @@ class DXFunctions():
                         )
                     )
                     if upload_time < first_job_start:
-                            run_dict[run_name]['first_job'] = first_job_start
+                        run_dict[run_name]['first_job'] = first_job_start
 
         return run_dict
-
 
     def get_last_job(self, final_jobs):
         """
@@ -515,7 +503,6 @@ class DXFunctions():
             )
 
         return job_completed
-
 
     def get_final_job_before_ticket_resolved(
         self, final_jobs, jira_resolved_timestamp
@@ -565,7 +552,6 @@ class DXFunctions():
                 )
 
         return job_completed
-
 
     def add_last_job_time(self, run_dict, last_jobs):
         """

@@ -45,23 +45,26 @@ class Arguments():
     """
     def __init__(self):
         self.args = self.parse_args()
-        (self.dx_token,
-        self.jira_email,
-        self.jira_token,
-        self.staging_id,
-        self.default_months,
-        self.tat_standard,
-        self.assay_types,
-        self.cancelled_statuses,
-        self.open_statuses,
-        self.last_jobs) = self.load_credential_info()
-        (self.audit_start,
-        self.audit_end,
-        self.audit_start_obj,
-        self.audit_end_obj,
-        self.five_days_before_start,
-        self.five_days_after) = self.determine_start_and_end_date()
-
+        (
+            self.dx_token,
+            self.jira_email,
+            self.jira_token,
+            self.staging_id,
+            self.default_months,
+            self.tat_standard,
+            self.assay_types,
+            self.cancelled_statuses,
+            self.open_statuses,
+            self.last_jobs
+        ) = self.load_credential_info()
+        (
+            self.audit_start,
+            self.audit_end,
+            self.audit_start_obj,
+            self.audit_end_obj,
+            self.five_days_before_start,
+            self.five_days_after
+        ) = self.determine_start_and_end_date()
 
     def parse_args(self) -> argparse.Namespace:
         """
@@ -110,7 +113,6 @@ class Arguments():
 
         return parser.parse_args()
 
-
     def load_credential_info(self):
         """
         Load the tokens and Jira email from the credentials.json file
@@ -126,8 +128,8 @@ class Arguments():
         staging_proj_id : str
             the DNAnexus project ID for Staging_Area52
         default_months : int
-            the default number of months to audit previous to today if no CLI args
-            are given
+            the default number of months to audit previous to today if no
+            CLI args are given
         tat_standard : int
             number of days the audit standard is
         assay_types : list
@@ -318,10 +320,10 @@ def main():
     jira_ticket_dict = jira_info.create_jira_info_dict(all_jira_tickets)
 
     # Add Jira ticket info to our dict of runs
-    (projects_002_dict, typo_tickets, runs_no_002_proj, cancelled_runs, open_runs_list) = jira_info.add_jira_ticket_info(
-        projects_002_dict,
-        jira_ticket_dict
-    )
+    (
+        projects_002_dict, typo_tickets, runs_no_002_proj, cancelled_runs,
+        open_runs_list
+    ) = jira_info.add_jira_ticket_info(projects_002_dict, jira_ticket_dict)
     projects_002_dict = jira_info.add_transition_times(
         projects_002_dict
     )

@@ -51,7 +51,6 @@ class JiraFunctions():
         self.five_days_before_start = five_days_before_start
         self.five_days_after = five_days_after
 
-
     def query_jira_tickets_in_queue(self, queue_id):
         """
         Get the info from Jira API. As can't change size of response and seems
@@ -94,7 +93,6 @@ class JiraFunctions():
 
         return response_data
 
-
     def get_ticket_transition_times(self, ticket_id):
         """
         Get the times of all the Jira ticket transitions to different statuses
@@ -117,7 +115,10 @@ class JiraFunctions():
         }
         """
         transitions_dict = defaultdict(list)
-        url = f"https://cuhbioinformatics.atlassian.net/rest/api/3/issue/{ticket_id}/changelog"
+        url = (
+            "https://cuhbioinformatics.atlassian.net/rest/api/3/issue/"
+            f"{ticket_id}/changelog"
+        )
 
         log_response = requests.request(
             "GET",
@@ -148,7 +149,6 @@ class JiraFunctions():
             transitions_dict[status_key] = max(status_change_times)
 
         return transitions_dict
-
 
     def create_jira_info_dict(self, jira_api_response):
         """
@@ -229,7 +229,6 @@ class JiraFunctions():
 
         return jira_run_dict
 
-
     def get_closest_match_in_dict(self, ticket_name, run_dict):
         """
         Checks for run names in the dict that are only off by 2 characters
@@ -268,7 +267,6 @@ class JiraFunctions():
                     }
 
         return closest_key, typo_ticket_info
-
 
     def add_jira_ticket_info(self, run_dict, jira_run_dict):
         """
@@ -374,12 +372,12 @@ class JiraFunctions():
                     # If it's cancelled, add to list of cancelled runs
                     if jira_status in self.cancelled_statuses:
                         # Data was not released, add to cancelled list
-                            cancelled_list.append({
-                                'run_name': ticket_name,
-                                'assay_type': assay_type,
-                                'date_jira_ticket_created': date_time_created,
-                                'jira_status': jira_status
-                            })
+                        cancelled_list.append({
+                            'run_name': ticket_name,
+                            'assay_type': assay_type,
+                            'date_jira_ticket_created': date_time_created,
+                            'jira_status': jira_status
+                        })
 
                     # If ticket is open, we just don't have a 002 project yet
                     # so add to open runs list
@@ -423,7 +421,6 @@ class JiraFunctions():
             run_dict, typo_tickets, runs_no_002_proj, cancelled_list,
             open_runs_list
         )
-
 
     def add_transition_times(self, run_dict):
         """

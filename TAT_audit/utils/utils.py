@@ -42,7 +42,6 @@ class GeneralFunctions():
         self.audit_start = audit_start
         self.audit_end = audit_end
 
-
     def add_in_empty_keys(self, run_dict):
         """
         Add in empty keys as None so that we don't have to check every time
@@ -71,10 +70,11 @@ class GeneralFunctions():
 
             return run_dict
 
-
     def create_run_df(self, run_dict):
         """
-        Creates a df with all the assay types, run names and relevant audit info
+        Creates a df with all the assay types, run names and relevant audit
+        info
+
         Parameters
         ----------
         run_dict : run_dict
@@ -111,7 +111,6 @@ class GeneralFunctions():
 
         return run_df
 
-
     def generate_hyperlink(self, row):
         """
         Create a hyperlink for the run, where the text is the run name but
@@ -121,6 +120,7 @@ class GeneralFunctions():
         ----------
         row : pd object
             pandas object as a row of the dataframe
+
         Returns
         -------
         url : str
@@ -129,7 +129,6 @@ class GeneralFunctions():
         url = """<a href="https://cuhbioinformatics.atlassian.net/browse/{}">{}</a>""".format(row['ticket_key'], row['run_name'])
 
         return url
-
 
     def add_jira_ticket_hyperlink(self, run_df):
         """
@@ -156,7 +155,6 @@ class GeneralFunctions():
         )
 
         return run_df
-
 
     def add_run_week(self, run_df):
         """
@@ -188,7 +186,6 @@ class GeneralFunctions():
         ].dt.to_period('W').dt.start_time.dt.strftime('%d-%m-%y')
 
         return run_df
-
 
     def create_typo_df(self, typo_list):
         """
@@ -226,7 +223,6 @@ class GeneralFunctions():
             )
 
         return typo_df_html
-
 
     def add_calculation_columns(self, run_df):
         """
@@ -272,7 +268,6 @@ class GeneralFunctions():
             ) / np.timedelta64(1, 'D')
         )
 
-
         # Add new column for time from log file creation to Jira resolution
         run_df['upload_to_release'] = (
             (
@@ -297,9 +292,8 @@ class GeneralFunctions():
         # from columns until 'muliQC_finished' column
         # If this results in a string, convert to NA
         run_df['last_processing_step'] = pd.to_datetime(
-            run_df.ffill(axis=1).iloc[:,4], errors='coerce'
+            run_df.ffill(axis=1).iloc[:, 4], errors='coerce'
         )
-
 
         # Add the time since the last processing step which exists to current
         # time for open tickets that are on hold
@@ -310,7 +304,6 @@ class GeneralFunctions():
         )
 
         return run_df
-
 
     def extract_assay_df(self, all_assays_df, assay_type):
         """
@@ -332,7 +325,6 @@ class GeneralFunctions():
         ].reset_index()
 
         return assay_df
-
 
     def make_stats_table(self, assay_df):
         """
@@ -372,7 +364,7 @@ class GeneralFunctions():
             relevant_run_count = assay_df.loc[
                 (assay_df['upload_to_first_job'] >= 0)
                 & (assay_df['processing_time'] >= 0)
-                & (assay_df['processing_end_to_release'] >=0)
+                & (assay_df['processing_end_to_release'] >= 0)
                 & (
                     assay_df['upload_to_release'].notna()
                     | assay_df['urgents_time'].notna()
@@ -384,7 +376,9 @@ class GeneralFunctions():
                     (compliant_runs / relevant_run_count) * 100
                 )
 
-                compliance_fraction = f"({compliant_runs}/{relevant_run_count}) "
+                compliance_fraction = (
+                    f"({compliant_runs}/{relevant_run_count}) "
+                )
                 compliance_percentage = round(compliance_percentage, 2)
                 compliance_string = (
                         f"{compliance_fraction} "
@@ -399,7 +393,9 @@ class GeneralFunctions():
                     'Mean upload to processing start': (
                         assay_df['upload_to_first_job'].mean()
                     ),
-                    'Mean pipeline running': assay_df['processing_time'].mean(),
+                    'Mean pipeline running': (
+                        assay_df['processing_time'].mean()
+                    ),
                     'Mean processing end to release': (
                         assay_df['processing_end_to_release'].mean()
                     ),
@@ -428,7 +424,6 @@ class GeneralFunctions():
         )
 
         return stats_table, compliance_fraction, compliance_percentage
-
 
     def find_runs_for_manual_review(self, assay_df):
         """
@@ -486,18 +481,17 @@ class GeneralFunctions():
         manual_review_dict['no_final_job_found'] = list(
             assay_df.loc[
                 (assay_df['processing_finished'].isna())
-                    & ~assay_df['jira_status'].isin(cancelled_or_open_statuses)
+                & ~assay_df['jira_status'].isin(cancelled_or_open_statuses)
             ]['run_name']
         )
 
-        # If there are runs to be flagged in dict, pass
-        # Or if all vals empty pass empty dict so can check in Jinja2 if defined
-        # To decide whether to show 'Runs to be manually reviewed' text
+        # If there are runs to be flagged in dict, pass or if all vals empty
+        # pass empty dict so can check in Jinja2 if defined
+        # to decide whether to show 'Runs to be manually reviewed' text
         if not any(manual_review_dict.values()):
             manual_review_dict = {}
 
         return manual_review_dict
-
 
     def create_assay_objects(self, all_assays_df, assay_type):
         """
@@ -538,7 +532,6 @@ class GeneralFunctions():
             assay_df, assay_stats, assay_issues, assay_no_of_002_runs,
             assay_fraction, assay_percentage
         )
-
 
     def add_in_cancelled_runs(self, all_assays_df, cancelled_runs):
         """
@@ -587,7 +580,6 @@ class GeneralFunctions():
         all_assays_df.drop(columns=['date'], inplace=True)
 
         return all_assays_df
-
 
     def write_to_csv(self, all_assays_df) -> None:
         """

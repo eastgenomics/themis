@@ -19,7 +19,6 @@ class PlottingFunctions():
         self.tat_standard = tat_standard
         self.font_size = font_size
 
-
     def create_tat_fig_split_by_week(self, assay_df, assay_type):
         """
         Creates stacked bar for each run of that assay type
@@ -49,7 +48,7 @@ class PlottingFunctions():
             for period in pd.period_range(
                 start=self.audit_start,
                 end=self.audit_end,
-            freq='W'
+                freq='W'
             )
         ]
 
@@ -139,7 +138,6 @@ class PlottingFunctions():
                         ), row=1, col=idx+1
                     )
 
-
             else:
                 fig.append_trace(
                     go.Bar(
@@ -214,7 +212,6 @@ class PlottingFunctions():
 
         return html_fig
 
-
     def create_upload_day_fig(self, assay_df, assay_type):
         """
         Create figure to see if the day of the week for data upload impacts
@@ -260,7 +257,7 @@ class PlottingFunctions():
                 range=[-0.5, 6.5],
                 type='category',
                 categoryorder='array',
-                categoryarray= [
+                categoryarray=[
                     "Monday", "Tuesday", "Wednesday", "Thursday",
                     "Friday", "Saturday", "Sunday"
                 ]
@@ -270,7 +267,7 @@ class PlottingFunctions():
                 title={
                     'text': f'{assay_type} Upload Day vs Turnaround Time',
                     'xanchor': 'center',
-                    'x':0.5
+                    'x': 0.5
                 },
                 xaxis_title="Upload day of the week",
                 yaxis_title="Turnaround time (days)",
@@ -281,7 +278,9 @@ class PlottingFunctions():
             )
             # Add run name to hovertext
             fig.update_traces(
-                hovertemplate="Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f} days"
+                hovertemplate=(
+                    "Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f}" " days"
+                )
             )
         # If empty show empty plot with message
         else:
@@ -290,7 +289,7 @@ class PlottingFunctions():
                 font_family='Helvetica',
                 xaxis={"visible": False},
                 yaxis={"visible": False},
-                annotations = [
+                annotations=[
                     {
                         "text": "No data",
                         "xref": "paper",
@@ -307,7 +306,6 @@ class PlottingFunctions():
         html_fig = fig.to_html(full_html=False, include_plotlyjs=False)
 
         return html_fig
-
 
     def create_both_figures(self, assay_df, assay_type):
         """

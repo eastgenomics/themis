@@ -13,8 +13,8 @@ end=$(date -d "$2 days ago" +%Y-%m-%d)
 python3 TAT_queries.py -s $start -e $end
 
 # upload HTML report to Slack, and post associated .csv in thread with the file
-if [[ -s $(find . -name "*.html") ]]; then
-    response=$(curl -F file=@$(find . -name "*.html") \
+if [[ -s $(find . -maxdepth 1 -name "*.html") ]]; then
+    response=$(curl -F file=@$(find . -maxdepth 1 -name "*.html") \
         -F channels=$SLACK_CHANNEL \
         -F "initial_comment=:bar_chart: Latest bioinformatics turn around times for between \`$start\` and \`$end\`" \
         -H "Authorization: Bearer $SLACK_TOKEN" https://slack.com/api/files.upload)
@@ -29,10 +29,10 @@ else
     # failed to generate report, send error message with log if present
     echo "Failed generating report"
     tick='```'
-    if [[ -s ../TAT_queries_debug.log ]]; then
+    if [[ -s TAT_queries_debug.log ]]; then
         curl -F channel=$SLACK_CHANNEL \
              -F text=":rotating_light: Error generating turn around times report
-                ${tick}$(cat ../TAT_queries_debug.log)${tick}" \
+                ${tick}$(cat TAT_queries_debug.log)${tick}" \
              -H "Authorization: Bearer $SLACK_TOKEN" https://slack.com/api/chat.postMessage
     else
     # no log file, just send error message

@@ -6,4 +6,4 @@ COPY . /app/
 
 RUN pip install -r /app/requirements.txt
 
-WORKDIR /app/utils
+WORKDIR /app/

@@ -22,7 +22,7 @@ Config variables should be passed in a `credentials.json` file. This should be p
     "TAT_STANDARD_DAYS": 3,
     "ASSAYS": ["TWE", "CEN", "MYE", "TSO500"],
     "CANCELLED_STATUSES": ["Data cannot be processed", "Data cannot be released", "Data not received"],
-    "OPEN_STATUSES": ["New", "Data Received", "Data processed", "Urgent samples released"],
+    "OPEN_STATUSES": ["New", "Data Received", "Data processed", "On hold", "Urgent samples released"],
     "LAST_JOBS": {
         "TWE": "eggd_generate_variant_workbook",
         "CEN": "eggd_artemis",

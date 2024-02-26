@@ -414,7 +414,7 @@ class DXFunctions():
             # Try and get the run name from the job name
             try:
                 run_name = job_name.split('-')[1:2][0]
-            except ValueError:
+            except IndexError:
                 run_name = job_name
             # Add each time a conductor job started for that run
             conductor_job_dict[run_name].append(job_start)

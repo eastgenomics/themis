@@ -1,5 +1,7 @@
 FROM python:3.10-slim-buster
 
+ENV TZ=Europe/London
+
 RUN apt-get update && apt-get install -y curl jq nano
 
 COPY . /app/

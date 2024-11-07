@@ -18,10 +18,10 @@ JIRA_EMAIL=<redacted, str>
 JIRA_TOKEN=<redacted, str>
 STAGING_AREA_PROJ_ID=<redacted, str>
 DEFAULT_MONTHS=3
-ASSAYS='["CEN", "MYE", "TSO500", "TWE", "PCAN"]'
+ASSAYS='["CEN", "MYE", "TSO500", "TWE"]'
 CANCELLED_STATUSES='["Data cannot be processed", "Data cannot be released", "Data not received"]'
 OPEN_STATUSES='["New", "Data Received", "Data processed", "On hold", "Urgent samples released"]'
-LAST_JOBS='{"TWE": "eggd_generate_variant_workbook", "CEN": "eggd_artemis", "MYE": "eggd_MultiQC", "TSO500": "eggd_MultiQC", "PCAN": "eggd_starfusion"}'
+LAST_JOBS='{"TWE": "eggd_generate_variant_workbook", "CEN": "eggd_artemis", "MYE": "eggd_MultiQC", "TSO500": "eggd_MultiQC"}'
 ```
 If no start and end dates are supplied as command line arguments, the `DEFAULT_MONTHS` variable will be used to determine the previous number of months to audit from the date the script is run.
 

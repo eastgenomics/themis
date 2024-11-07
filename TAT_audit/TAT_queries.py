@@ -168,8 +168,8 @@ class Arguments():
             sys.exit()
 
         # Remove leading and trailing single quotes which mess with
-        # parsing lists and dicts from .env vars inside Docker containers
-        # and parse the strings into lists and/or dict
+        # parsing strings to lists and dicts from .env vars inside Docker
+        # containers
         # (single quotes are needed bc trying to export the .env file
         # in a non-Docker environment doesn't work otherwise)
         assay_types = literal_eval(assay_types.strip("'"))

@@ -1,7 +1,7 @@
 # Turnaround times
 This repo contains code to generate an audit summary report for bioinformatics processing turnaround times (TATs) for our assays.
 
-## Installation
+## Pre-requisites
 The required Python package dependencies to query the APIs and create the final HTML file can be installed with:
 
 ```
@@ -10,7 +10,7 @@ pip install -r requirements.txt
 
 Please note Python 3.9+ is required.
 
-Variables should be set to the environment; this can be done by creating an .env file and exporting the variables to the environment.
+Variables should be set to the environment. This can be done by providing an .env file when running via Docker.
 
 ```
 DX_TOKEN=<redacted, str>
@@ -23,7 +23,7 @@ CANCELLED_STATUSES='["Data cannot be processed", "Data cannot be released", "Dat
 OPEN_STATUSES='["New", "Data Received", "Data processed", "On hold", "Urgent samples released"]'
 LAST_JOBS='{"TWE": "eggd_generate_variant_workbook", "CEN": "eggd_artemis", "MYE": "eggd_MultiQC", "TSO500": "eggd_MultiQC", "PCAN": "eggd_starfusion"}'
 ```
-If no start and end dates are supplied as command line arguments, the DEFAULT_MONTHS variable will be used to determine the previous number of months to audit from the date the script is run.
+If no start and end dates are supplied as command line arguments, the `DEFAULT_MONTHS` variable will be used to determine the previous number of months to audit from the date the script is run.
 
 ## Description
 The script works by:
@@ -57,8 +57,8 @@ The script also:
     - The Jira ticket name and the 002 project name
     - The 002 project name and the Staging Area run folder name
 
-## Usage
-Run the script to query the last X (int supplied in credentials.json) number of months from today via:
+## Local usage
+Run the script to query the last X months (`DEFAULT_MONTHS`) from today with:
 
 ```
 python TAT_queries.py
@@ -74,11 +74,16 @@ You can also enter a font size for the title of the TAT subplots as this might d
 python TAT_queries.py -s 2022-05-01 -e 2022-11-01 -f 14
 ```
 
-If any arguments are entered, both start and end dates must be supplied. The script will create a HTML file in the directory you're currently in, named to include the start and end dates of the audit period. If the script is run twice for the same period, if a summary report has been previously generated for these dates this will be replaced.
+If any arguments are entered, both start and end dates must be supplied.
 
+
+## Output
+- HTML file file in the directory you're currently in, named to include the start and end dates of the audit period, e.g. `turnaround_times_2024-11-01_2024-11-06.html`.
+- CSV file listing all of the sequencing runs and the underlying information used to make the above report, e.g. `audit_info_2024-11-01_2024-11-06.csv`
+
+If the script is run twice for the same period, if outputs have been previously generated for these dates the previous versions will be replaced.
 
 ## Docker
-
 A Dockerfile has been written to wrap the script, this is available to run after building as such.
 
 Example command:
@@ -86,7 +91,7 @@ Example command:
 docker run --env-file tat_credentials.env python3 utils/TAT_queries.py -s 2022-05-01 -e 2022-11-01
 ```
 
-An additional script has been written to wrap the above and push the report to Slack. To use this a Slack bot token and Slack channel must also be provided in the environment variables:
+An additional script (`run.sh`) has been written to wrap the above and push the report to Slack. To use this a Slack bot token and Slack channel must also be provided in the environment variables:
 ```
 SLACK_TOKEN=<redacted>
 SLACK_CHANNEL=<redacted>

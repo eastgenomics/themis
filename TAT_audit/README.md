@@ -88,10 +88,10 @@ A Dockerfile has been written to wrap the script, this is available to run after
 
 Example command:
 ```
-docker run --env-file tat_credentials.env python3 utils/TAT_queries.py -s 2022-05-01 -e 2022-11-01
+docker run --env-file tat_credentials.env python TAT_queries.py -s 2022-05-01 -e 2022-11-01
 ```
 
-An additional script (`run.sh`) has been written to wrap the above and push the report to Slack. To use this a Slack bot token and Slack channel must also be provided in the environment variables:
+An additional script (`run.sh`) has been written to wrap the above and push the report to Slack. To use this a Slack bot token and Slack channel (channel ID) must also be provided in the environment variables:
 ```
 SLACK_TOKEN=<redacted>
 SLACK_CHANNEL=<redacted>

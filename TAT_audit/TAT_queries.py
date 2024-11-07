@@ -7,6 +7,7 @@ import pandas as pd
 import sys
 import warnings
 
+from ast import literal_eval
 from dateutil.relativedelta import relativedelta
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
@@ -166,11 +167,20 @@ class Arguments():
             )
             sys.exit()
 
+        # Remove leading and trailing single quotes which mess with
+        # parsing lists and dicts from .env vars inside Docker containers
+        # and parse the strings into lists and/or dict
+        # (single quotes are needed bc trying to export the .env file
+        # in a non-Docker environment doesn't work otherwise)
+        assay_types = literal_eval(assay_types.strip("'"))
+        cancelled_statuses = literal_eval(cancelled_statuses.strip("'"))
+        open_statuses = literal_eval(open_statuses.strip("'"))
+        last_jobs = literal_eval(last_jobs.strip("'"))
+
         return (
             dx_token, jira_email, jira_token, staging_proj_id, default_months,
-            int(tat_standard), json.loads(assay_types),
-            json.loads(cancelled_statuses), json.loads(open_statuses),
-            json.loads(last_jobs)
+            int(tat_standard), assay_types, cancelled_statuses,
+            open_statuses, last_jobs
         )
 
     def determine_start_and_end_date(self):

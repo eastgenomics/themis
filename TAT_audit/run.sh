@@ -32,6 +32,8 @@ if [[ -s $(find . -maxdepth 1 -name "*.html") ]]; then
     curl -X POST $html_upload_url \
         -F filename="@$html_file"
 
+    sleep 5
+
     # Call files.completeUploadExternal to finalise the upload
     html_post_response=$(curl -X POST \
         https://slack.com/api/files.completeUploadExternal \
@@ -40,7 +42,7 @@ if [[ -s $(find . -maxdepth 1 -name "*.html") ]]; then
         -d "{\"files\": [{ \"id\": \"$html_file_id\" }], \"channel_id\": \"$SLACK_CHANNEL\", \"initial_comment\": \":bar_chart: Latest bioinformatics turn around times for between \`$start\` and \`$end\`\"}")
 
     # Get thread ts
-    thread=$(echo "$html_post_response" | jq -r ".files[].shares.private.\"$SLACK_CHANNEL\"[].ts")
+    thread=$(echo "$html_post_response" | jq -r ".files[].shares.private | to_entries | .[].value[0].ts")
 
     # Do the same for the CSV file
     csv_file=$(find . -name "*.csv")

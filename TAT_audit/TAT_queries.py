@@ -8,6 +8,7 @@ import sys
 import warnings
 
 from ast import literal_eval
+from collections import defaultdict
 from dateutil.relativedelta import relativedelta
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
@@ -366,37 +367,28 @@ def main():
         inputs.tat_standard,
         inputs.args.font_size
     )
-    # CEN
-    CEN_df, CEN_stats, CEN_issues, CEN_runs, CEN_frac, CEN_compl = (
-        general_functions.create_assay_objects(run_df, 'CEN')
-    )
-    CEN_fig, CEN_upload_fig = plotting_functions.create_both_figures(
-        CEN_df, 'CEN'
-    )
 
-    # MYE
-    MYE_df, MYE_stats, MYE_issues, MYE_runs, MYE_frac, MYE_compl = (
-        general_functions.create_assay_objects(run_df, 'MYE')
-    )
-    MYE_fig, MYE_upload_fig = plotting_functions.create_both_figures(
-        MYE_df, 'MYE'
-    )
-
-    # TSO500
-    TSO_df, TSO_stats, TSO_issues, TSO_runs, TSO_frac, TSO_compl = (
-        general_functions.create_assay_objects(run_df, 'TSO500')
-    )
-    TSO_fig, TSO_upload_fig = plotting_functions.create_both_figures(
-        TSO_df, 'TSO500'
-    )
-
-    # TWE
-    TWE_df, TWE_stats, TWE_issues, TWE_runs, TWE_frac, TWE_compl = (
-        general_functions.create_assay_objects(run_df, 'TWE')
-    )
-    TWE_fig, TWE_upload_fig = plotting_functions.create_both_figures(
-        TWE_df, 'TWE'
-    )
+    fig_info_dict = defaultdict(dict)
+    for assay in inputs.assay_types:
+        (
+            assay_df,
+            assay_stats,
+            assay_issues,
+            assay_runs,
+            assay_frac,
+            assay_compl,
+        ) = general_functions.create_assay_objects(run_df, assay)
+        assay_fig, assay_upload_fig = plotting_functions.create_both_figures(
+            assay_df, assay
+        )
+        fig_info_dict[assay]["df"] = assay_df
+        fig_info_dict[assay]["stats"] = assay_stats
+        fig_info_dict[assay]["issues"] = assay_issues
+        fig_info_dict[assay]["run_count"] = assay_runs
+        fig_info_dict[assay]["fraction"] = assay_frac
+        fig_info_dict[assay]["compliance"] = assay_compl
+        fig_info_dict[assay]["fig"] = assay_fig
+        fig_info_dict[assay]["upload_fig"] = assay_upload_fig
 
     # Add in any cancelled runs to the df
     run_df = general_functions.add_in_cancelled_runs(
@@ -422,34 +414,7 @@ def main():
         period_audited=period_audited,
         datetime_now=dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
         no_of_002_runs=no_of_002_runs,
-        no_of_CEN_runs=CEN_runs,
-        chart_1=CEN_fig,
-        averages_1=CEN_stats,
-        CEN_upload=CEN_upload_fig,
-        runs_to_review_1=CEN_issues,
-        CEN_fraction=CEN_frac,
-        CEN_compliance=CEN_compl,
-        no_of_MYE_runs=MYE_runs,
-        chart_2=MYE_fig,
-        averages_2=MYE_stats,
-        MYE_upload=MYE_upload_fig,
-        runs_to_review_2=MYE_issues,
-        MYE_fraction=MYE_frac,
-        MYE_compliance=MYE_compl,
-        no_of_TSO500_runs=TSO_runs,
-        chart_3=TSO_fig,
-        averages_3=TSO_stats,
-        TSO500_upload=TSO_upload_fig,
-        runs_to_review_3=TSO_issues,
-        TSO_fraction=TSO_frac,
-        TSO_compliance=TSO_compl,
-        no_of_TWE_runs=TWE_runs,
-        chart_4=TWE_fig,
-        averages_4=TWE_stats,
-        TWE_upload=TWE_upload_fig,
-        runs_to_review_4=TWE_issues,
-        TWE_fraction=TWE_frac,
-        TWE_compliance=TWE_compl,
+        figures_by_assay=fig_info_dict,
         open_runs=open_runs_list,
         runs_no_002=runs_no_002_proj,
         ticket_typos=typo_tickets_table,

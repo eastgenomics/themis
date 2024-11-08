@@ -7,6 +7,7 @@ import pandas as pd
 import sys
 import warnings
 
+from ast import literal_eval
 from dateutil.relativedelta import relativedelta
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
@@ -148,26 +149,12 @@ class Arguments():
             'DEFAULT_MONTHS', 'TAT_STANDARD_DAYS', 'ASSAYS',
             'CANCELLED_STATUSES', 'OPEN_STATUSES', 'LAST_JOBS'
         ]
-        # Get tokens etc from credentials file
-        if os.path.exists(ROOT_DIR.joinpath("credentials.json")):
-            with open(
-                ROOT_DIR.joinpath("credentials.json"), "r", encoding='utf8'
-            ) as json_file:
-                credentials = json.load(json_file)
 
-            (
-                dx_token, jira_email, jira_token, staging_proj_id,
-                default_months, tat_standard, assay_types, cancelled_statuses,
-                open_statuses, last_jobs
-            ) = list(map(credentials.get, keys))
-
-        else:
-            # credentials file doesn't exist, assume credentials are in env
-            (
-                dx_token, jira_email, jira_token, staging_proj_id,
-                default_months, tat_standard, assay_types, cancelled_statuses,
-                open_statuses, last_jobs
-            ) = list(map(os.environ.get, keys))
+        (
+            dx_token, jira_email, jira_token, staging_proj_id,
+            default_months, tat_standard, assay_types, cancelled_statuses,
+            open_statuses, last_jobs
+        ) = list(map(os.environ.get, keys))
 
         # Check all are present
         if not all([
@@ -176,15 +163,24 @@ class Arguments():
             last_jobs
         ]):
             logger.error(
-                "Required credentials could not be parsed from "
-                "credentials.json or the env"
+                "Required credentials could not be parsed from the env"
             )
             sys.exit()
 
+        # Remove leading and trailing single quotes which mess with
+        # parsing strings to lists and dicts from .env vars inside Docker
+        # containers
+        # (single quotes are needed bc trying to export the .env file
+        # in a non-Docker environment doesn't work otherwise)
+        assay_types = literal_eval(assay_types.strip("'"))
+        cancelled_statuses = literal_eval(cancelled_statuses.strip("'"))
+        open_statuses = literal_eval(open_statuses.strip("'"))
+        last_jobs = literal_eval(last_jobs.strip("'"))
+
         return (
             dx_token, jira_email, jira_token, staging_proj_id, default_months,
-            int(tat_standard), assay_types, cancelled_statuses, open_statuses,
-            last_jobs
+            int(tat_standard), assay_types, cancelled_statuses,
+            open_statuses, last_jobs
         )
 
     def determine_start_and_end_date(self):

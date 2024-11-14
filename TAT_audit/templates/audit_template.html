@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Audit Results</title>
+    <title>Audit Results</title>
     <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -79,683 +79,184 @@
                 <li>
                     Assay compliance:
                     <ul>
+                        {% for assay, assay_info in figures_by_assay.items() %}
                         <li>
-                            {% if CEN_fraction %}
-                                CEN: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
+                            {% if assay_info.fraction %}
+                                {{ assay }}: <b>{{ assay_info.fraction }} <span class="complValue">{{ assay_info.compliance }}</span>%</b>
                             {% else %}
-                                CEN: <b>No runs found</b>
+                                {{ assay }}: <b>No runs found</b>
                             {% endif %}
                         </li>
-                        <li>
-                            {% if MYE_fraction %}
-                                MYE: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
-                            {% else %}
-                                MYE: <b>No runs found</b>
-                            {% endif %}
-                        </li>
-                        <li>
-                            {% if TSO_fraction %}
-                                TSO500: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
-                            {% else %}
-                                TSO500: <b>No runs found</b>
-                            {% endif %}
-                        </li>
-                        <li>
-                            {% if TWE_fraction %}
-                                TWE: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
-                            {% else %}
-                                TWE: <b>No runs found</b>
-                            {% endif %}
-                        </li>
+                        {% endfor %}
                     </ul>
                 </li>
             </ul>
             </p>
         </div>
         </div>
-        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
-            <h4 class="card-header text-white" style="background-color: #34568B;">CEN Runs</h4>
-            <p class="card-text">
-                <ul>
-                    <li>
-                        Number of runs with 002 projects: <b>{{ no_of_CEN_runs }}</b>
-                    </li>
-                    <li>
-                        Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "CEN") | list | count }}</b>
-                    </li>
-                    <li>
-                        Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "CEN") | list | count }}</b>
-                    </li>
-                    <li>
-                        {% if CEN_fraction %}
-                            Assay compliance: <b>{{CEN_fraction}} <span class="complValue">{{ CEN_compliance }}</span>%</b>
-                        {% else %}
-                            Assay compliance: <b>No runs found</b>
+
+        {% for assay, assay_info in figures_by_assay.items() %}
+            <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
+                <h4 class="card-header text-white" style="background-color: #34568B;">{{ assay }} Runs</h4>
+                <p class="card-text">
+                    <ul>
+                        <li>
+                            Number of runs with 002 projects: <b>{{ assay_info.run_count }}</b>
+                        </li>
+                        <li>
+                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", assay) | list | count }}</b>
+                        </li>
+                        <li>
+                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto",assay) | list | count }}</b>
+                        </li>
+                        <li>
+                            {% if assay_info.fraction %}
+                                Assay compliance: <b>{{ assay_info.fraction }} <span class="complValue">{{ assay_info.compliance }}</span>%</b>
+                            {% else %}
+                                Assay compliance: <b>No runs found</b>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </p>
+                <div class="card-body bg-white" style="page-break-inside: avoid;">
+                    {{ assay_info.fig }}
+                <div class="averages" style="width: 100%;">
+                    {{ assay_info.stats }}
+                </div>
+            <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
+                {{ assay_info.upload_fig }}
+            </div>
+                {% if assay_info.issues %}
+                    <div style="padding-top: 30px; padding-bottom: 20px;">
+                        <h5>Runs to review manually:</h5>
+
+                        {% if assay_info.issues.no_jira_tix %}
+                            <p><b>No matching Jira ticket found:</b></p>
+                            <ul>
+                                {% for entry in assay_info.issues.no_jira_tix  %}
+                                    <li>{{ entry }}</li>
+                                {% endfor %}
+                            </ul>
                         {% endif %}
-                    </li>
-                </ul>
-            </p>
-            <div class="card-body bg-white" style="page-break-inside: avoid;">
-                {{ chart_1 }}
-            <div class="averages" style="width: 100%;">
-                {{ averages_1 }}
-            </div>
-        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
-            {{ CEN_upload }}
-        </div>
-            {% if runs_to_review_1 %}
-                <div style="padding-top: 30px; padding-bottom: 20px;">
-                    <h5>Runs to review manually:</h5>
 
-                    {% if runs_to_review_1.no_jira_tix %}
-                        <p><b>No matching Jira ticket found:</b></p>
+                        {% if assay_info.issues.first_job_before_log %}
+                            <p><b>First job was run before upload in staging area</b></p>
+                            <ul>
+                                {% for entry in assay_info.issues.first_job_before_log  %}
+                                <li>{{ entry }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+
+                    {% if assay_info.issues.reports_before_multiqc %}
+                        <p><b>MultiQC was run after reports were released:</b></p>
                         <ul>
-                            {% for entry in runs_to_review_1.no_jira_tix  %}
+                            {% for entry in assay_info.issues.reports_before_multiqc  %}
                                 <li>{{ entry }}</li>
                             {% endfor %}
                         </ul>
                     {% endif %}
 
-                    {% if runs_to_review_1.first_job_before_log %}
-                        <p><b>First job was run before upload in staging area</b></p>
+                    {% if assay_info.issues.no_log_file %}
+                        <p><b>No lane.all.log file found:</b></p>
                         <ul>
-                            {% for entry in runs_to_review_1.first_job_before_log  %}
-                            <li>{{ entry }}</li>
+                            {% for entry in assay_info.issues.no_log_file  %}
+                                <li>{{ entry }}</li>
                             {% endfor %}
                         </ul>
                     {% endif %}
 
-                {% if runs_to_review_1.reports_before_multiqc %}
-                    <p><b>MultiQC was run after reports were released:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_1.reports_before_multiqc  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_1.no_log_file %}
-                    <p><b>No lane.all.log file found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_1.no_log_file  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_1.no_first_job_found %}
-                    <p><b>No first job was found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_1.no_first_job_found  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_1.no_multiqc_or_excel_found %}
-                    <p><b>No successful Excel workbook job found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_1.no_multiqc_or_excel_found  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-                </div>
-            {% endif %}
-
-        {% if open_runs %}
-        {% if "CEN" in open_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 20px;">
-            <h5>Open runs with no 002 project:</h5>
-            {% for item in open_runs %}
-                {% if item.assay_type == "CEN" %}
-                        <p><b>{{ item.run_name }}</b></p>
+                    {% if assay_info.issues.no_first_job_found %}
+                        <p><b>No first job was found:</b></p>
                         <ul>
-                            <li>
-                                Date Jira ticket created: {{ item.date_jira_ticket_created }}
-                            </li>
-                            <li>
-                                Current status: {{ item.current_status }}
-                            </li>
-                        </ul>
-                        <br>
-                {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if runs_no_002 %}
-        {% if "CEN" in runs_no_002|map(attribute="assay_type") %}
-        <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found:</h5>
-        {% for item in runs_no_002 %}
-            {% if item.assay_type == "CEN" %}
-                    <p><b>{{ item.run_name }}</b></p>
-                    <ul>
-                        <li>
-                            Jira ticket created: {{ item.jira_ticket_created }}
-                        </li>
-                        <li>
-                            Jira ticket resolved: {{ item.jira_ticket_resolved }}
-                        </li>
-                        <li>
-                            Estimated TAT (days): {{ item.estimated_TAT }}
-                        </li>
-                    </ul>
-                    <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if cancelled_runs %}
-        {% if "CEN" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'CEN' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.jira_status }}
-                    </li>
-                </ul>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-        </div>
-        </div>
-
-        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
-            <h4 class="card-header text-white" style="background-color: #34568B;">MYE Runs</h4>
-            <div class="card-body bg-white" style="page-break-inside: avoid;">
-                <p class="card-text">
-                    <ul>
-                        <li>
-                            Number of runs with 002 projects: <b>{{ no_of_MYE_runs }}</b>
-                        </li>
-                        <li>
-                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "MYE") | list | count }}</b>
-                        </li>
-                        <li>
-                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "MYE") | list | count }}</b>
-                        </li>
-                        <li>
-                            {% if MYE_fraction %}
-                                Assay compliance: <b>{{MYE_fraction}} <span class="complValue">{{ MYE_compliance }}</span>%</b>
-                            {% else %}
-                                Assay compliance: <b>No runs found</b>
-                            {% endif %}
-                        </li>
-                    </ul>
-                </p>
-            {{ chart_2 }}
-        <div class="averages" style="width: 100%;">
-            {{ averages_2 }}
-        </div>
-        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
-            {{ MYE_upload }}
-        </div>
-        {% if runs_to_review_2 %}
-            <div style="padding-top: 30px; padding-bottom: 20px;">
-                <h5>Runs to review manually:</h5>
-
-                {% if runs_to_review_2.no_jira_tix %}
-                    <p><b>No matching Jira ticket found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_2.no_jira_tix  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_2.first_job_before_log %}
-                    <p><b>First job was run before upload in staging area</b></p>
-                        <ul>
-                            {% for entry in runs_to_review_2.first_job_before_log  %}
+                            {% for entry in assay_info.issues.no_first_job_found  %}
                                 <li>{{ entry }}</li>
                             {% endfor %}
                         </ul>
+                    {% endif %}
+
+                    {% if assay_info.issues.no_multiqc_or_excel_found %}
+                        <p><b>No successful Excel workbook job found:</b></p>
+                        <ul>
+                            {% for entry in assay_info.issues.no_multiqc_or_excel_found  %}
+                                <li>{{ entry }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                    </div>
                 {% endif %}
 
-                {% if runs_to_review_2.reports_before_multiqc %}
-                    <p><b>MultiQC was run after reports were released:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_2.reports_before_multiqc  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_2.no_log_file %}
-                    <p><b>No lane.all.log file found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_2.no_log_file  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_2.no_first_job_found %}
-                    <p><b>No first job was found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_2.no_first_job_found  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_2.no_multiqc_or_excel_found %}
-                    <p><b>No successful MultiQC job found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_2.no_multiqc_or_excel_found  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
+            {% if open_runs %}
+            {% if assay in open_runs|map(attribute="assay_type") %}
+            <div style="padding-top: 20px;">
+                <h5>Open runs with no 002 project:</h5>
+                {% for item in open_runs %}
+                    {% if item.assay_type == assay %}
+                            <p><b>{{ item.run_name }}</b></p>
+                            <ul>
+                                <li>
+                                    Date Jira ticket created: {{ item.date_jira_ticket_created }}
+                                </li>
+                                <li>
+                                    Current status: {{ item.current_status }}
+                                </li>
+                            </ul>
+                            <br>
+                    {% endif %}
+                {% endfor %}
             </div>
-        {% endif %}
+            {% endif %}
+            {% endif %}
 
-        {% if open_runs %}
-        {% if "MYE" in open_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 20px;">
-            <h5>Open runs with no 002 project:</h5>
-            {% for item in open_runs %}
-                {% if item.assay_type == "MYE" %}
+            {% if runs_no_002 %}
+            {% if assay in runs_no_002|map(attribute="assay_type") %}
+            <div style="padding-top: 20px;">
+                <h5>Jira tickets found for released runs but no 002 project found:</h5>
+            {% for item in runs_no_002 %}
+                {% if item.assay_type == assay %}
                         <p><b>{{ item.run_name }}</b></p>
                         <ul>
                             <li>
-                                Date Jira ticket created: {{ item.date_jira_ticket_created }}
+                                Jira ticket created: {{ item.jira_ticket_created }}
                             </li>
                             <li>
-                                Current status: {{ item.current_status }}
+                                Jira ticket resolved: {{ item.jira_ticket_resolved }}
+                            </li>
+                            <li>
+                                Estimated TAT (days): {{ item.estimated_TAT }}
                             </li>
                         </ul>
                         <br>
                 {% endif %}
             {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if runs_no_002 %}
-        {% if "MYE" in runs_no_002|map(attribute="assay_type") %}
-        <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found:</h5>
-        {% for item in runs_no_002 %}
-            {% if item.assay_type == "MYE" %}
-                    <p><b>{{ item.run_name }}</b></p>
-                    <ul>
-                        <li>
-                            Jira ticket created: {{ item.jira_ticket_created }}
-                        </li>
-                        <li>
-                            Jira ticket resolved: {{ item.jira_ticket_resolved }}
-                        </li>
-                        <li>
-                            Estimated TAT (days): {{ item.estimated_TAT }}
-                        </li>
-                    </ul>
-                    <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if cancelled_runs %}
-        {% if "MYE" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'MYE' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.jira_status }}
-                    </li>
-                </ul>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-        </div>
-        </div>
-
-        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
-            <h4 class="card-header text-white" style="background-color: #34568B;">TSO500 Runs</h4>
-            <div class="card-body bg-white" style="page-break-inside: avoid;">
-                <p class="card-text">
-                    <ul>
-                        <li>
-                            Number of runs with 002 projects: <b>{{ no_of_TSO500_runs }}</b>
-                        </li>
-                        <li>
-                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "TSO500") | list | count }}</b>
-                        </li>
-                        <li>
-                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "TSO500") | list | count }}</b>
-                        </li>
-                        <li>
-                            {% if TSO_fraction %}
-                                Assay compliance: <b>{{TSO_fraction}} <span class="complValue">{{ TSO_compliance }}</span>%</b>
-                            {% else %}
-                                Assay compliance: <b>No runs found</b>
-                            {% endif %}
-                        </li>
-                    </ul>
-                </p>
-            {{ chart_3 }}
-        <div class="averages" style="width: 100%;">
-            {{ averages_3 }}
-        </div>
-        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
-            {{ TSO500_upload }}
-        </div>
-        {% if runs_to_review_3 %}
-            <div style="padding-top: 30px; padding-bottom: 20px;">
-                <h5>Runs to review manually:</h5>
-
-                {% if runs_to_review_3.no_jira_tix %}
-                    <p><b>No matching Jira ticket found:</b></p>
-                    <ul>
-                    {% for entry in runs_to_review_3.no_jira_tix  %}
-                        <li>{{ entry }}</li>
-                    {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_3.first_job_before_log %}
-                    <p><b>First job was run before upload in staging area</b></p>
-                    <ul>
-                    {% for entry in runs_to_review_3.first_job_before_log  %}
-                        <li>{{ entry }}</li>
-                    {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_3.reports_before_multiqc %}
-                    <p><b>MultiQC was run after reports were released:</b></p>
-                    <ul>
-                    {% for entry in runs_to_review_3.reports_before_multiqc  %}
-                        <li>{{ entry }}</li>
-                    {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_3.no_log_file %}
-                    <p><b>No lane.all.log file found:</b></p>
-                    <ul>
-                    {% for entry in runs_to_review_3.no_log_file  %}
-                        <li>{{ entry }}</li>
-                    {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_3.no_first_job_found %}
-                    <p><b>No first job was found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_3.no_first_job_found  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_3.no_multiqc_or_excel_found %}
-                    <p><b>No successful MultiQC job found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_3.no_multiqc_or_excel_found  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-                </div>
-            {% endif %}
-
-        {% if open_runs %}
-        {% if "TSO500" in open_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 20px;">
-            <h5>Open runs with no 002 project:</h5>
-            {% for item in open_runs %}
-                {% if item.assay_type == "TSO500" %}
-                        <p><b>{{ item.run_name }}</b></p>
-                        <ul>
-                            <li>
-                                Date Jira ticket created: {{ item.date_jira_ticket_created }}
-                            </li>
-                            <li>
-                                Current status: {{ item.current_status }}
-                            </li>
-                        </ul>
-                        <br>
-                {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if runs_no_002 %}
-        {% if "TSO500" in runs_no_002|map(attribute="assay_type") %}
-        <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found:</h5>
-        {% for item in runs_no_002 %}
-            {% if item.assay_type == "TSO500" %}
-                    <p><b>{{ item.run_name }}</b></p>
-                    <ul>
-                        <li>
-                            Jira ticket created: {{ item.jira_ticket_created }}
-                        </li>
-                        <li>
-                            Jira ticket resolved: {{ item.jira_ticket_resolved }}
-                        </li>
-                        <li>
-                            Estimated TAT (days): {{ item.estimated_TAT }}
-                        </li>
-                    </ul>
-                    <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if cancelled_runs %}
-        {% if "TSO500" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'TSO500' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.jira_status }}
-                    </li>
-                </ul>
-                <br>
-            {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-        </div>
-        </div>
-
-        <div class="card border-secondary mt-5 mb-5" style="width: 100%;">
-            <h4 class="card-header text-white" style="background-color: #34568B;">TWE Runs</h4>
-            <div class="card-body bg-white" style="page-break-inside: avoid;">
-                <p class="card-text">
-                    <ul>
-                        <li>
-                            Number of runs with 002 projects: <b>{{ no_of_TWE_runs }}</b>
-                        </li>
-                        <li>
-                            Additional runs with Jira tickets at status 'All samples released' but no matching '002_' project: <b>{{ runs_no_002 | selectattr("assay_type", "equalto", "TWE") | list | count }}</b>
-                        </li>
-                        <li>
-                            Additional runs which were not released: <b>{{ cancelled_runs | selectattr("assay_type", "equalto", "TWE") | list | count }}</b>
-                        </li>
-                        <li>
-                            {% if TWE_fraction %}
-                                Assay compliance: <b>{{TWE_fraction}} <span class="complValue">{{ TWE_compliance }}</span>%</b>
-                            {% else %}
-                                Assay compliance: <b>No runs found</b>
-                            {% endif %}
-                        </li>
-                    </ul>
-                </p>
-            {{ chart_4 }}
-        <div class="averages" style="width: 100%;">
-            {{ averages_4 }}
-        </div>
-        <div style="padding-top: 30px; padding-bottom: 20px; margin-left:50px;">
-            {{ TWE_upload }}
-        </div>
-        {% if runs_to_review_4 %}
-            <div style="padding-top: 30px; padding-bottom: 20px;">
-                <h5>Runs to review manually:</h5>
-
-                {% if runs_to_review_4.no_jira_tix %}
-                    <p><b>No matching Jira ticket found:</b></p>
-                    <ul>
-                    {% for entry in runs_to_review_4.no_jira_tix  %}
-                        <li>{{ entry }}</li>
-                    {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_4.first_job_before_log %}
-                    <p><b>First job was run before upload in staging area</b></p>
-                    <ul>
-                    {% for entry in runs_to_review_4.first_job_before_log  %}
-                        <li>{{ entry }}</li>
-                    {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_4.reports_before_multiqc %}
-                    <p><b>MultiQC was run after reports were released:</b></p>
-                    <ul>
-                    {% for entry in runs_to_review_4.reports_before_multiqc  %}
-                        <li>{{ entry }}</li>
-                    {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_4.no_log_file %}
-                    <p><b>No lane.all.log file found:</b></p>
-                    <ul>
-                    {% for entry in runs_to_review_4.no_log_file  %}
-                        <li>{{ entry }}</li>
-                    {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_4.no_first_job_found %}
-                    <p><b>No first job was found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_4.no_first_job_found  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                {% if runs_to_review_4.no_multiqc_or_excel_found %}
-                    <p><b>No successful Excel workbooks job found:</b></p>
-                    <ul>
-                        {% for entry in runs_to_review_4.no_multiqc_or_excel_found  %}
-                            <li>{{ entry }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
             </div>
-        {% endif %}
+            {% endif %}
+            {% endif %}
 
-        {% if open_runs %}
-        {% if "TWE" in open_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 20px;">
-            <h5>Open runs with no 002 project:</h5>
-            {% for item in open_runs %}
-                {% if item.assay_type == "TWE" %}
-                        <p><b>{{ item.run_name }}</b></p>
-                        <ul>
-                            <li>
-                                Date Jira ticket created: {{ item.date_jira_ticket_created }}
-                            </li>
-                            <li>
-                                Current status: {{ item.current_status }}
-                            </li>
-                        </ul>
-                        <br>
-                {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if runs_no_002 %}
-        {% if "TWE" in runs_no_002|map(attribute="assay_type") %}
-        <div style="padding-top: 20px;">
-            <h5>Jira tickets found for released runs but no 002 project found:</h5>
-        {% for item in runs_no_002 %}
-            {% if item.assay_type == "TWE" %}
-                    <p><b>{{ item.run_name }}</b></p>
+            {% if cancelled_runs %}
+            {% if assay in cancelled_runs|map(attribute="assay_type") %}
+            <div style="padding-top: 30px; padding-bottom: 30px;">
+                <h5>Runs that were not completed:</h5>
+            {% for run in cancelled_runs %}
+                {% if run.assay_type == assay %}
+                    <p><b>{{ run.run_name }}</b></p>
                     <ul>
                         <li>
-                            Jira ticket created: {{ item.jira_ticket_created }}
+                            Date Jira ticket created: {{ run.date_jira_ticket_created }}
                         </li>
                         <li>
-                            Jira ticket resolved: {{ item.jira_ticket_resolved }}
-                        </li>
-                        <li>
-                            Estimated TAT (days): {{ item.estimated_TAT }}
+                            Reason run not released: {{ run.jira_status }}
                         </li>
                     </ul>
                     <br>
+                {% endif %}
+            {% endfor %}
+            </div>
             {% endif %}
-        {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-
-        {% if cancelled_runs %}
-        {% if "TWE" in cancelled_runs|map(attribute="assay_type") %}
-        <div style="padding-top: 30px; padding-bottom: 30px;">
-            <h5>Runs that were not completed:</h5>
-        {% for run in cancelled_runs %}
-            {% if run.assay_type == 'TWE' %}
-                <p><b>{{ run.run_name }}</b></p>
-                <ul>
-                    <li>
-                        Date Jira ticket created: {{ run.date_jira_ticket_created }}
-                    </li>
-                    <li>
-                        Reason run not released: {{ run.jira_status }}
-                    </li>
-                </ul>
-                <br>
             {% endif %}
+            </div>
+            </div>
         {% endfor %}
-        </div>
-        {% endif %}
-        {% endif %}
-        </div>
-        </div>
 
 
     <div class="card border-secondary mt-5 mb-5" style="width: 100%;">

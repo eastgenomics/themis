@@ -14,6 +14,7 @@ import statsmodels.api as sm
 from fastcore.all import *
 from ghapi.all import GhApi
 from jinja2 import Environment, FileSystemLoader
+import subprocess
 
 # TODO: Add stats to parts of the html report and use bootrap to style it.
 # TODO: Make report prettier with bootstrap.
@@ -136,7 +137,7 @@ def get_config():
 
 class compliance_checks:
     """
-    Class for all the checks for the compliance against DNAnexus performa.
+    Class for all the checks for the compliance against DNAnexus performance.
     """
 
     def check_all(self, app=None, dxjson_content="",
@@ -365,7 +366,7 @@ class compliance_checks:
     def check_src_file_compliance(self, dxjson_content, src_file_contents):
         """
         Checks compliance for set -e exit option and manual compiling settings
-        for DNAnexus app performa.
+        for DNAnexus app performance.
 
         Parameters
         ----------
@@ -905,6 +906,146 @@ class audit_class:
         latest_commit_date = latest_commit_datetime.split("T")[0]
 
         return latest_commit_date
+
+    def get_security_advisories(self, organisation_name, repo_name, token):
+        """
+        Checks if security advisories have been enabled for the GitHub repo using GitHub CLI.
+
+        Parameters
+        ----------
+            organisation_name (str):
+                Name of the organization owning the repository.
+            repo_name (str):
+                Name of the repository.
+            token (str):
+                GitHub personal access token.
+
+        Returns
+        -------
+            status_code (str):
+                Status of configuration (e.g., "attached").
+            dependabot_alerts_status (str):
+                Dependabot status alerts (e.g., "enabled" or "disabled").
+            dependabot_alerts_setting (str):
+                If dependabot alerts are set or not (e.g., "set" or "not_set").
+            advisories_info (str):
+                Info on status of dependabot alerts.
+        """
+
+    # Set GitHub CLI command
+        cmd = [
+            "gh", "api",
+            "-H", "Accept: application/vnd.github+json",
+            "-H", f"Authorization: token {token}",
+            "-H", "X-GitHub-Api-Version: 2022-11-28",
+            f"/repos/{organisation_name}/{repo_name}/code-security-configuration"
+        ]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+            # Parse JSON output
+            security_config = json.loads(result.stdout)
+
+            # Extract statuses
+            status_code = security_config.get("status")
+            dependabot_alerts_status = security_config.get("configuration", {}).get("dependabot_alerts", "disabled")
+            dependabot_alerts_setting = security_config.get("configuration", {}).get("dependabot_security_updates", "not_set")
+            advisories_info = (
+                f"Dependabot alerts are {dependabot_alerts_status} and "
+                f"security updates are {dependabot_alerts_setting}."
+            )
+
+        except subprocess.CalledProcessError as e:
+            print(f"Error checking security advisories for {repo_name}: {e.stderr}")
+            status_code = "error"
+            dependabot_alerts_status = "disabled"
+            dependabot_alerts_setting = "not_set"
+            advisories_info = f"Error: {e.stderr}"
+
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON response: {str(e)}")
+            status_code = "error"
+            dependabot_alerts_status = "disabled"
+            dependabot_alerts_setting = "not_set"
+            advisories_info = f"Error parsing JSON response: {str(e)}"
+
+        return status_code, dependabot_alerts_status, dependabot_alerts_setting, advisories_info
+
+    def check_requirements_file_in_python_app(self, organisation_name, repo_name, token):
+        """
+        Checks if 'requirements.txt' exists in a Python GitHub repo
+        using GitHub CLI.
+
+        Parameters
+        ----------
+        organisation_name (str): Name of the organisation owning repo
+        repo_name (str): Name of repo.
+        token (str): GitHub personal access token.
+
+        Returns
+        -------
+        file_exists (bool): Shows if 'requirements.txt' exists in repo
+        status_code (int): HTTP status code returned by API.
+        file_info (str): Information message about file search.
+        """
+
+        # Check language of repo
+        lang_cmd = [
+            "gh", "api",
+            "-H", "Accept: application/vnd.github+json",
+            "-H", f"Authorization: token {token}",
+            f"/repos/{organisation_name}/{repo_name}/languages"
+        ]
+
+        try:
+            # Run GitHub CLI to get language for repo
+            lang_result = subprocess.run(lang_cmd, capture_output=True, text=True)
+            status_code = lang_result.returncode
+
+            if status_code != 0:
+                return False, status_code, f"Error checking repo language: {lang_result.stderr}"
+
+            # Get language output
+            languages = json.loads(lang_result.stdout)
+
+            # Check Python is main language
+            if not languages or 'Python' not in languages:
+                return False, 200, "The repository is not primarily a Python application."
+
+            # Check 'requirements.txt' if repo is Python
+            file_cmd = [
+                "gh", "api",
+                "-H", "Accept: application/vnd.github+json",
+                "-H", f"Authorization: token {token}",
+                f"/repos/{organisation_name}/{repo_name}/contents/requirements.txt"
+            ]
+
+            file_result = subprocess.run(file_cmd, capture_output=True, text=True)
+            status_code = file_result.returncode
+
+            if status_code == 0:
+                file_content = json.loads(file_result.stdout)
+                file_exists = bool(file_content.get("content"))
+                file_info = "requirements.txt file exists in a Python application."
+            else:
+                file_exists = False
+                if status_code == 404:
+                    file_info = "File not found."
+                else:
+                    file_info = f"Error with status code {status_code}: {file_result.stderr}"
+
+        except subprocess.CalledProcessError as e:
+            status_code = e.returncode
+            file_exists = False
+            file_info = f"Error checking file: {e.stderr}"
+
+        except json.JSONDecodeError as e:
+            status_code = 422
+            file_exists = False
+            file_info = "Error parsing API response."
+
+        return file_exists, status_code, file_info
 
     def orchestrate_app_compliance(self, list_apps, list_of_json_contents):
         """

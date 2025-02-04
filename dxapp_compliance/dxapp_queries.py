@@ -1027,7 +1027,7 @@ class audit_class:
             if status_code == 0:
                 contents = json.loads(list_result.stdout)
 
-                # Search for 'requirements.txt' case-insensitively
+                # Search 'requirements.txt' witout case-sensitivity
                 requirements_files = [
                     item for item in contents
                     if item['type'] == 'file' and 'requirements.txt' in item['name'].lower()

@@ -1013,27 +1013,36 @@ class audit_class:
             if not languages or 'Python' not in languages:
                 return False, 200, "The repository is not primarily a Python application."
 
-            # Check 'requirements.txt' if repo is Python
-            file_cmd = [
+            # List contents of repo (root directory)
+            list_cmd = [
                 "gh", "api",
                 "-H", "Accept: application/vnd.github+json",
                 "-H", f"Authorization: token {token}",
-                f"/repos/{organisation_name}/{repo_name}/contents/requirements.txt"
+                f"/repos/{organisation_name}/{repo_name}/contents"
             ]
 
-            file_result = subprocess.run(file_cmd, capture_output=True, text=True)
-            status_code = file_result.returncode
+            list_result = subprocess.run(list_cmd, capture_output=True, text=True)
+            status_code = list_result.returncode
 
             if status_code == 0:
-                file_content = json.loads(file_result.stdout)
-                file_exists = bool(file_content.get("content"))
-                file_info = "requirements.txt file exists in a Python application."
+                contents = json.loads(list_result.stdout)
+
+                # Search for 'requirements.txt' case-insensitively
+                requirements_files = [
+                    item for item in contents
+                    if item['type'] == 'file' and 'requirements.txt' in item['name'].lower()
+                ]
+
+                if requirements_files:
+                    file_exists = True
+                    file_info = f"Found {len(requirements_files)} requirements.txt file(s): {', '.join(file['name'] for file in requirements_files)}"
+                else:
+                    file_exists = False
+                    file_info = "No requirements.txt file found."
+
             else:
                 file_exists = False
-                if status_code == 404:
-                    file_info = "File not found."
-                else:
-                    file_info = f"Error with status code {status_code}: {file_result.stderr}"
+                file_info = f"Error with status code {status_code}: {list_result.stderr}"
 
         except subprocess.CalledProcessError as e:
             status_code = e.returncode
@@ -1051,12 +1060,14 @@ class audit_class:
         """
         This calls the functions to get the compliance and then creates the dfs.
 
+
         Parameters
         ----------
             list_apps (list):
                 list of dictionaries for app/applet with github repo details.
             list_of_json_contents (list):
                 list of json contents of apps/applets
+
 
         Returns
         -------
@@ -1066,28 +1077,44 @@ class audit_class:
                 df of apps/applets with detailed information.
         """
         compliance_df = detailed_df = None
-        if len(list_apps) != len(list_of_json_contents):
-            logger.error(
-                "Number of apps and list of json contents do not match.")
-            raise AssertionError(
-                'List of apps and list of API jsons dont match')
 
-        for index, (app, dxapp_contents) in enumerate(zip(list_apps, list_of_json_contents)):
-            # The first item creates the dataframe
-            if index == 0:
-                df_repo, df_repo_details = self.check_file_compliance(
-                    app, dxapp_contents)
+        if len(list_apps) != len(list_of_json_contents):
+            logger.error("Number of apps and list of json contents do not match.")
+            raise AssertionError('List of apps and list of API jsons dont match')
+
+        for app, dxapp_contents in zip(list_apps, list_of_json_contents):
+            organisation_name = app.get('organisation')
+            repo_name = app.get('repo_name')
+            token = app.get('token')
+
+            # Get dependabot and requirements info
+            _, dependabot_alerts_status, dependabot_alerts_setting, _ = \
+                self.get_security_advisories(organisation_name, repo_name, token)
+            file_exists, _, _ = self.check_requirements_file_in_python_app(organisation_name, repo_name, token)
+
+            # Check compliance
+            df_repo, df_repo_details = self.check_file_compliance(app, dxapp_contents)
+
+            # Append additional info
+            df_repo['dependabot_alerts_status'] = dependabot_alerts_status
+            df_repo['dependabot_alerts_setting'] = dependabot_alerts_setting
+            df_repo['requirements_file_exists'] = file_exists
+
+            df_repo_details['dependabot_alerts_status'] = dependabot_alerts_status
+            df_repo_details['dependabot_alerts_setting'] = dependabot_alerts_setting
+            df_repo_details['requirements_file_exists'] = file_exists
+
+            # Concatenate dfs
+            if compliance_df is None:
                 compliance_df = df_repo
                 detailed_df = df_repo_details
             else:
-                df_repo, df_repo_details = self.check_file_compliance(
-                    app, dxapp_contents)
-                compliance_df = pd.concat([compliance_df,
-                                           df_repo], ignore_index=True)
-                detailed_df = pd.concat([detailed_df,
-                                        df_repo_details], ignore_index=True)
+                compliance_df = pd.concat([compliance_df, df_repo], ignore_index=True)
+                detailed_df = pd.concat([detailed_df, df_repo_details], ignore_index=True)
+
 
         return compliance_df, detailed_df
+
 
     def compliance_scores_for_each_measure(self, df):
         """

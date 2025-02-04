@@ -1003,7 +1003,7 @@ class audit_class:
             lang_result = subprocess.run(lang_cmd, capture_output=True, text=True)
             status_code = lang_result.returncode
 
-            if status_code != 0:
+            if status_code != 200:
                 return False, status_code, f"Error checking repo language: {lang_result.stderr}"
 
             # Get language output
@@ -1024,7 +1024,7 @@ class audit_class:
             list_result = subprocess.run(list_cmd, capture_output=True, text=True)
             status_code = list_result.returncode
 
-            if status_code == 0:
+            if status_code == 200:
                 contents = json.loads(list_result.stdout)
 
                 # Search 'requirements.txt' witout case-sensitivity
@@ -1050,7 +1050,7 @@ class audit_class:
             file_info = f"Error checking file: {e.stderr}"
 
         except json.JSONDecodeError as e:
-            status_code = 422
+            status_code = 404
             file_exists = False
             file_info = "Error parsing API response."
 

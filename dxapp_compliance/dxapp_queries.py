@@ -625,8 +625,7 @@ class audit_class:
         api = GhApi(token=github_token)
         org_details = api.orgs.get(org_username)
         logger.info(org_details)
-        total_num_repos = org_details['public_repos'] + \
-            org_details['total_private_repos']
+        total_num_repos = org_details['public_repos']
         logger.info(total_num_repos)
         per_page_num = 30
         pages_total = ceil(total_num_repos/per_page_num)
@@ -671,6 +670,7 @@ class audit_class:
                 repo_name = repo['name']
                 file_path = 'dxapp.json'
                 logger.info(repo_name)
+                # print(repo)
                 # Checks to find dxapp.json which determines if repo is an app.
                 try:
                     contents = api.repos.get_content(
@@ -908,18 +908,14 @@ class audit_class:
 
         return latest_commit_date
 
-    def get_security_advisories(self, organisation_name, repo_name, token):
+    def get_security_advisories(self, repo_name):
         """
         Checks if security advisories have been enabled for the GitHub repo using GitHub API.
 
         Parameters
         ----------
-            organisation_name (str):
-                Name of the organization owning the repository.
             repo_name (str):
                 Name of the repository.
-            token (str):
-                GitHub personal access token.
 
         Returns
         -------
@@ -929,10 +925,10 @@ class audit_class:
                 If dependabot alerts are set or not (e.g., "set" or "not_set").
         """
 
-        url = f"https://api.github.com/repos/{organisation_name}/{repo_name}/code-security-configuration"
+        url = f"https://api.github.com/repos/{self.ORGANISATION}/{repo_name}/code-security-configuration"
         headers = {
             "Accept": "application/vnd.github+json",
-            "Authorization": f"token {token}",
+            "Authorization": f"token {self.GITHUB_TOKEN}",
             "X-GitHub-Api-Version": "2022-11-28"
         }
 
@@ -947,17 +943,17 @@ class audit_class:
 
         except requests.RequestException as e:
             print(f"Error checking security advisories for {repo_name}: {str(e)}")
-            dependabot_alerts_status = "disabled"
-            dependabot_alerts_setting = "not_set"
+            dependabot_alerts_status = "N/A"
+            dependabot_alerts_setting = "N/A"
 
         except json.JSONDecodeError as e:
             print(f"Error parsing JSON response: {str(e)}")
-            dependabot_alerts_status = "disabled"
-            dependabot_alerts_setting = "not_set"
+            dependabot_alerts_status = "N/A"
+            dependabot_alerts_setting = "N/A"
 
         return dependabot_alerts_status, dependabot_alerts_setting
 
-    def check_requirements_file_in_python_app(self, organisation_name, repo_name, token):
+    def check_requirements_file_in_python_app(self, repo_name):
         """
         Checks if 'requirements.txt' exists in a Python GitHub repo using GitHub API.
 
@@ -974,12 +970,12 @@ class audit_class:
 
         headers = {
             "Accept": "application/vnd.github+json",
-            "Authorization": f"token {token}"
+            "Authorization": f"token {self.GITHUB_TOKEN}"
         }
 
         try:
             # Check language of repo
-            lang_url = f"https://api.github.com/repos/{organisation_name}/{repo_name}/languages"
+            lang_url = f"https://api.github.com/repos/{self.ORGANISATION}/{repo_name}/languages"
             lang_response = requests.get(lang_url, headers=headers, timeout=10)
             lang_response.raise_for_status()
 
@@ -990,7 +986,7 @@ class audit_class:
                 return False
 
             # List contents of repo (root directory)
-            contents_url = f"https://api.github.com/repos/{organisation_name}/{repo_name}/contents"
+            contents_url = f"https://api.github.com/repos/{self.ORGANISATION}/{repo_name}/contents"
             contents_response = requests.get(contents_url, headers=headers)
             contents_response.raise_for_status()
 
@@ -1040,14 +1036,13 @@ class audit_class:
             raise AssertionError('List of apps and list of API jsons dont match')
 
         for app, dxapp_contents in zip(list_apps, list_of_json_contents):
-            organisation_name = app.get('organisation')
-            repo_name = app.get('repo_name')
-            token = app.get('token')
+            # print(app)
+            repo_name = app.get('name')
 
             # Get dependabot and requirements info
             dependabot_alerts_status, dependabot_alerts_setting = \
-                self.get_security_advisories(organisation_name, repo_name, token)
-            file_exists = self.check_requirements_file_in_python_app(organisation_name, repo_name, token)
+                self.get_security_advisories(repo_name)
+            file_exists = self.check_requirements_file_in_python_app(repo_name)
 
             # Check compliance
             df_repo, df_repo_details = self.check_file_compliance(app, dxapp_contents)

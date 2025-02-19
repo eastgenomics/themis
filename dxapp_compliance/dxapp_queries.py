@@ -1045,14 +1045,14 @@ class audit_class:
             token = app.get('token')
 
             # Get dependabot and requirements info
-            _, dependabot_alerts_status, dependabot_alerts_setting, _ = \
+            dependabot_alerts_status, dependabot_alerts_setting = \
                 self.get_security_advisories(organisation_name, repo_name, token)
-            file_exists, _, _ = self.check_requirements_file_in_python_app(organisation_name, repo_name, token)
+            file_exists = self.check_requirements_file_in_python_app(organisation_name, repo_name, token)
 
             # Check compliance
             df_repo, df_repo_details = self.check_file_compliance(app, dxapp_contents)
 
-            # Append security status and requirements file status
+            # Append security status and requirements
             df_repo['dependabot_alerts_status'] = dependabot_alerts_status
             df_repo['dependabot_alerts_setting'] = dependabot_alerts_setting
             df_repo['requirements_file_exists'] = file_exists

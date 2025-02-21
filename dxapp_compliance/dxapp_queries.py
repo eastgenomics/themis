@@ -959,9 +959,7 @@ class audit_class:
 
         Parameters
         ----------
-        organisation_name (str): Name of the organisation owning repo
         repo_name (str): Name of repo.
-        token (str): GitHub personal access token.
 
         Returns
         -------
@@ -994,17 +992,19 @@ class audit_class:
 
             # Search for 'requirements.txt' without case-sensitivity
             file_exists = any(
-                item['type'] == 'file' and 'requirements.txt' in item['name'].lower()
+                item['type'] == 'file' and 'requirements.txt' == item['name'].lower()
                 for item in contents
             )
 
+            print(file_exists)
+
         except requests.RequestException as e:
             print(f"Error checking file: {str(e)}")
-            file_exists = False
+            file_exists = "N/A"
 
         except json.JSONDecodeError as e:
             print(f"Error parsing API response: {str(e)}")
-            file_exists = False
+            file_exists = "N/A"
 
         return file_exists
 

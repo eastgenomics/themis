@@ -911,6 +911,9 @@ class audit_class:
     def get_security_advisories(self, repo_name):
         """
         Checks if security advisories have been enabled for the GitHub repo using GitHub API.
+        Security advisories are taken from the dependabot_alerts and dependabot_security_updates
+        fields in the github json following documentation in
+        https://docs.github.com/en/rest/code-security/configurations?apiVersion=2022-11-28#get-the-code-security-configuration-associated-with-a-repository
 
         Parameters
         ----------
@@ -921,7 +924,7 @@ class audit_class:
         -------
             dependabot_alerts_status (str):
                 Dependabot status alerts (e.g., "enabled" or "disabled").
-            dependabot_alerts_setting (str):
+            dependabot_security_status (str):
                 If dependabot alerts are set or not (e.g., "set" or "not_set").
         """
 
@@ -939,19 +942,19 @@ class audit_class:
             security_config = response.json()
 
             dependabot_alerts_status = security_config.get("configuration", {}).get("dependabot_alerts")
-            dependabot_alerts_setting = security_config.get("configuration", {}).get("dependabot_security_updates")
+            dependabot_security_status = security_config.get("configuration", {}).get("dependabot_security_updates")
 
         except requests.RequestException as e:
             print(f"Error checking security advisories for {repo_name}: {str(e)}")
             dependabot_alerts_status = "N/A"
-            dependabot_alerts_setting = "N/A"
+            dependabot_security_status = "N/A"
 
         except json.JSONDecodeError as e:
             print(f"Error parsing JSON response: {str(e)}")
             dependabot_alerts_status = "N/A"
-            dependabot_alerts_setting = "N/A"
+            dependabot_security_status = "N/A"
 
-        return dependabot_alerts_status, dependabot_alerts_setting
+        return dependabot_alerts_status, dependabot_security_status
 
     def check_requirements_file_in_python_app(self, repo_name):
         """
@@ -1036,11 +1039,10 @@ class audit_class:
             raise AssertionError('List of apps and list of API jsons dont match')
 
         for app, dxapp_contents in zip(list_apps, list_of_json_contents):
-            # print(app)
             repo_name = app.get('name')
 
             # Get dependabot and requirements info
-            dependabot_alerts_status, dependabot_alerts_setting = \
+            dependabot_alerts_status, dependabot_security_status = \
                 self.get_security_advisories(repo_name)
             file_exists = self.check_requirements_file_in_python_app(repo_name)
 
@@ -1049,11 +1051,11 @@ class audit_class:
 
             # Append security status and requirements
             df_repo['dependabot_alerts_status'] = dependabot_alerts_status
-            df_repo['dependabot_alerts_setting'] = dependabot_alerts_setting
+            df_repo['dependabot_security_status'] = dependabot_security_status
             df_repo['requirements_file_exists'] = file_exists
 
             df_repo_details['dependabot_alerts_status'] = dependabot_alerts_status
-            df_repo_details['dependabot_alerts_setting'] = dependabot_alerts_setting
+            df_repo_details['dependabot_security_status'] = dependabot_security_status
             df_repo_details['requirements_file_exists'] = file_exists
 
             # Concatenate dfs

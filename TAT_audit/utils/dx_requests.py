@@ -249,7 +249,7 @@ class DXFunctions():
                 f'_{assay_type}'
             )
             run_name_pattern = (
-                r'^002_(\d{6}_A\d{5}_\d{4}_[A-Za-z0-9]{10})(?:_(37|38))?_[A-Za-z0-9]{3,}$'
+                r'^002_(\d{6}_[A-Za-z]{1}\d{5}_\d{4}_[A-Za-z0-9]{10})(?:_(37|38))?_[A-Za-z0-9]{3,}$'
             )
             match = re.match(run_name_pattern, project_name)
             if match:

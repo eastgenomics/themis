@@ -1,6 +1,7 @@
 import dxpy as dx
 import logging
 import Levenshtein
+import re
 import sys
 import time
 
@@ -247,7 +248,17 @@ class DXFunctions():
             run_name = project_name.removeprefix('002_').removesuffix(
                 f'_{assay_type}'
             )
-
+            run_name_pattern = (
+                r'^002_(\d{6}_A\d{5}_\d{4}_[A-Za-z0-9]{10})(?:_(37|38))?_[A-Za-z0-9]{3,}$'
+            )
+            match = re.match(run_name_pattern, project_name)
+            if match:
+                run_name = match.group(1) # select the first group in the regex
+            else:
+                logger.error(
+                    f"Project name {project_name} does not match the expected"
+                    " pattern for a run name"
+                )
             # Check if the date of the run is within audit dates
             # because 002 project may have been made after actual run date
             # Don't capture 002_vaf_checks project for checking VAF
@@ -258,6 +269,7 @@ class DXFunctions():
                 and first_part_of_name != "vaf"
             ):
                 # Add in DX project ID and assay type to dict
+
                 run_dict[run_name]['project_id'] = project['id']
                 run_dict[run_name]['assay_type'] = assay_type
 

@@ -217,7 +217,7 @@ class DXFunctions():
         self, projects_dx_response, audit_start_obj, audit_end_obj
     ):
         """
-        Add run name, DX project ID and assay type for each run to dict
+        Add run name, DX project ID and assay type for each run to dict.
 
         Parameters
         ----------
@@ -245,9 +245,7 @@ class DXFunctions():
         for project in projects_dx_response:
             project_name = project['describe']['name']
             assay_type = project_name.split('_')[-1]
-            run_name = project_name.removeprefix('002_').removesuffix(
-                f'_{assay_type}'
-            )
+
             run_name_pattern = (
                 r'^002_(\d{6}_[A-Za-z]{1}\d{5}_\d{4}_[A-Za-z0-9]{10})(?:_(37|38))?_[A-Za-z0-9]{3,}$'
             )

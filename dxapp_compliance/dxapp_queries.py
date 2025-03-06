@@ -1097,7 +1097,7 @@ class audit_class:
             'no_manual_compiling',
             'dxapp_boolean',
             'eggd_name_boolean',
-            'eggd_title_boolean',
+            'eggd_title_boolean'
         ]]
         columns_summed = []
         new_col_names = {
@@ -1164,6 +1164,8 @@ class audit_class:
             'eggd_name_boolean': 'eggd_ name',
             'eggd_title_boolean': 'eggd_ title',
             'latest_commit_date': 'Last Commit',
+            'dependabot_alerts_status' : 'dependabot alerts',
+            'dependabot_security_status' : 'dependabot security'
         }, inplace=True)
 
         detailed_df = detailed_df.rename(columns={
@@ -1181,6 +1183,8 @@ class audit_class:
             'last_release_date': 'Last Release',
             'latest_commit_date': 'Last Commit',
             'timeout_setting': 'Timeout Setting',
+            'dependabot_alerts_status' : 'dependabot alerts',
+            'dependabot_security_status' : 'dependabot security'
         })
 
         compliance_df.drop(columns=['dxapp_boolean', 'timeout_setting',

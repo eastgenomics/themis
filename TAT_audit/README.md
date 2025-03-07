@@ -18,7 +18,8 @@ JIRA_EMAIL=<redacted, str>
 JIRA_TOKEN=<redacted, str>
 STAGING_AREA_PROJ_ID=<redacted, str>
 DEFAULT_MONTHS=3
-ASSAYS='["CEN", "MYE", "TSO500", "TWE"]'
+TAT_STANDARD_DAYS=3
+ASSAYS='["CEN", "MYE", "TSO500", "TWE", "37_CEN", "37_TWE", "38_CEN", "38_TWE"]'
 CANCELLED_STATUSES='["Data cannot be processed", "Data cannot be released", "Data not received"]'
 OPEN_STATUSES='["New", "Data Received", "Data processed", "On hold", "Urgent samples released"]'
 LAST_JOBS='{"TWE": "eggd_generate_variant_workbook", "CEN": "eggd_artemis", "MYE": "eggd_MultiQC", "TSO500": "eggd_MultiQC"}'
@@ -58,6 +59,14 @@ The script also:
     - The 002 project name and the Staging Area run folder name
 
 ## Local usage
+
+### Setup eviroment variables
+```
+set -o allexport
+source <env-file.env>
+set +o allexport
+```
+### Run the script
 Run the script to query the last X months (`DEFAULT_MONTHS`) from today with:
 
 ```
@@ -95,7 +104,10 @@ An additional script (`run.sh`) has been written to wrap the above and push the 
 ```
 SLACK_TOKEN=<redacted>
 SLACK_CHANNEL=<redacted>
-TAT_STANDARD_DAYS=3
+HTTP_PROXY=http://xxxx
+HTTPS_PROXY=http://xxxx
+https_proxy=http://xxxx
+http_proxy=http://xxxx
 ```
 
 This can be run with `docker run --env-file tat_credentials.env /bin/bash run.sh 21 1`, which would audit the previous 3 weeks and push both the HTML and CSV output to the specified Slack channel. The only inputs are the number of days ago to start auditing from, and number of days ago to audit until.

@@ -77,6 +77,14 @@ For this, we check the src file using regex for any `set -e` or set -e derivativ
 
 A HTML file is then created, which has interactive datatables for viewing complaince for each app and interactive plots.
 
+- **Dependabot security configurations are enabled**
+
+For this, we check the security advisories have been enabled for the GitHub repo using GitHub CLI
+
+- **Checks if 'requirements.txt' exists**
+
+A check for 'requirements.txt' exists in a Python GitHub repo using GitHub CLI (case insensitive).
+
 ## **Running**
 
 Change directory to dxapp_compliance

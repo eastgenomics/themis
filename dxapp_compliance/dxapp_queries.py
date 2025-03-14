@@ -819,7 +819,7 @@ class audit_class:
         # Set the total performa checks for each app/applet
 
         checks_df['total_performa'] = checks_df['interpreter'].apply(
-            lambda x: 10 if 'bash' in x else 7)
+            lambda x: 12 if 'bash' in x else 10)
         # Find the number of performa checks passed for each app/applet
         checks_df['compliance_count'] = (checks_df == True).T.sum()
         score_data = round(
@@ -926,6 +926,10 @@ class audit_class:
                 Dependabot status alerts (e.g., "enabled" or "disabled").
             dependabot_security_status (str):
                 If dependabot alerts are set or not (e.g., "set" or "not_set").
+            dependabot_alerts_enabled (bool):
+                True if dependabot alerts are enabled, False otherwise.
+            dependabot_security_updates_set (bool):
+                True if dependabot security updates are set, False otherwise.
         """
 
         url = f"https://api.github.com/repos/{self.ORGANISATION}/{repo_name}/code-security-configuration"
@@ -941,8 +945,8 @@ class audit_class:
 
             security_config = response.json()
 
-            dependabot_alerts_status = security_config.get("configuration", {}).get("dependabot_alerts")
-            dependabot_security_status = security_config.get("configuration", {}).get("dependabot_security_updates")
+            dependabot_alerts_status = security_config.get("configuration", {}).get("dependabot_alerts", "N/A")
+            dependabot_security_status = security_config.get("configuration", {}).get("dependabot_security_updates", "N/A")
 
         except requests.RequestException as e:
             print(f"Error checking security advisories for {repo_name}: {str(e)}")
@@ -954,7 +958,15 @@ class audit_class:
             dependabot_alerts_status = "N/A"
             dependabot_security_status = "N/A"
 
-        return dependabot_alerts_status, dependabot_security_status
+        # Create boolean variables based on the string status
+        dependabot_alerts_enabled = (dependabot_alerts_status == "enabled")
+        dependabot_security_updates_set = (dependabot_security_status == "set")
+
+        return (dependabot_alerts_status,
+                dependabot_security_status,
+                dependabot_alerts_enabled,
+                dependabot_security_updates_set)
+
 
     def check_requirements_file_in_python_app(self, repo_name):
         """
@@ -1042,7 +1054,7 @@ class audit_class:
             repo_name = app.get('name')
 
             # Get dependabot and requirements info
-            dependabot_alerts_status, dependabot_security_status = \
+            dependabot_alerts_status, dependabot_security_status, dependabot_alerts_enabled, dependabot_security_updates_set = \
                 self.get_security_advisories(repo_name)
             file_exists = self.check_requirements_file_in_python_app(repo_name)
 
@@ -1050,12 +1062,12 @@ class audit_class:
             df_repo, df_repo_details = self.check_file_compliance(app, dxapp_contents)
 
             # Append security status and requirements
-            df_repo['dependabot_alerts_status'] = dependabot_alerts_status
-            df_repo['dependabot_security_status'] = dependabot_security_status
+            df_repo['dependabot_alerts_status'] = dependabot_alerts_enabled
+            df_repo['dependabot_security_status'] = dependabot_security_updates_set
             df_repo['requirements_file_exists'] = file_exists
 
-            df_repo_details['dependabot_alerts_status'] = dependabot_alerts_status
-            df_repo_details['dependabot_security_status'] = dependabot_security_status
+            df_repo_details['dependabot_alerts_status'] = dependabot_alerts_enabled
+            df_repo_details['dependabot_security_status'] = dependabot_security_updates_set
             df_repo_details['requirements_file_exists'] = file_exists
 
             # Concatenate dfs
@@ -1087,7 +1099,7 @@ class audit_class:
             summary_df:
                 dataframe of compliance scores for each performa.
         """
-        df = df[[
+        available_columns = [
             'authorised_users',
             'authorised_devs',
             'uptodate_ubuntu',
@@ -1097,8 +1109,15 @@ class audit_class:
             'no_manual_compiling',
             'dxapp_boolean',
             'eggd_name_boolean',
-            'eggd_title_boolean'
-        ]]
+            'eggd_title_boolean',
+            'dependabot_alerts_status',
+            'dependabot_security_status',
+            'requirements_file_exists'
+        ]
+
+        # Filter the DataFrame to include only the columns that are actually present
+        df = df[[col for col in available_columns if col in df.columns]]
+
         columns_summed = []
         new_col_names = {
             'authorised_users': 'Auth Users',
@@ -1111,22 +1130,28 @@ class audit_class:
             'dxapp_boolean': 'DNAnexus App',
             'eggd_name_boolean': 'eggd_ name',
             'eggd_title_boolean': 'eggd_ title',
+            'dependabot_alerts_status': 'Dependabot alerts set',
+            'dependabot_security_status': 'Dependabot security set',
+            'requirements_file_exists': 'Requirements file exists'
         }
-        for column in df:
-            # Get number of true and false values for compliance measures
-            no_true = len(df.query(f'{column} == True'))
-            no_false = len(df.query(f'{column} == False'))
 
-            complaince_stats = {
-                'Name': new_col_names[column],
+        for column in df.columns:
+            # Get number of true and false values for compliance measures
+            no_true = len(df[df[column] == True])
+            no_false = len(df[df[column] == False])
+
+            compliance_stats = {
+                'Name': new_col_names.get(column, column),
                 'No. Compliant / Total': f"{no_true}/{no_true + no_false}",
                 'Compliance %': round((no_true / (no_true + no_false))*100, 2)
             }
-            columns_summed.append(complaince_stats)
+            columns_summed.append(compliance_stats)
+
         summary_df = pd.DataFrame(columns_summed)
         summary_df = summary_df.sort_values(by=['Compliance %'])
 
         return summary_df
+
 
     def compliance_df_format(self, compliance_df, detailed_df):
         """
@@ -1164,8 +1189,8 @@ class audit_class:
             'eggd_name_boolean': 'eggd_ name',
             'eggd_title_boolean': 'eggd_ title',
             'latest_commit_date': 'Last Commit',
-            'dependabot_alerts_status' : 'dependabot alerts',
-            'dependabot_security_status' : 'dependabot security'
+            'dependabot_alerts_status' : 'Dependabot alerts',
+            'dependabot_security_status' : 'Dependabot security'
         }, inplace=True)
 
         detailed_df = detailed_df.rename(columns={
@@ -1183,8 +1208,8 @@ class audit_class:
             'last_release_date': 'Last Release',
             'latest_commit_date': 'Last Commit',
             'timeout_setting': 'Timeout Setting',
-            'dependabot_alerts_status' : 'dependabot alerts',
-            'dependabot_security_status' : 'dependabot security'
+            'dependabot_alerts_status' : 'Dependabot alerts',
+            'dependabot_security_status' : 'Dependabot security'
         })
 
         compliance_df.drop(columns=['dxapp_boolean', 'timeout_setting',

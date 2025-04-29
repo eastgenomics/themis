@@ -57,7 +57,13 @@ class Arguments():
             self.assay_types,
             self.cancelled_statuses,
             self.open_statuses,
-            self.last_jobs
+            self.last_jobs,
+            self.jira_base_url,
+            self.testing_jira_base_url,
+            self.open_sequencing_run_queue_id,
+            self.open_sequencing_run_queue_id_testing,
+            self.closed_sequencing_run_queue_id,
+            self.closed_sequencing_run_queue_id_testing
         ) = self.load_credential_info()
         (
             self.audit_start,
@@ -113,6 +119,15 @@ class Arguments():
             )
         )
 
+        parser.add_argument(
+            '--testing',
+            action='store_true',
+            help=(
+                'For testing using the development service desk'
+                ' rather than the production helpdesk.'
+            )
+        )
+
         return parser.parse_args()
 
     def load_credential_info(self):
@@ -143,25 +158,48 @@ class Arguments():
             processed
         last_jobs : dict
             dict representing the name of the last job to find for each assay
+        jira_base_url : str
+            the base URL for the JIRA rest API
+        testing_jira_base_url : str
+            the base URL for testing the JIRA rest API
+            using the development service desk.
+        open_sequencing_run_queue_id : int
+            the ID of the open sequencing run queue in JIRA
+        open_sequencing_run_queue_id_testing : int
+            the ID of the open sequencing run queue in JIRA for testing
+        closed_sequencing_run_queue_id : int
+            the ID of the closed sequencing run queue in JIRA
+        closed_sequencing_run_queue_id_testing : int
+            the ID of the closed sequencing run queue in JIRA for testing
         """
         # The keys to obtain from the credentials.json file
         keys = [
             'DX_TOKEN', 'JIRA_EMAIL', 'JIRA_TOKEN', 'STAGING_AREA_PROJ_ID',
             'DEFAULT_MONTHS', 'TAT_STANDARD_DAYS', 'ASSAYS',
-            'CANCELLED_STATUSES', 'OPEN_STATUSES', 'LAST_JOBS'
+            'CANCELLED_STATUSES', 'OPEN_STATUSES', 'LAST_JOBS',
+            'JIRA_BASE_URL', 'TESTING_JIRA_BASE_URL',
+            'OPEN_SEQUENCING_RUN_QUEUE_ID',
+            'OPEN_SEQUENCING_RUN_QUEUE_ID_TESTING',
+            'CLOSED_SEQUENCING_RUN_QUEUE_ID',
+            'CLOSED_SEQUENCING_RUN_QUEUE_ID_TESTING'
         ]
 
         (
             dx_token, jira_email, jira_token, staging_proj_id,
             default_months, tat_standard, assay_types, cancelled_statuses,
-            open_statuses, last_jobs
+            open_statuses, last_jobs, jira_base_url, testing_jira_base_url,
+            open_sequencing_run_queue_id, open_sequencing_run_queue_id_testing,
+            closed_sequencing_run_queue_id, closed_sequencing_run_queue_id_testing
         ) = list(map(os.environ.get, keys))
 
         # Check all are present
+
         if not all([
-            dx_token, jira_email, jira_token, staging_proj_id, default_months,
-            tat_standard, assay_types, cancelled_statuses, open_statuses,
-            last_jobs
+            dx_token, jira_email, jira_token, staging_proj_id,
+            default_months, tat_standard, assay_types, cancelled_statuses,
+            open_statuses, last_jobs, jira_base_url, testing_jira_base_url,
+            open_sequencing_run_queue_id, open_sequencing_run_queue_id_testing,
+            closed_sequencing_run_queue_id, closed_sequencing_run_queue_id_testing
         ]):
             logger.error(
                 "Required credentials could not be parsed from the env"
@@ -181,7 +219,9 @@ class Arguments():
         return (
             dx_token, jira_email, jira_token, staging_proj_id, default_months,
             int(tat_standard), assay_types, cancelled_statuses,
-            open_statuses, last_jobs
+            open_statuses, last_jobs, jira_base_url, testing_jira_base_url,
+            open_sequencing_run_queue_id, open_sequencing_run_queue_id_testing,
+            closed_sequencing_run_queue_id, closed_sequencing_run_queue_id_testing
         )
 
     def determine_start_and_end_date(self):
@@ -301,21 +341,56 @@ def main():
     # Initialise JiraFunctions class with required email and token
     # Get info from JIRA from the closed sequencing run queue and open
     # sequencing run queue
-    jira_info = JiraFunctions(
-        inputs.jira_email,
-        inputs.jira_token,
-        inputs.assay_types,
-        inputs.cancelled_statuses,
-        inputs.audit_start_obj,
-        inputs.audit_end_obj,
-        inputs.open_statuses,
-        inputs.five_days_before_start,
-        inputs.five_days_after
-    )
-    jira_closed_queue_tickets = jira_info.query_jira_tickets_in_queue(35)
-    jira_open_queue_tickets = jira_info.query_jira_tickets_in_queue(34)
+    if inputs.args.testing:
+        logger.info(
+            "Using testing JIRA base URL and open/closed sequencing run queue"
+        )
+        jira_info = JiraFunctions(
+            jira_base_url=inputs.testing_jira_base_url,
+            jira_email=inputs.jira_email,
+            jira_token=inputs.jira_token,
+            assay_types=inputs.assay_types,
+            cancelled_statuses=inputs.cancelled_statuses,
+            audit_start_obj=inputs.audit_start_obj,
+            audit_end_obj=inputs.audit_end_obj,
+            open_statuses=inputs.open_statuses,
+            five_days_before_start=inputs.five_days_before_start,
+            five_days_after=inputs.five_days_after,
+            open_sequencing_run_queue_id=inputs.open_sequencing_run_queue_id_testing,
+            closed_sequencing_run_queue_id=inputs.closed_sequencing_run_queue_id_testing
+        )
+    else:
+        jira_info = JiraFunctions(
+            jira_base_url=inputs.jira_base_url,
+            jira_email=inputs.jira_email,
+            jira_token=inputs.jira_token,
+            assay_types=inputs.assay_types,
+            cancelled_statuses=inputs.cancelled_statuses,
+            audit_start_obj=inputs.audit_start_obj,
+            audit_end_obj=inputs.audit_end_obj,
+            open_statuses=inputs.open_statuses,
+            five_days_before_start=inputs.five_days_before_start,
+            five_days_after=inputs.five_days_after,
+            open_sequencing_run_queue_id=inputs.open_sequencing_run_queue_id,
+            closed_sequencing_run_queue_id=inputs.closed_sequencing_run_queue_id
+        )
+    # Get all the tickets in the closed and open sequencing run queues
+    if inputs.args.testing:
+        jira_closed_queue_tickets = jira_info.query_jira_tickets_in_queue(
+            inputs.closed_sequencing_run_queue_id_testing
+        )
+        jira_open_queue_tickets = jira_info.query_jira_tickets_in_queue(
+            inputs.open_sequencing_run_queue_id_testing
+        )
+    else:
+        jira_closed_queue_tickets = jira_info.query_jira_tickets_in_queue(
+            inputs.closed_sequencing_run_queue_id
+        )
+        jira_open_queue_tickets = jira_info.query_jira_tickets_in_queue(
+            inputs.open_sequencing_run_queue_id
+        )
     all_jira_tickets = jira_closed_queue_tickets + jira_open_queue_tickets
-
+    logger.info(all_jira_tickets)
     # Create dict of jira tickets
     jira_ticket_dict = jira_info.create_jira_info_dict(all_jira_tickets)
 
@@ -327,12 +402,14 @@ def main():
     projects_002_dict = jira_info.add_transition_times(
         projects_002_dict
     )
+    logger.info(projects_002_dict)
 
     # Add final job
     projects_002_dict = DXFunctions().add_last_job_time(
         projects_002_dict,
         inputs.last_jobs
     )
+    logger.info(projects_002_dict)
 
     # Initialise GeneralFunctions class with inputs
     general_functions = GeneralFunctions(
@@ -378,6 +455,8 @@ def main():
             assay_frac,
             assay_compl,
         ) = general_functions.create_assay_objects(run_df, assay)
+        if assay == "CEN":
+            logger.info(assay_df)
         assay_fig, assay_upload_fig = plotting_functions.create_both_figures(
             assay_df, assay
         )

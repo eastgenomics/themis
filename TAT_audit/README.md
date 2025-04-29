@@ -113,3 +113,7 @@ http_proxy=http://xxxx
 ```
 
 This can be run with `docker run --env-file tat_credentials.env /bin/bash run.sh 21 1`, which would audit the previous 3 weeks and push both the HTML and CSV output to the specified Slack channel. The only inputs are the number of days ago to start auditing from, and number of days ago to audit until.
+
+## Development
+Themis can be tested by running with production credentials and the normal cmd as suggested above. However, it can also be run in testing mode using the `--testing` flag. This will run the script with the test Jira API endpoints, which are set in the `.env` file.
+This allows creating testing tickets on the development helpdesk and test projects in DNAnexus rather than relying on production data.

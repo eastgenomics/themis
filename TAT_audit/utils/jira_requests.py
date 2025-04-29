@@ -485,7 +485,7 @@ class JiraFunctions():
         for run_name, run_info in run_dict.items():
             ticket_id = run_info.get('ticket_id')
             if ticket_id:
-                print(
+                logger.debug(
                     f"Getting transition times for ticket {ticket_id} "
                     f"for run {run_name}"
                 )

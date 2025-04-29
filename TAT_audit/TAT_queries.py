@@ -55,6 +55,7 @@ class Arguments():
             self.default_months,
             self.tat_standard,
             self.assay_types,
+            self.report_assays,
             self.cancelled_statuses,
             self.open_statuses,
             self.last_jobs,
@@ -175,7 +176,7 @@ class Arguments():
         # The keys to obtain from the credentials.json file
         keys = [
             'DX_TOKEN', 'JIRA_EMAIL', 'JIRA_TOKEN', 'STAGING_AREA_PROJ_ID',
-            'DEFAULT_MONTHS', 'TAT_STANDARD_DAYS', 'ASSAYS',
+            'DEFAULT_MONTHS', 'TAT_STANDARD_DAYS', 'ASSAYS', 'REPORT_ASSAYS',
             'CANCELLED_STATUSES', 'OPEN_STATUSES', 'LAST_JOBS',
             'JIRA_BASE_URL', 'TESTING_JIRA_BASE_URL',
             'OPEN_SEQUENCING_RUN_QUEUE_ID',
@@ -185,8 +186,8 @@ class Arguments():
         ]
 
         (
-            dx_token, jira_email, jira_token, staging_proj_id,
-            default_months, tat_standard, assay_types, cancelled_statuses,
+            dx_token, jira_email, jira_token, staging_proj_id, default_months,
+            tat_standard, assay_types, report_assays, cancelled_statuses,
             open_statuses, last_jobs, jira_base_url, testing_jira_base_url,
             open_sequencing_run_queue_id, open_sequencing_run_queue_id_testing,
             closed_sequencing_run_queue_id, closed_sequencing_run_queue_id_testing
@@ -195,8 +196,8 @@ class Arguments():
         # Check all are present
 
         if not all([
-            dx_token, jira_email, jira_token, staging_proj_id,
-            default_months, tat_standard, assay_types, cancelled_statuses,
+            dx_token, jira_email, jira_token, staging_proj_id, default_months,
+            tat_standard, assay_types, report_assays, cancelled_statuses,
             open_statuses, last_jobs, jira_base_url, testing_jira_base_url,
             open_sequencing_run_queue_id, open_sequencing_run_queue_id_testing,
             closed_sequencing_run_queue_id, closed_sequencing_run_queue_id_testing
@@ -218,7 +219,7 @@ class Arguments():
 
         return (
             dx_token, jira_email, jira_token, staging_proj_id, default_months,
-            int(tat_standard), assay_types, cancelled_statuses,
+            int(tat_standard), assay_types, report_assays, cancelled_statuses,
             open_statuses, last_jobs, jira_base_url, testing_jira_base_url,
             open_sequencing_run_queue_id, open_sequencing_run_queue_id_testing,
             closed_sequencing_run_queue_id, closed_sequencing_run_queue_id_testing
@@ -446,7 +447,7 @@ def main():
     )
 
     fig_info_dict = defaultdict(dict)
-    for assay in inputs.assay_types:
+    for assay in inputs.report_assays:
         (
             assay_df,
             assay_stats,

@@ -216,7 +216,7 @@ class Arguments():
         cancelled_statuses = literal_eval(cancelled_statuses.strip("'"))
         open_statuses = literal_eval(open_statuses.strip("'"))
         last_jobs = literal_eval(last_jobs.strip("'"))
-
+        report_assays = literal_eval(report_assays.strip("'"))
         return (
             dx_token, jira_email, jira_token, staging_proj_id, default_months,
             int(tat_standard), assay_types, report_assays, cancelled_statuses,

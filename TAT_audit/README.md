@@ -25,6 +25,10 @@ OPEN_STATUSES='["New", "Data Received", "Data processed", "On hold", "Urgent sam
 LAST_JOBS='{"TWE": "eggd_generate_variant_workbook", "CEN": "eggd_artemis", "MYE": "eggd_MultiQC", "TSO500": "eggd_MultiQC"}'
 JIRA_BASE_URL='https://org.atlassian.net/rest/servicedeskapi/servicedesk/X/' where X is an integer.
 TESTING_JIRA_BASE_URL='https://org.atlassian.net/rest/servicedeskapi/servicedesk/X/' where X is an integer.
+OPEN_SEQUENCING_RUN_QUEUE_ID=X
+OPEN_SEQUENCING_RUN_QUEUE_ID_TESTING=X
+CLOSED_SEQUENCING_RUN_QUEUE_ID=X
+CLOSED_SEQUENCING_RUN_QUEUE_ID_TESTING=X
 ```
 If no start and end dates are supplied as command line arguments, the `DEFAULT_MONTHS` variable will be used to determine the previous number of months to audit from the date the script is run.
 

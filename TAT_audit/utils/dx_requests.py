@@ -33,6 +33,7 @@ class DXFunctions():
     """
     Functions for searching in DNAnexus
     """
+
     def login(self, dx_token) -> None:
         """
         Logs into DNAnexus
@@ -251,7 +252,8 @@ class DXFunctions():
             )
             match = re.match(run_name_pattern, project_name)
             if match:
-                run_name = match.group(1) # select the first group in the regex
+                # select the first group in the regex
+                run_name = match.group(1)
                 logger.debug("Run name: %s", run_name)
             else:
                 logger.error(

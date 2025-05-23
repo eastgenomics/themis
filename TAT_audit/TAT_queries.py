@@ -45,6 +45,7 @@ class Arguments():
     """
     Functions for handling and parsing command line arguments
     """
+
     def __init__(self):
         self.args = self.parse_args()
         (
@@ -391,7 +392,7 @@ def main():
             inputs.open_sequencing_run_queue_id
         )
     all_jira_tickets = jira_closed_queue_tickets + jira_open_queue_tickets
-    logger.info(all_jira_tickets)
+    logger.debug(all_jira_tickets)
     # Create dict of jira tickets
     jira_ticket_dict = jira_info.create_jira_info_dict(all_jira_tickets)
 
@@ -403,14 +404,12 @@ def main():
     projects_002_dict = jira_info.add_transition_times(
         projects_002_dict
     )
-    logger.info(projects_002_dict)
 
     # Add final job
     projects_002_dict = DXFunctions().add_last_job_time(
         projects_002_dict,
         inputs.last_jobs
     )
-    logger.info(projects_002_dict)
 
     # Initialise GeneralFunctions class with inputs
     general_functions = GeneralFunctions(
@@ -456,8 +455,7 @@ def main():
             assay_frac,
             assay_compl,
         ) = general_functions.create_assay_objects(run_df, assay)
-        if assay == "CEN":
-            logger.info(assay_df)
+
         assay_fig, assay_upload_fig = plotting_functions.create_both_figures(
             assay_df, assay
         )

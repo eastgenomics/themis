@@ -34,6 +34,7 @@ class JiraFunctions():
     """
     Methods for handling Jira things
     """
+
     def __init__(
         self, jira_base_url, jira_email, jira_token, assay_types, cancelled_statuses,
         audit_start_obj, audit_end_obj, open_statuses, five_days_before_start,
@@ -218,7 +219,7 @@ class JiraFunctions():
                     self.five_days_before_start, '%Y-%m-%d'
                 ))
                 and (date_time_created <= dt.datetime.strptime(
-                   self.five_days_after, '%Y-%m-%d'
+                    self.five_days_after, '%Y-%m-%d'
                 ))
             ):
                 jira_run_dict[ticket_name]['ticket_key'] = issue['key']

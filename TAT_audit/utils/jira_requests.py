@@ -127,8 +127,8 @@ class JiraFunctions():
             headers=self.headers,
             auth=self.auth
         )
-        logger.info(f"Jira response: {log_response.status_code}")
-        logger.info(f"Jira response: {log_response.text}")
+        logger.debug(f"Jira response: {log_response.status_code}")
+        logger.debug(f"Jira response: {log_response.text}")
         change_info = json.loads(log_response.text)['values']
 
         # Loop over changes, get times the ticket changed to that status
@@ -201,12 +201,12 @@ class JiraFunctions():
 
             # Get assay type info
             assay_type_field = issue.get('fields').get('customfield_10070')
-            logger.info(issue.get('fields'))
+            logger.debug(issue.get('fields'))
             if assay_type_field:
                 assay_type = assay_type_field[0].get('value')
             else:
                 assay_type = 'Unknown'
-                logger.info(
+                logger.debug(
                     f"Assay type not found for ticket {ticket_name} - "
                     f"assay type set to Unknown as {assay_type_field}")
 
@@ -236,7 +236,6 @@ class JiraFunctions():
         print(
             f"Found {len(jira_run_dict)} Jira tickets within the audit "
             "period (plus a 5 day buffer)")
-        logger.info(f"jira_run_dict: {jira_run_dict}")
         return jira_run_dict
 
     def get_closest_match_in_dict(self, ticket_name, run_dict):
@@ -494,7 +493,6 @@ class JiraFunctions():
 
                 # Add the dict to the changelog key
                 run_dict[run_name]['change_log'] = change_log
-                logger.info(change_log)
                 # If ticket is at 'All samples released' add the resolved time
                 jira_resolved = change_log.get('All samples released')
                 if jira_resolved:

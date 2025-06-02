@@ -45,6 +45,7 @@ class Arguments():
     """
     Functions for handling and parsing command line arguments
     """
+
     def __init__(self):
         self.args = self.parse_args()
         (
@@ -55,10 +56,14 @@ class Arguments():
             self.default_months,
             self.tat_standard,
             self.assay_types,
+            self.report_assays,
             self.cancelled_statuses,
             self.open_statuses,
-            self.last_jobs
-        ) = self.load_credential_info()
+            self.last_jobs,
+            self.jira_base_url,
+            self.open_sequencing_run_queue_id,
+            self.closed_sequencing_run_queue_id,
+        ) = self.load_credential_info(args=self.args)
         (
             self.audit_start,
             self.audit_end,
@@ -113,11 +118,33 @@ class Arguments():
             )
         )
 
+        parser.add_argument(
+            '--testing',
+            action='store_true',
+            help=(
+                'For testing using the development service desk'
+                ' rather than the production helpdesk.'
+            )
+        )
+
         return parser.parse_args()
 
-    def load_credential_info(self):
+    def load_credential_info(self, args):
         """
         Load the tokens and Jira email from the credentials.json file
+        and return them as a tuple. Also loads the staging project ID,
+        default months to audit, TAT standard, assay types, cancelled
+        statuses, open statuses, last jobs, Jira base URL, testing Jira base
+        URL, open sequencing run queue ID and closed sequencing run queue ID.
+
+        Parameters
+        ----------
+        args : Namespace
+            Namespace of passed command line argument inputs
+        If testing is True, will load the testing Jira base URL and open/closed
+        sequencing run queue IDs, otherwise will load the production ones.
+        If testing is False, will load the production Jira base URL and
+        open/closed sequencing run queue IDs.
 
         Returns
         -------
@@ -143,25 +170,55 @@ class Arguments():
             processed
         last_jobs : dict
             dict representing the name of the last job to find for each assay
+        jira_base_url : str
+            the base URL for the JIRA rest API. If testing is True,
+            this will be the testing JIRA base URL, otherwise it will be the
+            production JIRA base URL.
+        open_sequencing_run_queue_id : int
+            the ID of the open sequencing run queue in JIRA. If testing is True,
+            this will be the ID for the testing JIRA, otherwise it will be the
+            ID for the production JIRA.
+        closed_sequencing_run_queue_id : int
+            the ID of the closed sequencing run queue in JIRA. If testing is True,
+            this will be the ID for the testing JIRA, otherwise it will be the
+            ID for the production JIRA.
         """
-        # The keys to obtain from the credentials.json file
-        keys = [
+        if args.testing:
+            logger.info(
+            "Using testing JIRA base URL and open/closed sequencing run queue"
+            )
+            keys = [
             'DX_TOKEN', 'JIRA_EMAIL', 'JIRA_TOKEN', 'STAGING_AREA_PROJ_ID',
-            'DEFAULT_MONTHS', 'TAT_STANDARD_DAYS', 'ASSAYS',
-            'CANCELLED_STATUSES', 'OPEN_STATUSES', 'LAST_JOBS'
-        ]
+            'DEFAULT_MONTHS', 'TAT_STANDARD_DAYS', 'ASSAYS', 'REPORT_ASSAYS',
+            'CANCELLED_STATUSES', 'OPEN_STATUSES', 'LAST_JOBS',
+            'TESTING_JIRA_BASE_URL',
+            'OPEN_SEQUENCING_RUN_QUEUE_ID_TESTING',
+            'CLOSED_SEQUENCING_RUN_QUEUE_ID_TESTING'
+            ]
+        else:
+            # The keys to obtain from the credentials.json file
+            keys = [
+                'DX_TOKEN', 'JIRA_EMAIL', 'JIRA_TOKEN', 'STAGING_AREA_PROJ_ID',
+                'DEFAULT_MONTHS', 'TAT_STANDARD_DAYS', 'ASSAYS', 'REPORT_ASSAYS',
+                'CANCELLED_STATUSES', 'OPEN_STATUSES', 'LAST_JOBS',
+                'JIRA_BASE_URL',
+                'OPEN_SEQUENCING_RUN_QUEUE_ID',
+                'CLOSED_SEQUENCING_RUN_QUEUE_ID',
+            ]
 
         (
-            dx_token, jira_email, jira_token, staging_proj_id,
-            default_months, tat_standard, assay_types, cancelled_statuses,
-            open_statuses, last_jobs
+            dx_token, jira_email, jira_token, staging_proj_id, default_months,
+            tat_standard, assay_types, report_assays, cancelled_statuses,
+            open_statuses, last_jobs, jira_base_url,
+            open_sequencing_run_queue_id, closed_sequencing_run_queue_id
         ) = list(map(os.environ.get, keys))
 
         # Check all are present
         if not all([
             dx_token, jira_email, jira_token, staging_proj_id, default_months,
-            tat_standard, assay_types, cancelled_statuses, open_statuses,
-            last_jobs
+            tat_standard, assay_types, report_assays, cancelled_statuses,
+            open_statuses, last_jobs, jira_base_url,
+            open_sequencing_run_queue_id, closed_sequencing_run_queue_id
         ]):
             logger.error(
                 "Required credentials could not be parsed from the env"
@@ -177,11 +234,12 @@ class Arguments():
         cancelled_statuses = literal_eval(cancelled_statuses.strip("'"))
         open_statuses = literal_eval(open_statuses.strip("'"))
         last_jobs = literal_eval(last_jobs.strip("'"))
-
+        report_assays = literal_eval(report_assays.strip("'"))
         return (
             dx_token, jira_email, jira_token, staging_proj_id, default_months,
-            int(tat_standard), assay_types, cancelled_statuses,
-            open_statuses, last_jobs
+            int(tat_standard), assay_types, report_assays, cancelled_statuses,
+            open_statuses, last_jobs, jira_base_url,
+            open_sequencing_run_queue_id, closed_sequencing_run_queue_id
         )
 
     def determine_start_and_end_date(self):
@@ -301,21 +359,33 @@ def main():
     # Initialise JiraFunctions class with required email and token
     # Get info from JIRA from the closed sequencing run queue and open
     # sequencing run queue
-    jira_info = JiraFunctions(
-        inputs.jira_email,
-        inputs.jira_token,
-        inputs.assay_types,
-        inputs.cancelled_statuses,
-        inputs.audit_start_obj,
-        inputs.audit_end_obj,
-        inputs.open_statuses,
-        inputs.five_days_before_start,
-        inputs.five_days_after
-    )
-    jira_closed_queue_tickets = jira_info.query_jira_tickets_in_queue(35)
-    jira_open_queue_tickets = jira_info.query_jira_tickets_in_queue(34)
-    all_jira_tickets = jira_closed_queue_tickets + jira_open_queue_tickets
+    open_sequencing_run_queue_id = inputs.open_sequencing_run_queue_id
+    closed_sequencing_run_queue_id = inputs.closed_sequencing_run_queue_id
 
+    # Initialise JiraFunctions class with required inputs
+    jira_info = JiraFunctions(
+            jira_base_url=inputs.jira_base_url,
+            jira_email=inputs.jira_email,
+            jira_token=inputs.jira_token,
+            assay_types=inputs.assay_types,
+            cancelled_statuses=inputs.cancelled_statuses,
+            audit_start_obj=inputs.audit_start_obj,
+            audit_end_obj=inputs.audit_end_obj,
+            open_statuses=inputs.open_statuses,
+            five_days_before_start=inputs.five_days_before_start,
+            five_days_after=inputs.five_days_after,
+            open_sequencing_run_queue_id=open_sequencing_run_queue_id,
+            closed_sequencing_run_queue_id=closed_sequencing_run_queue_id
+        )
+    # Get all the tickets in the closed and open sequencing run queues
+    jira_closed_queue_tickets = jira_info.query_jira_tickets_in_queue(
+        inputs.closed_sequencing_run_queue_id
+    )
+    jira_open_queue_tickets = jira_info.query_jira_tickets_in_queue(
+        inputs.open_sequencing_run_queue_id
+    )
+    all_jira_tickets = jira_closed_queue_tickets + jira_open_queue_tickets
+    logger.debug(all_jira_tickets)
     # Create dict of jira tickets
     jira_ticket_dict = jira_info.create_jira_info_dict(all_jira_tickets)
 
@@ -369,7 +439,7 @@ def main():
     )
 
     fig_info_dict = defaultdict(dict)
-    for assay in inputs.assay_types:
+    for assay in inputs.report_assays:
         (
             assay_df,
             assay_stats,
@@ -378,6 +448,7 @@ def main():
             assay_frac,
             assay_compl,
         ) = general_functions.create_assay_objects(run_df, assay)
+
         assay_fig, assay_upload_fig = plotting_functions.create_both_figures(
             assay_df, assay
         )

@@ -33,6 +33,7 @@ class DXFunctions():
     """
     Functions for searching in DNAnexus
     """
+
     def login(self, dx_token) -> None:
         """
         Logs into DNAnexus
@@ -91,7 +92,7 @@ class DXFunctions():
                 }
             }
         ))
-
+        logger.debug(projects_dx_response)
         return projects_dx_response
 
     def get_staging_folders(self, staging_id):
@@ -251,7 +252,9 @@ class DXFunctions():
             )
             match = re.match(run_name_pattern, project_name)
             if match:
-                run_name = match.group(1) # select the first group in the regex
+                # select the first group in the regex
+                run_name = match.group(1)
+                logger.debug("Run name: %s", run_name)
             else:
                 logger.error(
                     f"Project name {project_name} does not match the expected"
@@ -261,6 +264,7 @@ class DXFunctions():
             # because 002 project may have been made after actual run date
             # Don't capture 002_vaf_checks project for checking VAF
             run_date, first_part_of_name = run_name.split('_')[0:2]
+
             if (
                 run_date >= audit_start_obj.strftime('%y%m%d')
                 and run_date <= audit_end_obj.strftime('%y%m%d')
@@ -480,6 +484,7 @@ class DXFunctions():
                             conductor_start_time
                         )
                     )
+
                     if upload_time < first_job_start:
                         run_dict[run_name]['first_job'] = first_job_start
 
@@ -532,9 +537,8 @@ class DXFunctions():
 
         Returns
         -------
-        excel_completed : str or None
-            timestamp the last create excel job finished (or None if no excel
-            jobs)
+        job_completed : str or None
+            timestamp of the last job finished (or None if no jobs)
         """
         job_completed = None
         jobs_before_resolution = []

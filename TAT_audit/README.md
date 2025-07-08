@@ -20,6 +20,7 @@ STAGING_AREA_PROJ_ID=<redacted, str>
 DEFAULT_MONTHS=3
 TAT_STANDARD_DAYS=3
 ASSAYS='["CEN", "MYE", "TSO500", "TWE", "37_CEN", "37_TWE", "38_CEN", "38_TWE"]'
+REPORT_ASSAYS='["CEN", "TWE", "MYE", "TSO500"]'
 CANCELLED_STATUSES='["Data cannot be processed", "Data cannot be released", "Data not received"]'
 OPEN_STATUSES='["New", "Data Received", "Data processed", "On hold", "Urgent samples released"]'
 LAST_JOBS='{"TWE": "eggd_generate_variant_workbook", "CEN": "eggd_artemis", "MYE": "eggd_MultiQC", "TSO500": "eggd_MultiQC"}'

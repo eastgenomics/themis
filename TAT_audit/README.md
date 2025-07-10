@@ -32,7 +32,7 @@ CLOSED_SEQUENCING_RUN_QUEUE_ID=X
 CLOSED_SEQUENCING_RUN_QUEUE_ID_TESTING=X
 ```
 If no start and end dates are supplied as command line arguments, the `DEFAULT_MONTHS` variable will be used to determine the previous number of months to audit from the date the script is run.
-ASSAYS and REPORT_ASSAYS are similar but different variables. ASSAYS sets what is queried from DNAnexus, i.e. which 002 projects are searched for, and which runs are included in the report. REPORT_ASSAYS sets what is included in the final report, i.e. which assays are plotted and shown in the stats table.
+ASSAYS and REPORT_ASSAYS are similar but different variables. ASSAYS sets what is queried from DNAnexus, i.e. which 002 projects are searched for, and therefore which runs are included in the report. REPORT_ASSAYS is a subset of ASSAYs which sets what assays sections are present in the report and are plotted and shown in the stats table.
 
 ## Description
 The script works by:

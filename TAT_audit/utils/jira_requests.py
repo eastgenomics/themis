@@ -34,11 +34,13 @@ class JiraFunctions():
     """
     Methods for handling Jira things
     """
+
     def __init__(
-        self, jira_email, jira_token, assay_types, cancelled_statuses,
+        self, jira_base_url, jira_email, jira_token, assay_types, cancelled_statuses,
         audit_start_obj, audit_end_obj, open_statuses, five_days_before_start,
-        five_days_after
+        five_days_after, open_sequencing_run_queue_id, closed_sequencing_run_queue_id
     ):
+        self.jira_base_url = jira_base_url
         self.jira_email = jira_email
         self.jira_token = jira_token
         self.auth = HTTPBasicAuth(jira_email, jira_token)
@@ -50,6 +52,8 @@ class JiraFunctions():
         self.open_statuses = open_statuses
         self.five_days_before_start = five_days_before_start
         self.five_days_after = five_days_after
+        self.open_sequencing_run_queue_id = open_sequencing_run_queue_id
+        self.closed_sequencing_run_queue_id = closed_sequencing_run_queue_id
 
     def query_jira_tickets_in_queue(self, queue_id):
         """
@@ -65,9 +69,8 @@ class JiraFunctions():
         response_data :  list
             list of dicts with response from Jira API request
         """
-        base_url = (
-            "https://cuhbioinformatics.atlassian.net/rest/servicedeskapi/"
-            f"servicedesk/4/queue/{queue_id}/issue"
+        query_url = (
+            f"{self.jira_base_url}queue/{queue_id}/issue"
         )
 
         response_data = []
@@ -78,7 +81,7 @@ class JiraFunctions():
         while new_data:
             queue_response = requests.request(
                 "GET",
-                url=f"{base_url}?start={start}",
+                url=f"{query_url}?start={start}",
                 headers=self.headers,
                 auth=self.auth
             )
@@ -119,14 +122,14 @@ class JiraFunctions():
             "https://cuhbioinformatics.atlassian.net/rest/api/3/issue/"
             f"{ticket_id}/changelog"
         )
-
         log_response = requests.request(
             "GET",
             url,
             headers=self.headers,
             auth=self.auth
         )
-
+        logger.debug(f"Jira response: {log_response.status_code}")
+        logger.debug(f"Jira response: {log_response.text}")
         change_info = json.loads(log_response.text)['values']
 
         # Loop over changes, get times the ticket changed to that status
@@ -199,10 +202,14 @@ class JiraFunctions():
 
             # Get assay type info
             assay_type_field = issue.get('fields').get('customfield_10070')
+            logger.debug(issue.get('fields'))
             if assay_type_field:
                 assay_type = assay_type_field[0].get('value')
             else:
                 assay_type = 'Unknown'
+                logger.debug(
+                    f"Assay type not found for ticket {ticket_name} - "
+                    f"assay type set to Unknown as {assay_type_field}")
 
             # Check the ticket is within 5 days of the audit period and a
             # relevant assay type. If so add ticket info to a dict
@@ -212,7 +219,7 @@ class JiraFunctions():
                     self.five_days_before_start, '%Y-%m-%d'
                 ))
                 and (date_time_created <= dt.datetime.strptime(
-                   self.five_days_after, '%Y-%m-%d'
+                    self.five_days_after, '%Y-%m-%d'
                 ))
             ):
                 jira_run_dict[ticket_name]['ticket_key'] = issue['key']
@@ -230,7 +237,6 @@ class JiraFunctions():
         print(
             f"Found {len(jira_run_dict)} Jira tickets within the audit "
             "period (plus a 5 day buffer)")
-
         return jira_run_dict
 
     def get_closest_match_in_dict(self, ticket_name, run_dict):
@@ -479,12 +485,15 @@ class JiraFunctions():
         for run_name, run_info in run_dict.items():
             ticket_id = run_info.get('ticket_id')
             if ticket_id:
+                logger.debug(
+                    f"Getting transition times for ticket {ticket_id} "
+                    f"for run {run_name}"
+                )
                 # Query Jira API with changelog for ticket transition times
                 change_log = self.get_ticket_transition_times(ticket_id)
 
                 # Add the dict to the changelog key
                 run_dict[run_name]['change_log'] = change_log
-
                 # If ticket is at 'All samples released' add the resolved time
                 jira_resolved = change_log.get('All samples released')
                 if jira_resolved:

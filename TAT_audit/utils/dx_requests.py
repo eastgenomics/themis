@@ -1,6 +1,7 @@
 import dxpy as dx
 import logging
 import Levenshtein
+import re
 import sys
 import time
 
@@ -32,6 +33,7 @@ class DXFunctions():
     """
     Functions for searching in DNAnexus
     """
+
     def login(self, dx_token) -> None:
         """
         Logs into DNAnexus
@@ -90,7 +92,7 @@ class DXFunctions():
                 }
             }
         ))
-
+        logger.debug(projects_dx_response)
         return projects_dx_response
 
     def get_staging_folders(self, staging_id):
@@ -216,7 +218,7 @@ class DXFunctions():
         self, projects_dx_response, audit_start_obj, audit_end_obj
     ):
         """
-        Add run name, DX project ID and assay type for each run to dict
+        Add run name, DX project ID and assay type for each run to dict.
 
         Parameters
         ----------
@@ -244,20 +246,32 @@ class DXFunctions():
         for project in projects_dx_response:
             project_name = project['describe']['name']
             assay_type = project_name.split('_')[-1]
-            run_name = project_name.removeprefix('002_').removesuffix(
-                f'_{assay_type}'
-            )
 
+            run_name_pattern = (
+                r'^002_(\d{6}_[A-Za-z]{1}\d{5}_\d{4}_[A-Za-z0-9]{10})(?:_(37|38))?_[A-Za-z0-9]{3,}$'
+            )
+            match = re.match(run_name_pattern, project_name)
+            if match:
+                # select the first group in the regex
+                run_name = match.group(1)
+                logger.debug("Run name: %s", run_name)
+            else:
+                logger.error(
+                    f"Project name {project_name} does not match the expected"
+                    " pattern for a run name"
+                )
             # Check if the date of the run is within audit dates
             # because 002 project may have been made after actual run date
             # Don't capture 002_vaf_checks project for checking VAF
             run_date, first_part_of_name = run_name.split('_')[0:2]
+
             if (
                 run_date >= audit_start_obj.strftime('%y%m%d')
                 and run_date <= audit_end_obj.strftime('%y%m%d')
                 and first_part_of_name != "vaf"
             ):
                 # Add in DX project ID and assay type to dict
+
                 run_dict[run_name]['project_id'] = project['id']
                 run_dict[run_name]['assay_type'] = assay_type
 
@@ -470,6 +484,7 @@ class DXFunctions():
                             conductor_start_time
                         )
                     )
+
                     if upload_time < first_job_start:
                         run_dict[run_name]['first_job'] = first_job_start
 
@@ -522,9 +537,8 @@ class DXFunctions():
 
         Returns
         -------
-        excel_completed : str or None
-            timestamp the last create excel job finished (or None if no excel
-            jobs)
+        job_completed : str or None
+            timestamp of the last job finished (or None if no jobs)
         """
         job_completed = None
         jobs_before_resolution = []

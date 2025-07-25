@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import requests
 import os
 from datetime import datetime
 # Fastcore extends the python standard library to allow for the use of ghapi.
@@ -14,6 +15,7 @@ import statsmodels.api as sm
 from fastcore.all import *
 from ghapi.all import GhApi
 from jinja2 import Environment, FileSystemLoader
+import subprocess
 
 # TODO: Add stats to parts of the html report and use bootrap to style it.
 # TODO: Make report prettier with bootstrap.
@@ -136,7 +138,7 @@ def get_config():
 
 class compliance_checks:
     """
-    Class for all the checks for the compliance against DNAnexus performa.
+    Class for all the checks for the compliance against DNAnexus performance.
     """
 
     def check_all(self, app=None, dxjson_content="",
@@ -365,7 +367,7 @@ class compliance_checks:
     def check_src_file_compliance(self, dxjson_content, src_file_contents):
         """
         Checks compliance for set -e exit option and manual compiling settings
-        for DNAnexus app performa.
+        for DNAnexus app performance.
 
         Parameters
         ----------
@@ -623,8 +625,7 @@ class audit_class:
         api = GhApi(token=github_token)
         org_details = api.orgs.get(org_username)
         logger.info(org_details)
-        total_num_repos = org_details['public_repos'] + \
-            org_details['total_private_repos']
+        total_num_repos = org_details['public_repos']
         logger.info(total_num_repos)
         per_page_num = 30
         pages_total = ceil(total_num_repos/per_page_num)
@@ -669,6 +670,7 @@ class audit_class:
                 repo_name = repo['name']
                 file_path = 'dxapp.json'
                 logger.info(repo_name)
+                # print(repo)
                 # Checks to find dxapp.json which determines if repo is an app.
                 try:
                     contents = api.repos.get_content(
@@ -817,7 +819,7 @@ class audit_class:
         # Set the total performa checks for each app/applet
 
         checks_df['total_performa'] = checks_df['interpreter'].apply(
-            lambda x: 10 if 'bash' in x else 7)
+            lambda x: 12 if 'bash' in x else 10)
         # Find the number of performa checks passed for each app/applet
         checks_df['compliance_count'] = (checks_df == True).T.sum()
         score_data = round(
@@ -906,9 +908,126 @@ class audit_class:
 
         return latest_commit_date
 
+    def get_security_advisories(self, repo_name):
+        """
+        Checks if security advisories have been enabled for the GitHub repo using GitHub API.
+        Security advisories are taken from the dependabot_alerts and dependabot_security_updates
+        fields in the github json following documentation in
+        https://docs.github.com/en/rest/code-security/configurations?apiVersion=2022-11-28#get-the-code-security-configuration-associated-with-a-repository
+
+        Parameters
+        ----------
+            repo_name (str):
+                Name of the repository.
+
+        Returns
+        -------
+            dependabot_alerts_status (str):
+                Dependabot status alerts (e.g., "enabled" or "disabled").
+            dependabot_security_status (str):
+                If dependabot alerts are set or not (e.g., "set" or "not_set").
+            dependabot_alerts_enabled (bool):
+                True if dependabot alerts are enabled, False otherwise.
+            dependabot_security_updates_set (bool):
+                True if dependabot security updates are set, False otherwise.
+        """
+
+        url = f"https://api.github.com/repos/{self.ORGANISATION}/{repo_name}/code-security-configuration"
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"token {self.GITHUB_TOKEN}",
+            "X-GitHub-Api-Version": "2022-11-28"
+        }
+
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+
+            security_config = response.json()
+
+            dependabot_alerts_status = security_config.get("configuration", {}).get("dependabot_alerts", "N/A")
+            dependabot_security_status = security_config.get("configuration", {}).get("dependabot_security_updates", "N/A")
+
+        except requests.RequestException as e:
+            print(f"Error checking security advisories for {repo_name}: {str(e)}")
+            dependabot_alerts_status = "N/A"
+            dependabot_security_status = "N/A"
+
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON response: {str(e)}")
+            dependabot_alerts_status = "N/A"
+            dependabot_security_status = "N/A"
+
+        # Create boolean variables based on the string status
+        dependabot_alerts_enabled = (dependabot_alerts_status == "enabled")
+        dependabot_security_updates_set = (dependabot_security_status == "set")
+
+        return (dependabot_alerts_status,
+                dependabot_security_status,
+                dependabot_alerts_enabled,
+                dependabot_security_updates_set)
+
+
+    def check_requirements_file_in_python_app(self, repo_name):
+        """
+        Checks if 'requirements.txt' exists in a Python GitHub repo using GitHub API.
+
+        Parameters
+        ----------
+        repo_name (str): Name of repo.
+
+        Returns
+        -------
+        file_exists (bool): Shows if 'requirements.txt' exists in repo
+        """
+
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"token {self.GITHUB_TOKEN}"
+        }
+
+        try:
+            # Check language of repo
+            lang_url = f"https://api.github.com/repos/{self.ORGANISATION}/{repo_name}/languages"
+            lang_response = requests.get(lang_url, headers=headers, timeout=10)
+            lang_response.raise_for_status()
+
+            languages = lang_response.json()
+
+            # Check if Python is the main language
+            if not languages or 'Python' not in languages:
+                return False
+
+            # List contents of repo (root directory)
+            contents_url = f"https://api.github.com/repos/{self.ORGANISATION}/{repo_name}/contents"
+            contents_response = requests.get(contents_url, headers=headers)
+            contents_response.raise_for_status()
+
+            contents = contents_response.json()
+
+            # Search for 'requirements.txt' without case-sensitivity
+            file_exists = any(
+                item['type'] == 'file' and 'requirements.txt' == item['name'].lower()
+                for item in contents
+            )
+
+            print(file_exists)
+
+        except requests.RequestException as e:
+            print(f"Error checking file: {str(e)}")
+            file_exists = "N/A"
+
+        except json.JSONDecodeError as e:
+            print(f"Error parsing API response: {str(e)}")
+            file_exists = "N/A"
+
+        return file_exists
+
+
     def orchestrate_app_compliance(self, list_apps, list_of_json_contents):
         """
         This calls the functions to get the compliance and then creates the dfs.
+
 
         Parameters
         ----------
@@ -916,6 +1035,7 @@ class audit_class:
                 list of dictionaries for app/applet with github repo details.
             list_of_json_contents (list):
                 list of json contents of apps/applets
+
 
         Returns
         -------
@@ -925,28 +1045,42 @@ class audit_class:
                 df of apps/applets with detailed information.
         """
         compliance_df = detailed_df = None
-        if len(list_apps) != len(list_of_json_contents):
-            logger.error(
-                "Number of apps and list of json contents do not match.")
-            raise AssertionError(
-                'List of apps and list of API jsons dont match')
 
-        for index, (app, dxapp_contents) in enumerate(zip(list_apps, list_of_json_contents)):
-            # The first item creates the dataframe
-            if index == 0:
-                df_repo, df_repo_details = self.check_file_compliance(
-                    app, dxapp_contents)
+        if len(list_apps) != len(list_of_json_contents):
+            logger.error("Number of apps and list of json contents do not match.")
+            raise AssertionError('List of apps and list of API jsons dont match')
+
+        for app, dxapp_contents in zip(list_apps, list_of_json_contents):
+            repo_name = app.get('name')
+
+            # Get dependabot and requirements info
+            dependabot_alerts_status, dependabot_security_status, dependabot_alerts_enabled, dependabot_security_updates_set = \
+                self.get_security_advisories(repo_name)
+            file_exists = self.check_requirements_file_in_python_app(repo_name)
+
+            # Check compliance
+            df_repo, df_repo_details = self.check_file_compliance(app, dxapp_contents)
+
+            # Append security status and requirements
+            df_repo['dependabot_alerts_status'] = dependabot_alerts_enabled
+            df_repo['dependabot_security_status'] = dependabot_security_updates_set
+            df_repo['requirements_file_exists'] = file_exists
+
+            df_repo_details['dependabot_alerts_status'] = dependabot_alerts_enabled
+            df_repo_details['dependabot_security_status'] = dependabot_security_updates_set
+            df_repo_details['requirements_file_exists'] = file_exists
+
+            # Concatenate dfs
+            if compliance_df is None:
                 compliance_df = df_repo
                 detailed_df = df_repo_details
             else:
-                df_repo, df_repo_details = self.check_file_compliance(
-                    app, dxapp_contents)
-                compliance_df = pd.concat([compliance_df,
-                                           df_repo], ignore_index=True)
-                detailed_df = pd.concat([detailed_df,
-                                        df_repo_details], ignore_index=True)
+                compliance_df = pd.concat([compliance_df, df_repo], ignore_index=True)
+                detailed_df = pd.concat([detailed_df, df_repo_details], ignore_index=True)
+
 
         return compliance_df, detailed_df
+
 
     def compliance_scores_for_each_measure(self, df):
         """
@@ -965,7 +1099,7 @@ class audit_class:
             summary_df:
                 dataframe of compliance scores for each performa.
         """
-        df = df[[
+        available_columns = [
             'authorised_users',
             'authorised_devs',
             'uptodate_ubuntu',
@@ -976,7 +1110,14 @@ class audit_class:
             'dxapp_boolean',
             'eggd_name_boolean',
             'eggd_title_boolean',
-        ]]
+            'dependabot_alerts_status',
+            'dependabot_security_status',
+            'requirements_file_exists'
+        ]
+
+        # Filter the DataFrame to include only the columns that are actually present
+        df = df[[col for col in available_columns if col in df.columns]]
+
         columns_summed = []
         new_col_names = {
             'authorised_users': 'Auth Users',
@@ -989,22 +1130,28 @@ class audit_class:
             'dxapp_boolean': 'DNAnexus App',
             'eggd_name_boolean': 'eggd_ name',
             'eggd_title_boolean': 'eggd_ title',
+            'dependabot_alerts_status': 'Dependabot alerts set',
+            'dependabot_security_status': 'Dependabot security set',
+            'requirements_file_exists': 'Requirements file exists'
         }
-        for column in df:
-            # Get number of true and false values for compliance measures
-            no_true = len(df.query(f'{column} == True'))
-            no_false = len(df.query(f'{column} == False'))
 
-            complaince_stats = {
-                'Name': new_col_names[column],
+        for column in df.columns:
+            # Get number of true and false values for compliance measures
+            no_true = len(df[df[column] == True])
+            no_false = len(df[df[column] == False])
+
+            compliance_stats = {
+                'Name': new_col_names.get(column, column),
                 'No. Compliant / Total': f"{no_true}/{no_true + no_false}",
                 'Compliance %': round((no_true / (no_true + no_false))*100, 2)
             }
-            columns_summed.append(complaince_stats)
+            columns_summed.append(compliance_stats)
+
         summary_df = pd.DataFrame(columns_summed)
         summary_df = summary_df.sort_values(by=['Compliance %'])
 
         return summary_df
+
 
     def compliance_df_format(self, compliance_df, detailed_df):
         """
@@ -1042,6 +1189,8 @@ class audit_class:
             'eggd_name_boolean': 'eggd_ name',
             'eggd_title_boolean': 'eggd_ title',
             'latest_commit_date': 'Last Commit',
+            'dependabot_alerts_status' : 'Dependabot alerts',
+            'dependabot_security_status' : 'Dependabot security'
         }, inplace=True)
 
         detailed_df = detailed_df.rename(columns={
@@ -1059,6 +1208,8 @@ class audit_class:
             'last_release_date': 'Last Release',
             'latest_commit_date': 'Last Commit',
             'timeout_setting': 'Timeout Setting',
+            'dependabot_alerts_status' : 'Dependabot alerts',
+            'dependabot_security_status' : 'Dependabot security'
         })
 
         compliance_df.drop(columns=['dxapp_boolean', 'timeout_setting',

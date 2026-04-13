@@ -232,11 +232,24 @@ class DXFunctions():
         Example:
         {
             '240112_A01295_0298_AHW3GTDRX3': {
-                'project_id': 'project-XYZ',
-                'assay_type': 'TSO500',
+                'assays':{
+                    '240112_A01295_0298_AHW3GTDRX3_MYE': {
+                        'project_id': 'project-ABC',
+                        'assay_type': 'MYE'
+                    },
+                    '240112_A01295_0298_AHW3GTDRX3_CEN': {
+                        'project_id': 'project-XYZ',
+                        'assay_type': 'CEN'
+                    }
+                }
+            },
             '240111_A01303_0320_BHWYNVDRX3': {
-                'project_id': 'project-OPQ',
-                'assay_type': 'CEN'
+                'assays': {
+                    '240111_A01303_0320_BHWYNVDRX3_TSO500': {
+                        'project_id': 'project-OPQ',
+                        'assay_type': 'TSO500'
+                    }
+                }
             }
         }
         """
@@ -270,11 +283,14 @@ class DXFunctions():
                 and run_date <= audit_end_obj.strftime('%y%m%d')
                 and first_part_of_name != "vaf"
             ):
-                # Add in DX project ID and assay type to dict
-
-                run_dict[run_name]['project_id'] = project['id']
-                run_dict[run_name]['assay_type'] = assay_type
-
+                # Add in DX project ID and assay type to a nested_dictionary in assays key for each run
+                # But first check if the run already has an assay key in the dict, if not create one
+                if not run_dict[run_name].get('assays'):
+                    run_dict[run_name]['assays'] = {}
+                run_dict[run_name]['assays'][f"{run_name}_{assay_type}"] = {
+                    'project_id': project['id'],
+                    'assay_type': assay_type
+                }
         return run_dict
 
     def update_run_name(self, run_dict):
@@ -300,22 +316,38 @@ class DXFunctions():
         # For each run, get name of the 001_Staging_Area52 folder if exists.
         # Add new key of folder name and make the value all the existing info
         # for that run
-        for run_name, run_info in run_dict.items():
-            if run_info.get('run_folder_name'):
+        for run_name, run_data in run_dict.items():
+            print(run_name)
+            print(run_data)
+            if run_data.get('run_folder_name'):
                 folder_name = run_dict[run_name]['run_folder_name']
-                assay_type = run_dict[run_name]['assay_type']
-
+                assays = run_dict[run_name]['assays']
+                assay_list = [assay_info['assay_type'] for assay_info in assays.values()]
                 distance = Levenshtein.distance(folder_name, run_name)
                 if distance > 0:
                     # If ticket mismatches, add typo info to list
-                    typo_run_folders.append({
-                        'assay_type': assay_type,
-                        'folder_name': folder_name,
-                        'project_name_002': run_name
-                    })
+                    for assay in assay_list:
+                        typo_run_folders.append({
+                            'assay_type': assay,
+                            'folder_name': folder_name,
+                            'project_name_002': run_name
+                        })
+                # recreate the dict with the folder name as the main key and
+                # all the same info nested inside, but with the folder name
+                # added as a nested key
+                updated_dict[folder_name] = {}
+                updated_dict[folder_name]['assays'] = {}
+                updated_dict[folder_name]['run_folder_name'] = folder_name
+                updated_dict[folder_name]['upload_time'] = (
+                    run_dict[run_name].get('upload_time')
+                )
+                for assay in assay_list:
+                    target_key = f'{folder_name}_{assay}'
+                    source_key = f'{run_name}_{assay}'
+                    updated_dict[folder_name]['assays'][target_key] = \
+                        run_dict[run_name]['assays'][source_key]
 
-                updated_dict[folder_name] = run_dict[run_name]
-            # Othereise if no 'run_folder_name' keep key and values as is
+            # Otherwise if no 'run_folder_name' keep key and values as is
             else:
                 updated_dict[run_name] = run_dict[run_name]
 
@@ -361,6 +393,7 @@ class DXFunctions():
             dict with each run as key and info as nested dict with upload
             time added
         Example:
+        #TODO - update example to match new dict structure with nested dict for each assay type
         {
             '240124_A01295_0305_AHW725DRX3': {
                 'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',

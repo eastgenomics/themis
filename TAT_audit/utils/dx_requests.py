@@ -233,21 +233,18 @@ class DXFunctions():
         {
             '240112_A01295_0298_AHW3GTDRX3': {
                 'assays':{
-                    '240112_A01295_0298_AHW3GTDRX3_MYE': {
+                    'MYE': {
                         'project_id': 'project-ABC',
-                        'assay_type': 'MYE'
                     },
-                    '240112_A01295_0298_AHW3GTDRX3_CEN': {
+                    'CEN': {
                         'project_id': 'project-XYZ',
-                        'assay_type': 'CEN'
                     }
                 }
             },
             '240111_A01303_0320_BHWYNVDRX3': {
                 'assays': {
-                    '240111_A01303_0320_BHWYNVDRX3_TSO500': {
+                    'TSO500': {
                         'project_id': 'project-OPQ',
-                        'assay_type': 'TSO500'
                     }
                 }
             }
@@ -287,9 +284,8 @@ class DXFunctions():
                 # But first check if the run already has an assay key in the dict, if not create one
                 if not run_dict[run_name].get('assays'):
                     run_dict[run_name]['assays'] = {}
-                run_dict[run_name]['assays'][f"{run_name}_{assay_type}"] = {
-                    'project_id': project['id'],
-                    'assay_type': assay_type
+                run_dict[run_name]['assays'][f"{assay_type}"] = {
+                    'project_id': project['id']
                 }
         return run_dict
 
@@ -335,17 +331,7 @@ class DXFunctions():
                 # recreate the dict with the folder name as the main key and
                 # all the same info nested inside, but with the folder name
                 # added as a nested key
-                updated_dict[folder_name] = {}
-                updated_dict[folder_name]['assays'] = {}
-                updated_dict[folder_name]['run_folder_name'] = folder_name
-                updated_dict[folder_name]['upload_time'] = (
-                    run_dict[run_name].get('upload_time')
-                )
-                for assay in assay_list:
-                    target_key = f'{folder_name}_{assay}'
-                    source_key = f'{run_name}_{assay}'
-                    updated_dict[folder_name]['assays'][target_key] = \
-                        run_dict[run_name]['assays'][source_key]
+                updated_dict[folder_name] = run_dict[run_name]
 
             # Otherwise if no 'run_folder_name' keep key and values as is
             else:

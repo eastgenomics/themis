@@ -238,22 +238,29 @@ class PlottingFunctions():
         if (len(assay_df) and number_of_relevant_runs):
             # Add df column with names of the day of the week that data were
             # uploaded
-            assay_df['upload_day'] = assay_df['upload_time'].dt.day_name()
+            x_vals = assay_df['upload_time'].dt.day_name().tolist()
+            y_vals = assay_df['upload_to_release'].tolist()
+            run_names = assay_df['run_name'].tolist()
+
+            colors = ["green" if y <= float(self.tat_standard) else "red" for y in y_vals]
             # Plot upload day vs TAT, if TAT is <= tat_standard colour in green
             # otherwise colour in red
-            fig = px.scatter(
-                data_frame=assay_df,
-                x='upload_day',
-                y='upload_to_release',
-                custom_data=['run_name'],
-                color=(
-                    assay_df["upload_to_release"] <= float(self.tat_standard)
-                ),
-                color_discrete_map={
-                    True: "green",
-                    False: "red"
-                },
-            )
+            fig = go.Figure()
+
+            fig.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=y_vals,
+                    mode='markers',
+                    marker=dict(
+                        color=colors
+                    ),
+                    customdata=run_names,
+                    hovertemplate=(
+                        "Run name: %{customdata} <br> "
+                        "Turnaround time: %{y:.2f} days"
+                        "<extra></extra>"
+                    )
+                ))
             # Set days in order
             fig.update_xaxes(
                 range=[-0.5, 6.5],
@@ -281,8 +288,8 @@ class PlottingFunctions():
             # Add run name to hovertext
             fig.update_traces(
                 hovertemplate=(
-                    "Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f}"
-                    " days"
+                    "Run name: %{customdata} <br> Turnaround time: %{y:.2f}"
+                    " days<extra></extra>"
                 )
             )
         # If empty show empty plot with message

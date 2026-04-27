@@ -81,7 +81,7 @@ class PlottingFunctions():
                 fig.append_trace(
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
-                        y=week_df['upload_to_first_job'],
+                        y=week_df['upload_to_first_job'].tolist(),
                         name='Upload to processing start',
                         marker={'color': '#636EFA'},
                         customdata=week_df['run_name'],
@@ -92,7 +92,7 @@ class PlottingFunctions():
                 fig.append_trace(
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
-                        y=week_df['processing_time'],
+                        y=week_df['processing_time'].tolist(),
                         name='Pipeline running',
                         marker={'color': '#EF553B'},
                         customdata=week_df['run_name'],
@@ -103,11 +103,11 @@ class PlottingFunctions():
                 fig.append_trace(
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
-                        y=week_df['processing_end_to_release'],
+                        y=week_df['processing_end_to_release'].tolist(),
                         name='Pipeline end to all samples released',
                         marker={'color': '#00CC96'},
                         customdata=week_df['run_name'],
-                        text=round(week_df['upload_to_release'], 1),
+                        text=round(week_df['upload_to_release'], 1).tolist(),
                         legendgroup='group3'
                     ), row=1, col=idx+1
                 )
@@ -116,7 +116,7 @@ class PlottingFunctions():
                     fig.append_trace(
                         go.Bar(
                             x=week_df['ticket_hyperlink'],
-                            y=week_df['urgents_time'],
+                            y=week_df['urgents_time'].tolist(),
                             name=(
                                 'Pipeline end to now - urgent samples released'
                             ),
@@ -130,7 +130,7 @@ class PlottingFunctions():
                     fig.add_trace(
                         go.Bar(
                             x=week_df['ticket_hyperlink'],
-                            y=week_df['on_hold_time'],
+                            y=week_df['on_hold_time'].fillna(0.0).tolist(),
                             name='Last processing step to now - On hold',
                             marker={'color': '#FECB52'},
                             customdata=week_df['run_name'],
@@ -142,7 +142,7 @@ class PlottingFunctions():
                 fig.append_trace(
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
-                        y=week_df['processing_end_to_release'],
+                        y=week_df['processing_end_to_release'].tolist(),
                         name='Fake data',
                     ), row=1, col=idx+1
                 )

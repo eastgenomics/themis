@@ -249,20 +249,34 @@ class PlottingFunctions():
             # otherwise colour in red
             fig = go.Figure()
 
+            within_standard_indices = [i for i,
+                                       c in enumerate(colors) if c == "green"]
+            exceeds_standard_indices = [i for i,
+                                        c in enumerate(colors) if c == "red"]
+
+            # Green trace
             fig.add_trace(go.Scatter(
-                    x=x_vals,
-                    y=y_vals,
-                    mode='markers',
-                    marker=dict(
-                        color=colors
-                    ),
-                    customdata=run_names,
-                    hovertemplate=(
-                        "Run name: %{customdata} <br> "
-                        "Turnaround time: %{y:.2f} days"
-                        "<extra></extra>"
-                    )
-                ))
+                x=[x_vals[i] for i in within_standard_indices],
+                y=[y_vals[i] for i in within_standard_indices],
+                mode='markers',
+                marker=dict(color='green'),
+                customdata=[run_names[i] for i in within_standard_indices],
+                name='Within TAT Standard',
+                hovertemplate="Run name: %{customdata} <br>"
+                "Turnaround time: %{y:.2f} days<extra></extra>"
+            ))
+
+            # Red trace
+            fig.add_trace(go.Scatter(
+                x=[x_vals[i] for i in exceeds_standard_indices],
+                y=[y_vals[i] for i in exceeds_standard_indices],
+                mode='markers',
+                marker=dict(color='red'),
+                customdata=[run_names[i] for i in exceeds_standard_indices],
+                name='Exceeds TAT Standard',
+                hovertemplate="Run name: %{customdata} <br>"
+                "Turnaround time: %{y:.2f} days<extra></extra>"
+            ))
             # Set days in order
             fig.update_xaxes(
                 range=[-0.5, 6.5],

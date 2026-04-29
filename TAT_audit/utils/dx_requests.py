@@ -373,7 +373,8 @@ class DXFunctions():
         Returns
         -------
         modified_run_dict : dict
-            dict with same info but with run_name_and_assay_key as a key in the nested dict
+            dict with same info but with run_name_and_assay_key as a key in
+            the nested dict
         Example:
         {
             '260507_A01295_0123_BHKLV2DRX7_CEN': {
@@ -401,7 +402,7 @@ class DXFunctions():
         """
         modified_run_dict = defaultdict(dict)
 
-        # Recreate the dict with the run name and assay type as the main key and
+        # Recreate the dict with the run name and assay type as the main key
         for run_name, run_info in run_dict.items():
             assays = run_info.get('assays')
             if assays:

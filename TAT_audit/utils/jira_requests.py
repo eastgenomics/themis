@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import re
 import Levenshtein
 import logging
 import requests
@@ -237,7 +238,83 @@ class JiraFunctions():
         print(
             f"Found {len(jira_run_dict)} Jira tickets within the audit "
             "period (plus a 5 day buffer)")
-        return jira_run_dict
+
+        modified_jira_run_dict = self.modify_jira_info_dict(jira_run_dict)
+        return modified_jira_run_dict
+
+    def modify_jira_info_dict(self, jira_run_dict):
+        """
+        Return a modified jira_run_dict to ensure that all keys are in the
+        same run_name + assay format (only multiplexed have the assay type
+        in the ticket name, so for non-multiplexed runs we want to ensure
+        that the assay type is in the dictionary keys for consistency)
+        Parameters
+        ----------
+        jira_run_dict : dict
+            dict where the summary name is the key and info about the ticket
+            as values
+
+        Returns
+        -------
+        modified_jira_run_dict : dict
+            dict where the summary name is the key and info about the ticket
+            as values, but modified so that all keys are in the same format
+             (only multiplexed  have the assay type in the ticket name, so for
+             non-multiplexed runs we want to ensure that the assay type is in
+             the dictionary keys for consistency)
+        Example:
+        {
+            '240130_A01303_0329_BH2HWHDRX5_CEN': {
+                'ticket_key': 'EBH-2377',
+                'ticket_id': '21865',
+                'jira_status': 'All samples released',
+                'assay_type': 'CEN',
+                'date_jira_ticket_created': (
+                    datetime.datetime(2024, 1, 30, 16, 52, 18)
+                )
+            },
+            '240130_A01303_0330_AHWL32DRX3_MYE': {
+                'ticket_key': 'EBH-2376',
+                'ticket_id': '21864',
+                'jira_status': 'All samples released',
+                'assay_type': 'MYE',
+                'date_jira_ticket_created': (
+                    datetime.datetime(2024, 1, 30, 16, 49, 38)
+                )
+            }
+        }
+        """
+        modified_jira_run_dict = defaultdict(dict)
+        # Regex pattern https://regex101.com/r/AbKJWZ/1
+        regex_pattern = r"^(\d{6}_[A-Za-z]{1}\d{5}_\d{4}_[A-Za-z0-9]{10})(_([A-Za-z0-9]{3,}){1})?$"
+
+        for ticket_name, ticket_info in jira_run_dict.items():
+            match = re.match(regex_pattern, ticket_name)
+
+            # If the match does not exist raise error as the ticket name is not in the expected format
+            if not match:
+                logger.error(
+                    f"Ticket name {ticket_name} doesn't match expected format"
+                )
+                raise ValueError(
+                    f"Ticket name {ticket_name} doesn't match expected format"
+                )
+
+            # extract run name
+            run_name = match.group(1)
+
+            # Check if the assay type is in the ticket name
+            assay_type_in_name = match.group(3)
+            # If the assay type is in ticket, continue
+            if assay_type_in_name:
+                modified_jira_run_dict[ticket_name] = ticket_info
+            # Else if the assay type is missing, create a new run_assay key
+            else:
+                assay_type = ticket_info['assay_type']
+                new_key = f"{run_name}_{assay_type}"
+                modified_jira_run_dict[new_key] = ticket_info
+
+        return modified_jira_run_dict
 
     def get_closest_match_in_dict(self, ticket_name, run_dict):
         """

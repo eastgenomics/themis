@@ -299,7 +299,7 @@ class DXFunctions():
         Parameters
         ----------
         run_dict : dict
-            dict with each run as key and info as nested dict
+            dict with each run as key and info as nested dict.
 
         Returns
         -------
@@ -313,19 +313,20 @@ class DXFunctions():
         # For each run, get name of the 001_Staging_Area52 folder if exists.
         # Add new key of folder name and make the value all the existing info
         # for that run
-        for run_name, run_info in run_dict.items():
-            if run_info.get('run_folder_name'):
+        for run_name, run_data in run_dict.items():
+            if run_data.get('run_folder_name'):
                 folder_name = run_dict[run_name]['run_folder_name']
-                assay_type = run_dict[run_name]['assay_type']
-
+                assays = run_dict[run_name]['assays']
+                assay_list = assays.keys()
                 distance = Levenshtein.distance(folder_name, run_name)
                 if distance > 0:
                     # If ticket mismatches, add typo info to list
-                    typo_run_folders.append({
-                        'assay_type': assay_type,
-                        'folder_name': folder_name,
-                        'project_name_002': run_name
-                    })
+                    for assay in assay_list:
+                        typo_run_folders.append({
+                            'assay_type': assay,
+                            'folder_name': folder_name,
+                            'project_name_002': run_name
+                        })
 
                 updated_dict[folder_name] = run_dict[run_name]
             # Othereise if no 'run_folder_name' keep key and values as is

@@ -166,12 +166,12 @@ class JiraFunctions():
             specific helpdesk queue
         Returns
         -------
-        jira_run_dict : dict
+        modified_jira_run_dict : dict
             dict where the summary name is the key and info about the ticket
             as values
         Example:
         {
-            '240130_A01303_0329_BH2HWHDRX5': {
+            '240130_A01303_0329_BH2HWHDRX5_CEN': {
                 'ticket_key': 'EBH-2377',
                 'ticket_id': '21865',
                 'jira_status': 'All samples released',
@@ -180,11 +180,11 @@ class JiraFunctions():
                     datetime.datetime(2024, 1, 30, 16, 52, 18)
                 )
             },
-            '240130_A01303_0330_AHWL32DRX3': {
+            '240130_A01303_0330_AHWL32DRX3_TSO500': {
                 'ticket_key': 'EBH-2376',
                 'ticket_id': '21864',
                 'jira_status': 'All samples released',
-                'assay_type': 'MYE',
+                'assay_type': 'TSO500',
                 'date_jira_ticket_created': (
                     datetime.datetime(2024, 1, 30, 16, 49, 38)
                 )
@@ -376,7 +376,7 @@ class JiraFunctions():
             ticket info added
         Example:
         {
-            '240124_A01295_0305_AHW725DRX3': {
+            '240124_A01295_0305_AHW725DRX3_TSO500': {
                 'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
                 'assay_type': 'TSO500',
                 'run_folder_name': '240124_A01295_0305_AHW725DRX3',
@@ -386,7 +386,7 @@ class JiraFunctions():
                 'ticket_key': 'EBH-2079',
                 'ticket_id': '21864'
             },
-             '240122_A01295_0303_AHTNWYDRX3': {
+            '240122_A01295_0303_AHTNWYDRX3_TWE': {
                 'project_id': 'project-GfgyZJ84J4xg8jK0Yb8XFxpf',
                 'assay_type': 'TWE',
                 'run_folder_name': '240122_A01295_0303_AHTNWYDRX3',

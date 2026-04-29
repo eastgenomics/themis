@@ -569,17 +569,17 @@ class DXFunctions():
 
         Returns
         -------
-        run_dict : dict
+        modified_dict : dict
             dict with each run plus first job time added
         {
-            '240124_A01295_0305_AHW725DRX3': {
+            '240124_A01295_0305_AHW725DRX3_TSO500': {
                 'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
                 'assay_type': 'TSO500',
                 'run_folder_name': '240124_A01295_0305_AHW725DRX3',
                 'upload_time': '2024-01-25 08:52:27',
                 'first_job': '2024-01-25 08:52:40'
             },
-             '240122_A01295_0303_AHTNWYDRX3': {
+             '240122_A01295_0303_AHTNWYDRX3_TWE': {
                 'project_id': 'project-GfgyZJ84J4xg8jK0Yb8XFxpf',
                 'assay_type': 'TWE',
                 'run_folder_name': '240122_A01295_0303_AHTNWYDRX3',
@@ -605,7 +605,8 @@ class DXFunctions():
                     if upload_time < first_job_start:
                         run_dict[run_name]['first_job'] = first_job_start
 
-        return run_dict
+        modified_dict = self.update_dictionary_structure(run_dict)
+        return modified_dict
 
     def get_last_job(self, final_jobs):
         """

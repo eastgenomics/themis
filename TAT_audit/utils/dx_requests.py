@@ -232,11 +232,21 @@ class DXFunctions():
         Example:
         {
             '240112_A01295_0298_AHW3GTDRX3': {
-                'project_id': 'project-XYZ',
-                'assay_type': 'TSO500',
+                'assays': {
+                    'MYE': {
+                        'project_id': 'project-ABCDE'
+                    },
+                    'CEN': {
+                        'project_id': 'project-FGHIJ'
+                    }
+                }
+            },
             '240111_A01303_0320_BHWYNVDRX3': {
-                'project_id': 'project-OPQ',
-                'assay_type': 'CEN'
+                'assays': {
+                    'CEN': {
+                        'project_id': 'project-OPQ'
+                    }
+                }
             }
         }
         """
@@ -270,11 +280,14 @@ class DXFunctions():
                 and run_date <= audit_end_obj.strftime('%y%m%d')
                 and first_part_of_name != "vaf"
             ):
-                # Add in DX project ID and assay type to dict
-
-                run_dict[run_name]['project_id'] = project['id']
-                run_dict[run_name]['assay_type'] = assay_type
-
+                # Add in DX project ID and assay type to a nested_dictionary
+                # in assays key for each run but first check if the run already
+                # has an assay key in the dict, if not create one
+                if not run_dict[run_name].get('assays'):
+                    run_dict[run_name]['assays'] = {}
+                run_dict[run_name]['assays'][f"{assay_type}"] = {
+                    'project_id': project['id']
+                }
         return run_dict
 
     def update_run_name(self, run_dict):

@@ -335,6 +335,100 @@ class DXFunctions():
 
         return updated_dict, typo_run_folders
 
+    def update_dictionary_structure(self, run_dict):
+        """
+        Update the structure of the dictionary to have the assay type as
+        Parameters
+        ----------
+        run.dict: dict
+            dict with each run as key and info as nested dict with assay type
+            nested inside.
+        Example:
+        {
+            '260507_A01295_0123_BHKLV2DRX7': {
+                'assays': {
+                    'CEN': {
+                        'project_id': 'project-ABCDE'
+                        },
+                    'MYE': {
+                        'project_id': 'project-FGHIJ'
+                        }
+                    },
+                'run_folder_name': '260507_A01295_0123_BHKLV2DRX7',
+                'upload_time': '2026-03-21 00:53:46',
+                'first_job': '2026-03-21 00:54:14'
+            },
+            '260304_A01303_0456_AHKLFFDRX7': {
+                'assays': {
+                    'TWE': {
+                        'project_id': 'project-KLMNO'
+                        }
+                    },
+                'run_folder_name': '260304_A01303_0456_AHKLFFDRX7',
+                'upload_time': '2026-03-19 20:17:41',
+                'first_job': '2026-03-19 20:18:03'
+            }
+        }
+
+        Returns
+        -------
+        modified_run_dict : dict
+            dict with same info but with run_name_and_assay_key as a key in the nested dict
+        Example:
+        {
+            '260507_A01295_0123_BHKLV2DRX7_CEN': {
+                'project_id': 'project-ABCDE',
+                'assay_type': 'CEN',
+                'run_folder_name': '260507_A01295_0123_BHKLV2DRX7',
+                'upload_time': '2026-03-21 00:53:46',
+                'first_job': '2026-03-21 00:54:14'
+            },
+            '260507_A01295_0123_BHKLV2DRX7_MYE': {
+                'project_id': 'project-FGHIJ'
+                'assay_type': 'MYE',
+                'run_folder_name': '260507_A01295_0123_BHKLV2DRX7',
+                'upload_time': '2026-03-21 00:53:46',
+                'first_job': '2026-03-21 00:54:14'
+            },
+            '260304_A01303_0456_AHKLFFDRX7_TWE': {
+                'project_id': 'project-KLMNO',
+                'assay_type': 'TWE',
+                'run_folder_name': '260304_A01303_0456_AHKLFFDRX7',
+                'upload_time': '2026-03-19 20:17:41',
+                'first_job': '2026-03-19 20:18:03'
+            }
+        }
+        """
+        modified_run_dict = defaultdict(dict)
+
+        # Recreate the dict with the run name and assay type as the main key and
+        for run_name, run_info in run_dict.items():
+            assays = run_info.get('assays')
+            if assays:
+                for assay_type, assay_info in assays.items():
+                    new_key = f"{run_name}_{assay_type}"
+                    modified_run_dict[new_key] = {
+                        'project_id': assay_info.get('project_id'),
+                        'assay_type': assay_type,
+                        'run_folder_name': run_info.get('run_folder_name'),
+                        'upload_time': run_info.get('upload_time'),
+                        'first_job': run_info.get('first_job')
+                    }
+            # Raise an error if no assay was found in the given run
+            else:
+                logger.error(
+                    f"No assay info found for run {run_name} "
+                    "when updating dict structure. This should "
+                    "have been picked up in earlier steps."
+                )
+                raise ValueError(
+                    f"No assay info found for run {run_name} "
+                    "when updating dict structure. This should "
+                    "have been picked up in earlier steps."
+                )
+
+        return modified_run_dict
+
     def get_log_file_created_time(self, log_file_info):
         """
         Finds the time the log was was created

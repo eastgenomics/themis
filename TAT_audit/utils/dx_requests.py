@@ -376,17 +376,26 @@ class DXFunctions():
             time added
         Example:
         {
-            '240124_A01295_0305_AHW725DRX3': {
-                'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
-                'assay_type': 'TSO500',
-                'run_folder_name': '240124_A01295_0305_AHW725DRX3',
-                'upload_time': '2024-01-25 08:52:27'
+            '260507_A01295_0123_BHKLV2DRX7': {
+                'assays': {
+                    'CEN': {
+                        'project_id': 'project-ABCDE'
+                        },
+                    'MYE': {
+                        'project_id': 'project-FGHIJ'
+                        }
+                    },
+                'run_folder_name': '260507_A01295_0123_BHKLV2DRX7',
+                'upload_time': '2026-03-21 00:53:46'
             },
-            '240122_A01295_0303_AHTNWYDRX3': {
-                'project_id': 'project-GfgyZJ84J4xg8jK0Yb8XFxpf',
-                'assay_type': 'TWE',
-                'run_folder_name': '240122_A01295_0303_AHTNWYDRX3',
-                'upload_time': '2024-01-23 16:29:19'
+            '260304_A01303_0456_AHKLFFDRX7': {
+                'assays': {
+                    'TWE': {
+                        'project_id': 'project-KLMNO'
+                        }
+                    },
+                'run_folder_name': '260304_A01303_0456_AHKLFFDRX7',
+                'upload_time': '2026-03-19 20:17:41'
             }
         }
         """

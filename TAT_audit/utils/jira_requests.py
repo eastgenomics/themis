@@ -291,14 +291,16 @@ class JiraFunctions():
         for ticket_name, ticket_info in jira_run_dict.items():
             match = re.match(regex_pattern, ticket_name)
 
-            # If the match does not exist raise error as the ticket name is not in the expected format
+            # If the match does not exist, log warning as the
+            # ticket name is not in the expected format
             if not match:
-                logger.error(
-                    f"Ticket name {ticket_name} doesn't match expected format"
+                logger.warning(
+                    "Ticket name %s doesn't match expected format; "
+                    "keeping original key for downstream typo matching",
+                    ticket_name
                 )
-                raise ValueError(
-                    f"Ticket name {ticket_name} doesn't match expected format"
-                )
+                modified_jira_run_dict[ticket_name] = ticket_info
+                continue
 
             # extract run name
             run_name = match.group(1)

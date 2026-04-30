@@ -337,7 +337,8 @@ class DXFunctions():
 
     def update_dictionary_structure(self, run_dict):
         """
-        Update the structure of the dictionary to have the assay type as
+        Update the structure of the dictionary, where each run_assay
+        combination is a main key.
         Parameters
         ----------
         run.dict: dict

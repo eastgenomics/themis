@@ -165,7 +165,8 @@ class PlottingFunctions():
             },
             yaxis_title="Number of days",
             width=1100,
-            height=700,
+            height=850,
+            margin=dict(t=100, b=250),
             font_family='Helvetica',
             legend_traceorder='reversed'
         )
@@ -199,7 +200,7 @@ class PlottingFunctions():
             x=0.5,
             xanchor='center',
             xref='paper',
-            y=0,
+            y=-0.075,
             yanchor='top',
             yref='paper',
             showarrow=False,

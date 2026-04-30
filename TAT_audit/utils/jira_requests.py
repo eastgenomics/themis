@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import re
 import Levenshtein
 import logging
 import requests
@@ -165,12 +166,12 @@ class JiraFunctions():
             specific helpdesk queue
         Returns
         -------
-        jira_run_dict : dict
+        modified_jira_run_dict : dict
             dict where the summary name is the key and info about the ticket
             as values
         Example:
         {
-            '240130_A01303_0329_BH2HWHDRX5': {
+            '240130_A01303_0329_BH2HWHDRX5_CEN': {
                 'ticket_key': 'EBH-2377',
                 'ticket_id': '21865',
                 'jira_status': 'All samples released',
@@ -179,11 +180,11 @@ class JiraFunctions():
                     datetime.datetime(2024, 1, 30, 16, 52, 18)
                 )
             },
-            '240130_A01303_0330_AHWL32DRX3': {
+            '240130_A01303_0330_AHWL32DRX3_TSO500': {
                 'ticket_key': 'EBH-2376',
                 'ticket_id': '21864',
                 'jira_status': 'All samples released',
-                'assay_type': 'MYE',
+                'assay_type': 'TSO500',
                 'date_jira_ticket_created': (
                     datetime.datetime(2024, 1, 30, 16, 49, 38)
                 )
@@ -237,7 +238,85 @@ class JiraFunctions():
         print(
             f"Found {len(jira_run_dict)} Jira tickets within the audit "
             "period (plus a 5 day buffer)")
-        return jira_run_dict
+
+        modified_jira_run_dict = self.modify_jira_info_dict(jira_run_dict)
+        return modified_jira_run_dict
+
+    def modify_jira_info_dict(self, jira_run_dict):
+        """
+        Return a modified jira_run_dict to ensure that all keys are in the
+        same run_name + assay format (only multiplexed have the assay type
+        in the ticket name, so for non-multiplexed runs we want to ensure
+        that the assay type is in the dictionary keys for consistency)
+        Parameters
+        ----------
+        jira_run_dict : dict
+            dict where the summary name is the key and info about the ticket
+            as values
+
+        Returns
+        -------
+        modified_jira_run_dict : dict
+            dict where the summary name is the key and info about the ticket
+            as values, but modified so that all keys are in the same format
+             (only multiplexed  have the assay type in the ticket name, so for
+             non-multiplexed runs we want to ensure that the assay type is in
+             the dictionary keys for consistency)
+        Example:
+        {
+            '240130_A01303_0329_BH2HWHDRX5_CEN': {
+                'ticket_key': 'EBH-2377',
+                'ticket_id': '21865',
+                'jira_status': 'All samples released',
+                'assay_type': 'CEN',
+                'date_jira_ticket_created': (
+                    datetime.datetime(2024, 1, 30, 16, 52, 18)
+                )
+            },
+            '240130_A01303_0330_AHWL32DRX3_MYE': {
+                'ticket_key': 'EBH-2376',
+                'ticket_id': '21864',
+                'jira_status': 'All samples released',
+                'assay_type': 'MYE',
+                'date_jira_ticket_created': (
+                    datetime.datetime(2024, 1, 30, 16, 49, 38)
+                )
+            }
+        }
+        """
+        modified_jira_run_dict = defaultdict(dict)
+        # Regex pattern https://regex101.com/r/AbKJWZ/1
+        regex_pattern = r"^(\d{6}_[A-Za-z]{1}\d{5}_\d{4}_[A-Za-z0-9]{10})(_([A-Za-z0-9]{3,}){1})?$"
+
+        for ticket_name, ticket_info in jira_run_dict.items():
+            match = re.match(regex_pattern, ticket_name)
+
+            # If the match does not exist, log warning as the
+            # ticket name is not in the expected format
+            if not match:
+                logger.warning(
+                    "Ticket name %s doesn't match expected format; "
+                    "keeping original key for downstream typo matching",
+                    ticket_name
+                )
+                modified_jira_run_dict[ticket_name] = ticket_info
+                continue
+
+            # extract run name
+            run_name = match.group(1)
+
+            # Check if the assay type is in the ticket name
+            assay_type_in_name = match.group(3)
+            # If the assay type is in ticket, continue
+            if assay_type_in_name:
+                modified_jira_run_dict[ticket_name] = ticket_info
+            # Else if the assay type is missing, create a new run_assay key
+            else:
+                assay_type = ticket_info['assay_type']
+                new_key = f"{run_name}_{assay_type}"
+                modified_jira_run_dict[new_key] = ticket_info
+
+        return modified_jira_run_dict
 
     def get_closest_match_in_dict(self, ticket_name, run_dict):
         """
@@ -299,7 +378,7 @@ class JiraFunctions():
             ticket info added
         Example:
         {
-            '240124_A01295_0305_AHW725DRX3': {
+            '240124_A01295_0305_AHW725DRX3_TSO500': {
                 'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
                 'assay_type': 'TSO500',
                 'run_folder_name': '240124_A01295_0305_AHW725DRX3',
@@ -309,7 +388,7 @@ class JiraFunctions():
                 'ticket_key': 'EBH-2079',
                 'ticket_id': '21864'
             },
-             '240122_A01295_0303_AHTNWYDRX3': {
+            '240122_A01295_0303_AHTNWYDRX3_TWE': {
                 'project_id': 'project-GfgyZJ84J4xg8jK0Yb8XFxpf',
                 'assay_type': 'TWE',
                 'run_folder_name': '240122_A01295_0303_AHTNWYDRX3',

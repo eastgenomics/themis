@@ -232,11 +232,21 @@ class DXFunctions():
         Example:
         {
             '240112_A01295_0298_AHW3GTDRX3': {
-                'project_id': 'project-XYZ',
-                'assay_type': 'TSO500',
+                'assays': {
+                    'MYE': {
+                        'project_id': 'project-ABCDE'
+                    },
+                    'CEN': {
+                        'project_id': 'project-FGHIJ'
+                    }
+                }
+            },
             '240111_A01303_0320_BHWYNVDRX3': {
-                'project_id': 'project-OPQ',
-                'assay_type': 'CEN'
+                'assays': {
+                    'CEN': {
+                        'project_id': 'project-OPQ'
+                    }
+                }
             }
         }
         """
@@ -270,11 +280,14 @@ class DXFunctions():
                 and run_date <= audit_end_obj.strftime('%y%m%d')
                 and first_part_of_name != "vaf"
             ):
-                # Add in DX project ID and assay type to dict
-
-                run_dict[run_name]['project_id'] = project['id']
-                run_dict[run_name]['assay_type'] = assay_type
-
+                # Add in DX project ID and assay type to a nested_dictionary
+                # in assays key for each run but first check if the run already
+                # has an assay key in the dict, if not create one
+                if not run_dict[run_name].get('assays'):
+                    run_dict[run_name]['assays'] = {}
+                run_dict[run_name]['assays'][f"{assay_type}"] = {
+                    'project_id': project['id']
+                }
         return run_dict
 
     def update_run_name(self, run_dict):
@@ -286,7 +299,7 @@ class DXFunctions():
         Parameters
         ----------
         run_dict : dict
-            dict with each run as key and info as nested dict
+            dict with each run as key and info as nested dict.
 
         Returns
         -------
@@ -300,19 +313,20 @@ class DXFunctions():
         # For each run, get name of the 001_Staging_Area52 folder if exists.
         # Add new key of folder name and make the value all the existing info
         # for that run
-        for run_name, run_info in run_dict.items():
-            if run_info.get('run_folder_name'):
+        for run_name, run_data in run_dict.items():
+            if run_data.get('run_folder_name'):
                 folder_name = run_dict[run_name]['run_folder_name']
-                assay_type = run_dict[run_name]['assay_type']
-
+                assays = run_dict[run_name]['assays']
+                assay_list = assays.keys()
                 distance = Levenshtein.distance(folder_name, run_name)
                 if distance > 0:
                     # If ticket mismatches, add typo info to list
-                    typo_run_folders.append({
-                        'assay_type': assay_type,
-                        'folder_name': folder_name,
-                        'project_name_002': run_name
-                    })
+                    for assay in assay_list:
+                        typo_run_folders.append({
+                            'assay_type': assay,
+                            'folder_name': folder_name,
+                            'project_name_002': run_name
+                        })
 
                 updated_dict[folder_name] = run_dict[run_name]
             # Othereise if no 'run_folder_name' keep key and values as is
@@ -320,6 +334,102 @@ class DXFunctions():
                 updated_dict[run_name] = run_dict[run_name]
 
         return updated_dict, typo_run_folders
+
+    def update_dictionary_structure(self, run_dict):
+        """
+        Update the structure of the dictionary, where each run_assay
+        combination is a main key.
+        Parameters
+        ----------
+        run.dict: dict
+            dict with each run as key and info as nested dict with assay type
+            nested inside.
+        Example:
+        {
+            '260507_A01295_0123_BHKLV2DRX7': {
+                'assays': {
+                    'CEN': {
+                        'project_id': 'project-ABCDE'
+                        },
+                    'MYE': {
+                        'project_id': 'project-FGHIJ'
+                        }
+                    },
+                'run_folder_name': '260507_A01295_0123_BHKLV2DRX7',
+                'upload_time': '2026-03-21 00:53:46',
+                'first_job': '2026-03-21 00:54:14'
+            },
+            '260304_A01303_0456_AHKLFFDRX7': {
+                'assays': {
+                    'TWE': {
+                        'project_id': 'project-KLMNO'
+                        }
+                    },
+                'run_folder_name': '260304_A01303_0456_AHKLFFDRX7',
+                'upload_time': '2026-03-19 20:17:41',
+                'first_job': '2026-03-19 20:18:03'
+            }
+        }
+
+        Returns
+        -------
+        modified_run_dict : dict
+            dict with same info but with run_name_and_assay_key as a key in
+            the nested dict
+        Example:
+        {
+            '260507_A01295_0123_BHKLV2DRX7_CEN': {
+                'project_id': 'project-ABCDE',
+                'assay_type': 'CEN',
+                'run_folder_name': '260507_A01295_0123_BHKLV2DRX7',
+                'upload_time': '2026-03-21 00:53:46',
+                'first_job': '2026-03-21 00:54:14'
+            },
+            '260507_A01295_0123_BHKLV2DRX7_MYE': {
+                'project_id': 'project-FGHIJ'
+                'assay_type': 'MYE',
+                'run_folder_name': '260507_A01295_0123_BHKLV2DRX7',
+                'upload_time': '2026-03-21 00:53:46',
+                'first_job': '2026-03-21 00:54:14'
+            },
+            '260304_A01303_0456_AHKLFFDRX7_TWE': {
+                'project_id': 'project-KLMNO',
+                'assay_type': 'TWE',
+                'run_folder_name': '260304_A01303_0456_AHKLFFDRX7',
+                'upload_time': '2026-03-19 20:17:41',
+                'first_job': '2026-03-19 20:18:03'
+            }
+        }
+        """
+        modified_run_dict = defaultdict(dict)
+
+        # Recreate the dict with the run name and assay type as the main key
+        for run_name, run_info in run_dict.items():
+            assays = run_info.get('assays')
+            if assays:
+                for assay_type, assay_info in assays.items():
+                    new_key = f"{run_name}_{assay_type}"
+                    modified_run_dict[new_key] = {
+                        'project_id': assay_info.get('project_id'),
+                        'assay_type': assay_type,
+                        'run_folder_name': run_info.get('run_folder_name'),
+                        'upload_time': run_info.get('upload_time'),
+                        'first_job': run_info.get('first_job')
+                    }
+            # Raise an error if no assay was found in the given run
+            else:
+                logger.error(
+                    f"No assay info found for run {run_name} "
+                    "when updating dict structure. This should "
+                    "have been picked up in earlier steps."
+                )
+                raise ValueError(
+                    f"No assay info found for run {run_name} "
+                    "when updating dict structure. This should "
+                    "have been picked up in earlier steps."
+                )
+
+        return modified_run_dict
 
     def get_log_file_created_time(self, log_file_info):
         """
@@ -362,17 +472,26 @@ class DXFunctions():
             time added
         Example:
         {
-            '240124_A01295_0305_AHW725DRX3': {
-                'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
-                'assay_type': 'TSO500',
-                'run_folder_name': '240124_A01295_0305_AHW725DRX3',
-                'upload_time': '2024-01-25 08:52:27'
+            '260507_A01295_0123_BHKLV2DRX7': {
+                'assays': {
+                    'CEN': {
+                        'project_id': 'project-ABCDE'
+                        },
+                    'MYE': {
+                        'project_id': 'project-FGHIJ'
+                        }
+                    },
+                'run_folder_name': '260507_A01295_0123_BHKLV2DRX7',
+                'upload_time': '2026-03-21 00:53:46'
             },
-            '240122_A01295_0303_AHTNWYDRX3': {
-                'project_id': 'project-GfgyZJ84J4xg8jK0Yb8XFxpf',
-                'assay_type': 'TWE',
-                'run_folder_name': '240122_A01295_0303_AHTNWYDRX3',
-                'upload_time': '2024-01-23 16:29:19'
+            '260304_A01303_0456_AHKLFFDRX7': {
+                'assays': {
+                    'TWE': {
+                        'project_id': 'project-KLMNO'
+                        }
+                    },
+                'run_folder_name': '260304_A01303_0456_AHKLFFDRX7',
+                'upload_time': '2026-03-19 20:17:41'
             }
         }
         """
@@ -452,17 +571,17 @@ class DXFunctions():
 
         Returns
         -------
-        run_dict : dict
+        modified_dict : dict
             dict with each run plus first job time added
         {
-            '240124_A01295_0305_AHW725DRX3': {
+            '240124_A01295_0305_AHW725DRX3_TSO500': {
                 'project_id': 'project-Gfk24G84412KXVyf4kVZVv7g',
                 'assay_type': 'TSO500',
                 'run_folder_name': '240124_A01295_0305_AHW725DRX3',
                 'upload_time': '2024-01-25 08:52:27',
                 'first_job': '2024-01-25 08:52:40'
             },
-             '240122_A01295_0303_AHTNWYDRX3': {
+             '240122_A01295_0303_AHTNWYDRX3_TWE': {
                 'project_id': 'project-GfgyZJ84J4xg8jK0Yb8XFxpf',
                 'assay_type': 'TWE',
                 'run_folder_name': '240122_A01295_0303_AHTNWYDRX3',
@@ -488,7 +607,8 @@ class DXFunctions():
                     if upload_time < first_job_start:
                         run_dict[run_name]['first_job'] = first_job_start
 
-        return run_dict
+        modified_dict = self.update_dictionary_structure(run_dict)
+        return modified_dict
 
     def get_last_job(self, final_jobs):
         """

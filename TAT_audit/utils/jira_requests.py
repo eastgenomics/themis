@@ -346,7 +346,7 @@ class JiraFunctions():
             # Get the distance between the names
             # If 1 or 0 get the closest key in the dict
             distance = Levenshtein.distance(ticket_name, run_name)
-            if distance <= 2:
+            if distance < 2:
                 closest_key = run_name
                 if distance > 0:
                     typo_ticket_info = {

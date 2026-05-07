@@ -501,7 +501,7 @@ class DXFunctions():
                 distance = Levenshtein.distance(folder_name, run_name)
                 # If match with less than 2 differences, add run folder
                 # name as nested key
-                if distance <= 2:
+                if distance < 2:
                     run_dict[run_name]['run_folder_name'] = folder_name
                     # Search for log file in folder
                     files_in_folder = self.find_log_file_in_folder(

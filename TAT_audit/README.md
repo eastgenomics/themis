@@ -8,7 +8,7 @@ The required Python package dependencies to query the APIs and create the final 
 pip install -r requirements.txt
 ```
 
-Please note Python 3.9+ is required.
+Please note Python 3.13+ is required.
 
 Variables should be set to the environment. This can be done by providing an .env file when running via Docker.
 

@@ -554,8 +554,9 @@ class GeneralFunctions():
             all_assays_df with cancelled runs added as rows
         """
         # Append the list of dicts as new rows
-        all_assays_df = all_assays_df.append(cancelled_runs, ignore_index=True)
 
+        all_assays_df = pd.concat([all_assays_df, pd.DataFrame(cancelled_runs)]
+                                  , ignore_index=True)
         # Remove duplicates if a failed run is still named as a '002' project
         # otherwise both the failed 002 project and failed ticket would be
         # returned

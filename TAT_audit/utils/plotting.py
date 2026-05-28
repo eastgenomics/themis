@@ -81,7 +81,7 @@ class PlottingFunctions():
                 fig.append_trace(
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
-                        y=week_df['upload_to_first_job'],
+                        y=week_df['upload_to_first_job'].tolist(),
                         name='Upload to processing start',
                         marker={'color': '#636EFA'},
                         customdata=week_df['run_name'],
@@ -92,7 +92,7 @@ class PlottingFunctions():
                 fig.append_trace(
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
-                        y=week_df['processing_time'],
+                        y=week_df['processing_time'].tolist(),
                         name='Pipeline running',
                         marker={'color': '#EF553B'},
                         customdata=week_df['run_name'],
@@ -103,11 +103,11 @@ class PlottingFunctions():
                 fig.append_trace(
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
-                        y=week_df['processing_end_to_release'],
+                        y=week_df['processing_end_to_release'].tolist(),
                         name='Pipeline end to all samples released',
                         marker={'color': '#00CC96'},
                         customdata=week_df['run_name'],
-                        text=round(week_df['upload_to_release'], 1),
+                        text=round(week_df['upload_to_release'], 1).tolist(),
                         legendgroup='group3'
                     ), row=1, col=idx+1
                 )
@@ -116,7 +116,7 @@ class PlottingFunctions():
                     fig.append_trace(
                         go.Bar(
                             x=week_df['ticket_hyperlink'],
-                            y=week_df['urgents_time'],
+                            y=week_df['urgents_time'].tolist(),
                             name=(
                                 'Pipeline end to now - urgent samples released'
                             ),
@@ -130,7 +130,7 @@ class PlottingFunctions():
                     fig.add_trace(
                         go.Bar(
                             x=week_df['ticket_hyperlink'],
-                            y=week_df['on_hold_time'],
+                            y=week_df['on_hold_time'].fillna(0.0).tolist(),
                             name='Last processing step to now - On hold',
                             marker={'color': '#FECB52'},
                             customdata=week_df['run_name'],
@@ -142,7 +142,7 @@ class PlottingFunctions():
                 fig.append_trace(
                     go.Bar(
                         x=week_df['ticket_hyperlink'],
-                        y=week_df['processing_end_to_release'],
+                        y=week_df['processing_end_to_release'].tolist(),
                         name='Fake data',
                     ), row=1, col=idx+1
                 )
@@ -165,7 +165,8 @@ class PlottingFunctions():
             },
             yaxis_title="Number of days",
             width=1100,
-            height=700,
+            height=850,
+            margin=dict(t=100, b=250),
             font_family='Helvetica',
             legend_traceorder='reversed'
         )
@@ -199,7 +200,7 @@ class PlottingFunctions():
             x=0.5,
             xanchor='center',
             xref='paper',
-            y=0,
+            y=-0.075,
             yanchor='top',
             yref='paper',
             showarrow=False,
@@ -238,22 +239,45 @@ class PlottingFunctions():
         if (len(assay_df) and number_of_relevant_runs):
             # Add df column with names of the day of the week that data were
             # uploaded
-            assay_df['upload_day'] = assay_df['upload_time'].dt.day_name()
+            plot_df = assay_df.dropna(subset=['upload_to_release'])
+            x_vals = plot_df['upload_time'].dt.day_name().tolist()
+            y_vals = plot_df['upload_to_release'].tolist()
+            run_names = plot_df['run_name'].tolist()
+
+            tat = float(self.tat_standard)
+            colors = ["green" if y <= tat else "red" for y in y_vals]
             # Plot upload day vs TAT, if TAT is <= tat_standard colour in green
             # otherwise colour in red
-            fig = px.scatter(
-                data_frame=assay_df,
-                x='upload_day',
-                y='upload_to_release',
-                custom_data=['run_name'],
-                color=(
-                    assay_df["upload_to_release"] <= float(self.tat_standard)
-                ),
-                color_discrete_map={
-                    True: "green",
-                    False: "red"
-                },
-            )
+            fig = go.Figure()
+
+            within_standard_indices = [i for i,
+                                       c in enumerate(colors) if c == "green"]
+            exceeds_standard_indices = [i for i,
+                                        c in enumerate(colors) if c == "red"]
+
+            # Green trace
+            fig.add_trace(go.Scatter(
+                x=[x_vals[i] for i in within_standard_indices],
+                y=[y_vals[i] for i in within_standard_indices],
+                mode='markers',
+                marker=dict(color='green'),
+                customdata=[run_names[i] for i in within_standard_indices],
+                name='Within TAT Standard',
+                hovertemplate="Run name: %{customdata} <br>"
+                "Turnaround time: %{y:.2f} days<extra></extra>"
+            ))
+
+            # Red trace
+            fig.add_trace(go.Scatter(
+                x=[x_vals[i] for i in exceeds_standard_indices],
+                y=[y_vals[i] for i in exceeds_standard_indices],
+                mode='markers',
+                marker=dict(color='red'),
+                customdata=[run_names[i] for i in exceeds_standard_indices],
+                name='Exceeds TAT Standard',
+                hovertemplate="Run name: %{customdata} <br>"
+                "Turnaround time: %{y:.2f} days<extra></extra>"
+            ))
             # Set days in order
             fig.update_xaxes(
                 range=[-0.5, 6.5],
@@ -281,8 +305,8 @@ class PlottingFunctions():
             # Add run name to hovertext
             fig.update_traces(
                 hovertemplate=(
-                    "Run name: %{customdata[0]} <br> Turnaround time: %{y:.2f}"
-                    " days"
+                    "Run name: %{customdata} <br> Turnaround time: %{y:.2f}"
+                    " days<extra></extra>"
                 )
             )
         # If empty show empty plot with message

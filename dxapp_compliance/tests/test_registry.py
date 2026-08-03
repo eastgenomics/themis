@@ -29,6 +29,22 @@ class TestRegistryIntegrity():
             f"Duplicate keys in DETAIL_COLUMNS: {keys}"
         )
 
+    def test_compliance_displays_unique(self):
+        """report.tables selects columns by display label, so a duplicate label
+        would silently select the wrong column or raise."""
+        displays = [spec.display for spec in COMPLIANCE_COLUMNS]
+        duplicates = {d for d in displays if displays.count(d) > 1}
+        assert duplicates == set(), (
+            f"Duplicate display labels in COMPLIANCE_COLUMNS: {duplicates}"
+        )
+
+    def test_detail_displays_unique(self):
+        displays = [spec.display for spec in DETAIL_COLUMNS]
+        duplicates = {d for d in displays if displays.count(d) > 1}
+        assert duplicates == set(), (
+            f"Duplicate display labels in DETAIL_COLUMNS: {duplicates}"
+        )
+
     def test_shared_keys_have_consistent_labels(self):
         """A key appearing in both tables must render with the same header."""
         compliance = {s.key: s.display for s in COMPLIANCE_COLUMNS}

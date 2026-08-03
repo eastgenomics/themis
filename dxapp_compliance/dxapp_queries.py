@@ -12,22 +12,22 @@ import logging
 from math import ceil
 
 import pandas as pd
-import plotly.express as px
 import requests
-# Imported for its side effect: plotly's trendline="lowess" requires statsmodels
-# to be importable. The `sm` name itself is unused - do not "clean this up".
-import statsmodels.api as sm  # noqa: F401
 # Fastcore extends the python standard library to allow for the use of ghapi.
 # This star import is also the only source of `re` and HTTP404NotFoundError in
 # this module. Both are imported explicitly in the new package modules.
 from fastcore.all import *  # noqa: F401,F403
 from ghapi.all import GhApi
-from jinja2 import Environment, FileSystemLoader
 
-from dxapp_compliance.checks.registry import NOT_APPLICABLE
+from dxapp_compliance.checks.registry import (
+    COMPLIANCE_COLUMNS,
+    DETAIL_COLUMNS,
+    NOT_APPLICABLE,
+)
 from dxapp_compliance.checks.runner import run_all_checks
-from dxapp_compliance.config import TEMPLATE_DIR, get_config, setup_logging, today_date
+from dxapp_compliance.config import get_config, setup_logging
 from dxapp_compliance.models import AppEvidence, RepoRecord
+from dxapp_compliance.report import frames, plots, render, scoring, tables
 
 # TODO: Add stats to parts of the html report and use bootrap to style it.
 # TODO: Make report prettier with bootstrap.
@@ -39,74 +39,6 @@ pd.options.mode.chained_assignment = None
 # Set up logger. Handlers are configured in main() via setup_logging(), not at
 # import time - see dxapp_compliance/config.py.
 logger = logging.getLogger("general log")
-
-
-def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
-                        release_comp_plot, ubuntu_comp_plot,
-                        compliance_bycommitdate_plot,
-                        ):
-    """
-    Render jinja2 template with provided variables.
-    Parameters
-    ----------
-    compliance_df (pandas dataframe):
-        Dataframe containing compliance information for each app.
-    detailed_df (pandas dataframe):
-        Dataframe containing detailed information for each app.
-    compliance_stats_summary (pandas dataframe):
-        Dataframe containing compliance information for each app.
-    release_comp_plot (plotly figure):
-        Plotly figure of Scatter plot for compliance % by release date
-    ubuntu_comp_plot (plotly figure):
-        Plotly figure of Scatter plot for compliance % by release date
-        coloured by ubuntu version.
-    compliance_bycommitdate_plot (plotly figure):
-        Plotly figure of Scatter plot for compliance % by last commit date
-
-    Outputs
-    -------
-    .html
-        HTML report of all app compliances.
-        Including tables of compliance stats and plots.
-    """
-    # autoescape is left at Jinja2's default of False deliberately. The plot
-    # variables in Report.html are raw plotly HTML and escaping would mangle
-    # them - do not add select_autoescape here.
-    environment = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
-    template = environment.get_template("Report.html")
-    filename = f"Audit_{today_date()}.html"
-    compliance_html = compliance_df.to_html(table_id="comp",
-                                            classes="table table-striped table-hover"
-                                            )
-    details_html = detailed_df.to_html(table_id="details",
-                                       classes="table table-striped table-hover"
-                                       )
-    # Set conditional formatting for compliance table
-    styled_df = compliance_stats_summary.style.apply(
-        lambda x: ['background-color: #FFB3BA' if value < 50 else
-                   'background-color: #BAFFC9' if value > 80 else
-                   'background-color: #FFBF00'
-                   for value in x],
-        subset=['Compliance %']).hide(axis='index').format(precision=0)
-    compliance_stats_summary_html = styled_df.to_html(
-        table_attributes="class = 'table table-striped table-hover'",
-        table_uuid="compliance_stats_summary",
-        bold_headers=True,
-        justify="left",
-    )
-
-    context = {
-        "Compliance_table": compliance_html,
-        "Details_table": details_html,
-        "compliance_stats_summary": compliance_stats_summary_html,
-        "release_comp_plot": release_comp_plot,
-        "ubuntu_comp_plot": ubuntu_comp_plot,
-        "compliance_bycommitdate_plot": compliance_bycommitdate_plot,
-    }
-    with open(filename, mode="w", encoding="utf-8") as results:
-        results.write(template.render(context))
-        print(f"... wrote {filename}")
-
 
 
 class audit_class:
@@ -364,41 +296,6 @@ class audit_class:
 
         return src_content_decoded, last_release_date, latest_commit_date
 
-    def compliance_stats(self, compliance_df, detailed_df):
-        """
-        Finds the % compliance with the EastGLH guidelines for each app/applet.
-
-        Parameters
-        ----------
-            compliance_df (pandas dataframe):
-                dataframe of compliance booleans for each app/applet.
-
-        Returns
-        -------
-            checks_df (pandas dataframe):
-                dataframe of compliance booleans for each app/applet.
-                with added compliance % column.
-            detailed_df (pandas dataframe):
-                dataframe of compliance performa details for each app/applet.
-        """
-        # remove columns that are not compliance checks
-        checks_df = compliance_df.copy()
-        checks_df.drop(columns=['num_of_region_options'], inplace=True)
-        # Find the % overall compliance for each app/applet
-        # Set the total performa checks for each app/applet
-
-        checks_df['total_performa'] = checks_df['interpreter'].apply(
-            lambda x: 12 if 'bash' in x else 10)
-        # Find the number of performa checks passed for each app/applet
-        checks_df['compliance_count'] = (checks_df == True).T.sum()
-        score_data = round(
-            (checks_df['compliance_count'] /
-             checks_df['total_performa']) * 100, 2
-        )
-        checks_df.insert(1, 'compliance_score', score_data)
-        detailed_df.insert(1, 'compliance_score', score_data)
-        return checks_df, detailed_df
-
     def get_latest_release(self, organisation_name, repo_name, token):
         """
         Get latest release of app/applet repo.
@@ -633,339 +530,46 @@ class audit_class:
         return compliance_rows, detail_rows
 
 
-    def compliance_scores_for_each_measure(self, df):
-        """
-        This function takes the compliance dataframe and
-        creates a new dataframe summarising true/false for each measure.
-        And then, calcualtes an overall compliance percentage for each measure.
-
-        Parameters
-        ----------
-            df (pandas dataframe):
-                dataframe of compliance booleans and score
-                for each app/applet repo.
-
-        Returns
-        -------
-            summary_df:
-                dataframe of compliance scores for each performa.
-        """
-        available_columns = [
-            'authorised_users',
-            'authorised_devs',
-            'uptodate_ubuntu',
-            'timeout_policy',
-            'correct_regional_option',
-            'set_e',
-            'no_manual_compiling',
-            'dxapp_boolean',
-            'eggd_name_boolean',
-            'eggd_title_boolean',
-            'dependabot_alerts_status',
-            'dependabot_security_status',
-            'requirements_file_exists'
-        ]
-
-        # Filter the DataFrame to include only the columns that are actually present
-        df = df[[col for col in available_columns if col in df.columns]]
-
-        columns_summed = []
-        new_col_names = {
-            'authorised_users': 'Auth Users',
-            'authorised_devs': 'Auth Devs',
-            'uptodate_ubuntu': 'Ubuntu 20+',
-            'timeout_policy': 'Timeout Policy',
-            'correct_regional_option': 'Correct Region',
-            'set_e': '`set -e` Present',
-            'no_manual_compiling': 'No Manual Compile',
-            'dxapp_boolean': 'DNAnexus App',
-            'eggd_name_boolean': 'eggd_ name',
-            'eggd_title_boolean': 'eggd_ title',
-            'dependabot_alerts_status': 'Dependabot alerts set',
-            'dependabot_security_status': 'Dependabot security set',
-            'requirements_file_exists': 'Requirements file exists'
-        }
-
-        for column in df.columns:
-            # Get number of true and false values for compliance measures
-            no_true = len(df[df[column] == True])
-            no_false = len(df[df[column] == False])
-
-            compliance_stats = {
-                'Name': new_col_names.get(column, column),
-                'No. Compliant / Total': f"{no_true}/{no_true + no_false}",
-                'Compliance %': round((no_true / (no_true + no_false))*100, 2)
-            }
-            columns_summed.append(compliance_stats)
-
-        summary_df = pd.DataFrame(columns_summed)
-        summary_df = summary_df.sort_values(by=['Compliance %'])
-
-        return summary_df
-
-
-    def compliance_df_format(self, compliance_df, detailed_df):
-        """
-        This function takes the compliance dataframe
-        and coerces it to a more readable format for datatables.
-
-        Parameters
-        ----------
-            compliance_df (pandas dataframe):
-                dataframe of compliance booleans and score
-            detailed_df (pandas dataframe):
-                dataframe of compliance details for each app/applet repo.
-
-        Returns
-        -------
-            compliance_df (pandas dataframe):
-                dataframe of compliance booleans and score
-                with columns renamed and minus redundant columns.
-            detailed_df (pandas dataframe):
-                dataframe of compliance details for each app/applet repo
-                with columns renamed.
-        """
-
-        # rename columns for displaying in datatables
-        compliance_df.rename(columns={
-            'compliance_score': 'compliance %',
-            'authorised_users': 'Auth Users',
-            'authorised_devs': 'Auth Devs',
-            'interpreter': 'File Type',
-            'uptodate_ubuntu': 'Ubuntu 20+',
-            'timeout_policy': 'Timeout Policy',
-            'correct_regional_option': 'Correct Region',
-            'no_manual_compiling': 'No Manual Compile',
-            'dxapp_or_applet': 'App or Applet',
-            'eggd_name_boolean': 'eggd_ name',
-            'eggd_title_boolean': 'eggd_ title',
-            'latest_commit_date': 'Last Commit',
-            'dependabot_alerts_status' : 'Dependabot alerts',
-            'dependabot_security_status' : 'Dependabot security'
-        }, inplace=True)
-
-        detailed_df = detailed_df.rename(columns={
-            'compliance_score': 'compliance %',
-            'authorised_users': 'Auth Users',
-            'authorised_devs': 'Auth Devs',
-            'interpreter': 'File Type',
-            'dist_version': 'Ubuntu Version',
-            'regionalOptions': 'Regions',
-            'correct_regional_option': 'Correct Region',
-            'num_of_region_options': 'Total Regions',
-            'no_manual_compiling': 'No Manual Compile',
-            'asset_present': 'Assets',
-            'dxapp_or_applet': 'App or Applet',
-            'last_release_date': 'Last Release',
-            'latest_commit_date': 'Last Commit',
-            'timeout_setting': 'Timeout Setting',
-            'dependabot_alerts_status' : 'Dependabot alerts',
-            'dependabot_security_status' : 'Dependabot security'
-        })
-
-        compliance_df.drop(columns=['dxapp_boolean', 'timeout_setting',
-                                    'last_release_date', 'total_performa',
-                                    'compliance_count',
-                                    ], inplace=True)
-
-        detailed_df.drop(columns=['distribution', 'timeout', 'title',
-                                  ], inplace=True)
-
-        return compliance_df, detailed_df
-
-
-class plotting:
-    """
-    Collection of plotting functions to use plotly to
-    create plots of compliance performa for each app/applet repo.
-    """
-
-    def __init__(self):
-        pass
-
-    def import_csv(self, path_to_dataframe):
-        """
-        Imports csv files into pandas dataframe for plotting.
-        Converts compliance column into float if present.
-
-        Parameters
-        ----------
-            path_to_dataframe (str): string for absolute/relative path to
-                csv file.
-        Returns
-        -------
-            df (pandas dataframe):
-                pandas dataframe of csv file with minor changes.
-        """
-        df = pd.read_csv(path_to_dataframe)
-
-        return df
-
-    def release_date_compliance_plot(self, df):
-        """
-        Convert date to datetime object.
-
-        Parameters
-        ----------
-            df (dataframe):
-                dataframe of apps/applets with release date and compliance score.
-
-        Returns
-        -------
-            html_fig (plotly html plot object):
-                html plot object of apps/applets with release date and compliance score.
-        """
-        # Convert release_date to pandas datetime column
-        df['last_release_date'] = pd.to_datetime(df['last_release_date'])
-        # Convert % column to numeric float column
-        df_ordered = df.sort_values(by=['last_release_date'])
-
-        fig = px.scatter(
-            data_frame=df_ordered,
-            x=df_ordered['last_release_date'],
-            y=df_ordered['compliance_score'],
-            labels={
-                'last_release_date': 'Date of last release',
-                'compliance_score': 'Compliance (%)'
-            },
-        )
-
-        fig.update_layout(
-            font=dict(
-                size=18,  # Set the font size here
-                color="black"
-            )
-        )
-
-        html_fig = fig.to_html(full_html=True)
-
-        return html_fig
-
-    def compliance_by_latest_activity_plot(self, df):
-        """
-        Convert date to datetime object.
-
-        Parameters
-        ----------
-            df (dataframe):
-                dataframe of apps/applets with release date and compliance score.
-
-        Returns
-        -------
-            html fig (plotly html plot):
-                plot html object of apps/applets with release date and compliance score.
-        """
-        # Convert release_date to pandas datetime column
-        df['latest_commit_date'] = pd.to_datetime(df['latest_commit_date'])
-        # Convert % column to numeric float column
-        df_ordered = df.sort_values(by=['latest_commit_date'])
-
-        fig = px.scatter(
-            data_frame=df_ordered,
-            x=df_ordered['latest_commit_date'],
-            y=df_ordered['compliance_score'],
-            labels={
-                'latest_commit_date': 'Date of last commit',
-                'compliance_score': 'Compliance (%)'
-            },
-            trendline="lowess",
-            hover_name="name",
-            hover_data=["latest_commit_date"],
-        )
-
-        fig.update_layout(
-            font=dict(
-                size=18,
-                color="black"
-            )
-        )
-
-        html_fig = fig.to_html(full_html=True)
-
-        return html_fig
-
-    def ubuntu_compliance_timeseries(self, df):
-        """
-        Convert date to datetime object.
-
-        Parameters
-        ----------
-            df (dataframe):
-                dataframe of apps/applets with ubuntu version,
-                release date, and compliance score.
-
-        Returns
-        -------
-            html fig (plotly html plot):
-                plot html object of apps/applets with release date,
-                ubuntu version, and compliance score.
-        """
-        # Convert release_date to pandas datetime column
-        df = df[df['interpreter'] == 'bash']
-        df['last_release_date'] = pd.to_datetime(df['last_release_date'])
-        # Convert % column to numeric float column
-        df_ordered = df.sort_values(by=['last_release_date'])
-
-        df_ordered['dist_version'] = df_ordered['dist_version'].astype('str')
-
-        fig = px.scatter(
-            data_frame=df_ordered,
-            x=df_ordered['last_release_date'],
-            y=df_ordered['compliance_score'],
-            color=df_ordered['dist_version'],
-            labels={
-                'last_release_date': 'Date of last release',
-                'compliance_score': 'Compliance (%)',
-                'dist_version': 'Ubuntu version',
-            },
-            hover_name="name",
-            hover_data=["last_release_date",
-                        "dist_version"],
-        )
-
-        fig.update_layout(
-            font=dict(
-                size=18,
-                color="black"
-            )
-        )
-
-        html_fig = fig.to_html(full_html=True)
-
-        return html_fig
-
-
-
 def main():
     # Configure logging here rather than at import time.
     setup_logging()
-    # Initialise class with shorthand
     audit = audit_class()
-    plots = plotting()
+
     # API call to get all apps and check compliance to DNAnexus app standards.
     list_of_repos = audit.get_list_of_repositories(audit.ORGANISATION,
                                                    audit.GITHUB_TOKEN)
     print(f"Number of items: {len(list_of_repos)}")
     list_apps, list_of_json_contents = audit.select_apps(list_of_repos,
                                                          audit.GITHUB_TOKEN)
-    compliance_df, detailed_df = audit.orchestrate_app_compliance(list_apps,
-                                                                  list_of_json_contents)
-    compliance_df, detailed_df = audit.compliance_stats(compliance_df,
-                                                        detailed_df)
 
-    # Create tables and plots for html report
-    compliance_stats_summary = audit.compliance_scores_for_each_measure(
-        compliance_df)
-    release_comp_plot = plots.release_date_compliance_plot(compliance_df)
-    ubuntu_comp_plot = plots.ubuntu_compliance_timeseries(detailed_df)
-    compliance_bycommitdate_plot = plots.compliance_by_latest_activity_plot(
-        compliance_df)
-    compliance_df, detailed_df = audit.compliance_df_format(compliance_df,
-                                                            detailed_df)
-    get_template_render(compliance_df, detailed_df, compliance_stats_summary,
-                        release_comp_plot, ubuntu_comp_plot,
-                        compliance_bycommitdate_plot,
-                        )
+    compliance_rows, detail_rows = audit.orchestrate_app_compliance(
+        list_apps, list_of_json_contents
+    )
+    # Scoring happens on the dicts, before any dataframe exists - see
+    # report/scoring.py for why.
+    compliance_rows, detail_rows = scoring.score_rows(compliance_rows,
+                                                      detail_rows)
+
+    compliance_df = frames.build_frame(compliance_rows, COMPLIANCE_COLUMNS)
+    detailed_df = frames.build_frame(detail_rows, DETAIL_COLUMNS)
+    summary_df = frames.build_summary_frame(
+        scoring.summarise_measures(compliance_rows)
+    )
+
+    # Plots read the registry-keyed frames, before the columns are relabelled.
+    plot_html = {
+        "release_comp_plot": plots.release_date_compliance_plot(compliance_df),
+        "ubuntu_comp_plot": plots.ubuntu_compliance_timeseries(detailed_df),
+        "compliance_bycommitdate_plot":
+            plots.compliance_by_latest_activity_plot(compliance_df),
+    }
+
+    render.render_report(
+        compliance_df=tables.format_table(compliance_df, COMPLIANCE_COLUMNS),
+        detailed_df=tables.format_table(detailed_df, DETAIL_COLUMNS),
+        summary_df=summary_df,
+        plots=plot_html,
+    )
 
 
 if __name__ == '__main__':

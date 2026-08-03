@@ -76,6 +76,31 @@ class TestChecksLayerIsPure():
         )
 
 
+class TestReportLayer():
+    def test_scoring_has_no_pandas(self):
+        """Scoring must operate on dicts, not frames.
+
+        `1 == True` is True in pandas, so a frame-based numerator counts any
+        integer column as a pass, and a numpy.bool_ cell fails `is True`.
+        Keeping pandas out of this module makes both mistakes unavailable.
+        """
+        path = PACKAGE_DIR / "report" / "scoring.py"
+        roots = _imported_roots(path)
+        assert 'pandas' not in roots and 'numpy' not in roots, (
+            f"report/scoring.py must stay pandas-free; it imports {roots}"
+        )
+
+    def test_report_does_not_import_the_github_layer(self):
+        offenders = {}
+        for path in _module_paths("report"):
+            bad = {name for name in _imported_dotted(path) if 'gh_api' in name}
+            if bad:
+                offenders[path.name] = sorted(bad)
+        assert offenders == {}, (
+            f"report/ renders already-collected results; found {offenders}"
+        )
+
+
 class TestNoStarImports():
     def test_no_star_imports_in_package_modules(self):
         """`from x import *` is what hid `re` and HTTP404NotFoundError.

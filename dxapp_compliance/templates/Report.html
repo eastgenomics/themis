@@ -86,6 +86,8 @@
         <div> {{ ubuntu_comp_plot }} </div>
         <p class="fw-bold">Plot of compliance by latest commit date </p>
         <div> {{ compliance_bycommitdate_plot }} </div>
+        <p class="fw-bold">Plot of compliance by release date</p>
+        <div> {{ release_comp_plot }} </div>
         <br />
     </div>
     <hr />
@@ -100,43 +102,94 @@
     </div>
 
     <script>
-        // Sets up the DataTable
+        // Sets up the DataTables.
+        //
+        // Columns are located by HEADER TEXT, not by index. The previous config
+        // used `targets: [-4]` for the URL column - counted from the right - and
+        // `targets: [3, 4, 7]` for widths. Both were fragile in the same way:
+        // one shared config was applied to two tables with different layouts,
+        // so the width rule already pointed at "Correct Region" in one table and
+        // "set_e" in the other, and the hyperlink renderer would wrap the wrong
+        // column as soon as any column was added.
+        //
+        // Tables are now rendered with index=False, so there is no longer a
+        // hidden leading index column to offset every position.
         $(document).ready(function () {
-            $('.dataframe').DataTable({
-                deferRender: true,
-                scrollY: '50vh',
-                scrollX: true,
-                scroller: true,
-                scroller: {
-                    loadingIndicator: true
-                },
-                scrollCollapse: true,
-                'autoWidth': true,
-                'autoHeight': true,
-                'processing': true,
-                'language': {
-                    'loadingRecords': '&nbsp;',
-                    'processing': 'Loading...'
-                },
-                paging: false,
-                columnDefs: [
-                    {
-                        targets: [-4],
+            $('table.dataframe').each(function () {
+                var $table = $(this);
+
+                // Map header text -> column index for this table.
+                var columnIndex = {};
+                $table.find('thead th').each(function (index) {
+                    columnIndex[$.trim($(this).text())] = index;
+                });
+
+                var columnDefs = [];
+
+                if ('URL' in columnIndex) {
+                    columnDefs.push({
+                        targets: [columnIndex['URL']],
                         render: function (data) {
-                            return '<a href="' + data + '" target_blank>' + 'link' + '</a>'
+                            return '<a href="' + data + '" target="_blank">link</a>';
                         }
+                    });
+                }
+
+                // Narrow the columns whose values are short booleans.
+                ['Auth Users', 'Auth Devs', 'Correct Region'].forEach(function (header) {
+                    if (header in columnIndex) {
+                        columnDefs.push({ width: '7%', targets: [columnIndex[header]] });
+                    }
+                });
+
+                // The evidence columns hold a file path, a line number and the
+                // matched line. Truncate the display and keep the full text in a
+                // tooltip; the copy and CSV buttons still export it in full.
+                ['Remote Pkg Evidence', 'Pip Evidence', 'Network Access'].forEach(function (header) {
+                    if (header in columnIndex) {
+                        columnDefs.push({
+                            targets: [columnIndex[header]],
+                            render: function (data, type) {
+                                if (type !== 'display' || data == null) { return data; }
+                                var text = String(data);
+                                if (text.length <= 80) { return text; }
+                                return '<span title="' + $('<div>').text(text).html() + '">'
+                                    + $('<div>').text(text.substring(0, 80)).html() + '...</span>';
+                            }
+                        });
+                    }
+                });
+
+                var order = ('compliance %' in columnIndex)
+                    ? [[columnIndex['compliance %'], 'desc']]
+                    : [];
+
+                $table.DataTable({
+                    deferRender: true,
+                    scrollY: '50vh',
+                    scrollX: true,
+                    scroller: {
+                        loadingIndicator: true
                     },
-                    { "visible": false, "targets": 0 },
-                    { "width": "7%", "targets": [3, 4, 7] }
-                ],
-                dom: 'Bfrtip',
-                buttons: [
-                    'copyHtml5', 'csv', 'print'
-                ],
-                pageResize: false,
-                ordering: true,
-                order: [[2, 'desc']],
-                responsive: true,
+                    scrollCollapse: true,
+                    'autoWidth': true,
+                    'autoHeight': true,
+                    'processing': true,
+                    'language': {
+                        'loadingRecords': '&nbsp;',
+                        'processing': 'Loading...'
+                    },
+                    paging: false,
+                    columnDefs: columnDefs,
+                    dom: 'Bfrtip',
+                    buttons: [
+                        'copyHtml5', 'csv', 'print'
+                    ],
+                    pageResize: false,
+                    ordering: true,
+                    order: order,
+                    responsive: true,
+                });
             });
         });
 

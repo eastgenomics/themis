@@ -76,6 +76,31 @@ def run_all_checks(evidence):
 
     asset_present = dependencies.check_assets_present(dxapp)
 
+    # Dependency provenance. These read every fetched script, not just the
+    # entrypoint, which is why the git-tree walk exists.
+    no_network_access, network_details = dxapp_json.check_network_access(dxapp)
+    no_remote_packages, package_details = (
+        dependencies.evaluate_remote_package_install(
+            dxapp, evidence.scripts, evidence.file_paths,
+            evidence.entrypoint_path or "",
+        )
+    )
+    pip_local_wheels, pip_details = dependencies.evaluate_pip_provenance(
+        dxapp, evidence.scripts, evidence.file_paths,
+        evidence.entrypoint_path or "",
+    )
+    _, exec_depends_rendered = dependencies.describe_exec_depends(dxapp)
+
+    # A truncated git tree means an absent .deb may simply not have been listed,
+    # so a pass would be unfounded.
+    if evidence.tree_truncated:
+        logger.warning(
+            f"{evidence.repo.name}: git tree was truncated; reporting "
+            f"path-derived package checks as not applicable."
+        )
+        no_remote_packages = NOT_APPLICABLE
+        package_details = "(repository file listing truncated) " + package_details
+
     # requirements.txt only means something for a repo that ships Python.
     if _has_python_sources(evidence):
         requirements_file_exists = evidence.requirements_txt_present
@@ -94,6 +119,9 @@ def run_all_checks(evidence):
         'correct_regional_option': correct_regional_boolean,
         'set_e': scripts.check_set_e(src),
         'no_manual_compiling': scripts.check_manual_compiling(src),
+        'no_network_access': no_network_access,
+        'no_remote_package_install': no_remote_packages,
+        'pip_uses_local_wheels': pip_local_wheels,
         'dxapp_boolean': app_boolean,
         'dxapp_or_applet': app_or_applet,
         'eggd_name_boolean': eggd_name_boolean,
@@ -126,6 +154,10 @@ def run_all_checks(evidence):
         'set_e': compliance['set_e'],
         'no_manual_compiling': compliance['no_manual_compiling'],
         'asset_present': asset_present,
+        'network_access': network_details,
+        'exec_depends': exec_depends_rendered or "None declared",
+        'package_install_details': package_details,
+        'pip_install_details': pip_details,
         'dxapp_or_applet': app_or_applet,
         'dependabot_alerts_status': evidence.dependabot_alerts_enabled,
         'dependabot_security_status':

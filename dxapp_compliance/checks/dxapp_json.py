@@ -304,3 +304,68 @@ def check_naming_compliance(dxjson_content):
         eggd_title_boolean = False
 
     return name, title, eggd_name_boolean, eggd_title_boolean
+
+
+def check_network_access(dxjson_content):
+    """
+    Checks whether the app declares outbound network access.
+
+    Per the DNAnexus I/O and Run Specifications reference, omitting
+    ``access.network`` entirely means the executable has no network access. Any
+    declared entry - a hostname, a hostname wildcard, a network mask, or "*" -
+    grants outbound access, and an app that needs the network at job time is by
+    definition not self-contained.
+
+    ``httpsApp`` is noted in the details but does not affect the verdict: it
+    permits inbound HTTPS through the platform proxy and neither implies nor
+    requires outbound ``access.network``.
+
+    Parameters
+    ----------
+        dxjson_content (dict):
+            dictionary with all the information on dxapp.json details.
+
+    Returns
+    -------
+        no_network_access (boolean):
+            True when no outbound network access is declared.
+        network_details (str):
+            The declared value, for the details table.
+    """
+    access = dxjson_content.get('access')
+
+    if access is None:
+        no_network_access, details = True, "None declared"
+    elif not isinstance(access, dict):
+        logger.warning(f"dxapp.json access is not a mapping: {type(access)}")
+        no_network_access = True
+        details = f"access malformed: {type(access).__name__}"
+    else:
+        network = access.get('network')
+        if network is None:
+            no_network_access, details = True, "None declared"
+        elif isinstance(network, str):
+            # Malformed - the schema says array of strings - but it still
+            # expresses intent to reach the network.
+            no_network_access = False
+            details = f'"{network}" (not a list)'
+        elif not network:
+            no_network_access, details = True, "[] (empty)"
+        else:
+            no_network_access = False
+            details = str(list(network))
+
+        granted = [
+            f"{key}: {access[key]}"
+            for key in ('project', 'allProjects', 'developer',
+                        'projectCreation')
+            if key in access
+        ]
+        if granted:
+            details += " || also grants " + ", ".join(granted)
+
+    if dxjson_content.get('httpsApp'):
+        details += (" || note: httpsApp declared - inbound HTTPS via the "
+                    "platform proxy only, does not imply outbound access")
+
+    return no_network_access, details

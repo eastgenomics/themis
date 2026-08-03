@@ -108,6 +108,12 @@ COMPLIANCE_COLUMNS = (
                applies_to=BASH_ONLY),
     ColumnSpec('no_manual_compiling', 'No Manual Compile', Role.SCORED,
                applies_to=BASH_ONLY),
+    # Dependency provenance. All three apply to bash and python alike: the pip
+    # check matters most for python apps, which the old code excluded wholesale.
+    ColumnSpec('no_network_access', 'No Network Access', Role.SCORED),
+    ColumnSpec('no_remote_package_install', 'No Remote Pkg Install',
+               Role.SCORED),
+    ColumnSpec('pip_uses_local_wheels', 'Pip Local Wheels', Role.SCORED),
     ColumnSpec('dxapp_boolean', 'DNAnexus App', Role.SCORED, in_table=False),
     ColumnSpec('dxapp_or_applet', 'App or Applet', Role.INFO),
     ColumnSpec('eggd_name_boolean', 'eggd_ name', Role.SCORED),
@@ -150,6 +156,13 @@ DETAIL_COLUMNS = (
     ColumnSpec('set_e', '`set -e` Present', Role.INFO),
     ColumnSpec('no_manual_compiling', 'No Manual Compile', Role.INFO),
     ColumnSpec('asset_present', 'Assets', Role.INFO),
+    # Dependency provenance evidence. These carry the offending file and line so
+    # the report is actionable without cloning the repo - which matters because
+    # regex detection errs in both directions.
+    ColumnSpec('network_access', 'Network Access', Role.INFO),
+    ColumnSpec('exec_depends', 'execDepends', Role.INFO),
+    ColumnSpec('package_install_details', 'Remote Pkg Evidence', Role.INFO),
+    ColumnSpec('pip_install_details', 'Pip Evidence', Role.INFO),
     ColumnSpec('dxapp_or_applet', 'App or Applet', Role.INFO),
     ColumnSpec('dependabot_alerts_status', 'Dependabot alerts', Role.INFO),
     ColumnSpec('dependabot_security_status', 'Dependabot security',

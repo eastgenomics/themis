@@ -157,6 +157,76 @@ class TestRequirementsApplicability():
         )
 
 
+class TestProvenanceEndToEnd():
+    def test_python_app_is_scored_on_pip(self):
+        """The regression that motivated removing the python short-circuit.
+
+        Every source check used to be forced to "NA" for python apps, which would
+        have exempted them from the pip check entirely - the apps it matters most
+        for.
+        """
+        evidence = make_evidence(
+            dxapp=PYTHON_DXAPP,
+            scripts={'src/code.py':
+                     'subprocess.run("pip install pandas", shell=True)\n'},
+            entrypoint_path='src/code.py',
+        )
+        outcome = run_all_checks(evidence)
+        assert outcome.compliance['pip_uses_local_wheels'] is False, (
+            "A python app installing from PyPI must be scored, not excused"
+        )
+        assert 'src/code.py' in outcome.details['pip_install_details'], (
+            "The evidence should name the offending file"
+        )
+
+    def test_network_access_scored_for_both_interpreters(self):
+        for dxapp, entry, src in (
+            (COMPLIANT_BASH_DXAPP, 'src/code.sh', 'set -e\n'),
+            (PYTHON_DXAPP, 'src/code.py', 'pass\n'),
+        ):
+            spec = dict(dxapp, access={'network': ['*']})
+            outcome = run_all_checks(make_evidence(
+                dxapp=spec, scripts={entry: src}, entrypoint_path=entry
+            ))
+            assert outcome.compliance['no_network_access'] is False, (
+                f"Network access must be scored for {spec['runSpec']['interpreter']}"
+            )
+
+    def test_apt_install_flows_through_to_the_verdict(self):
+        evidence = make_evidence(
+            scripts={'src/code.sh': "set -e\nsudo apt-get install -y jq\n"},
+        )
+        outcome = run_all_checks(evidence)
+        assert outcome.compliance['no_remote_package_install'] is False, (
+            "A shell apt install must fail the package provenance check"
+        )
+        assert 'apt-install' in outcome.details['package_install_details'], (
+            "The evidence should name the finding kind"
+        )
+
+    def test_truncated_tree_reports_not_applicable(self):
+        """A truncated listing means an absent .deb may just not be listed, so a
+        pass would be unfounded."""
+        evidence = make_evidence(tree_truncated=True)
+        outcome = run_all_checks(evidence)
+        assert outcome.compliance['no_remote_package_install'] == NOT_APPLICABLE, (
+            "A truncated file listing must not produce a confident pass"
+        )
+        assert 'truncated' in outcome.details['package_install_details'], (
+            "The reason should be visible in the report"
+        )
+
+    def test_exec_depends_surfaced_in_details(self):
+        dxapp = dict(COMPLIANT_BASH_DXAPP)
+        dxapp['runSpec'] = dict(dxapp['runSpec'],
+                                execDepends=[{'name': 'bcftools'}])
+        outcome = run_all_checks(make_evidence(dxapp=dxapp))
+        assert outcome.details['exec_depends'] == 'apt:bcftools', (
+            f"execDepends should render with its defaulted package manager, "
+            f"got {outcome.details['exec_depends']!r}"
+        )
+
+
 class TestAssetDepends():
     def test_runspec_nested_asset_depends_detected(self):
         outcome = run_all_checks(make_evidence())

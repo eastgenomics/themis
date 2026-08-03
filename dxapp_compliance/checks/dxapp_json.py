@@ -11,6 +11,13 @@ a plain dict).
 
 import logging
 
+from dxapp_compliance.checks.registry import (
+    BASH,
+    NOT_APPLICABLE,
+    UNKNOWN,
+    interpreter_family,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,22 +41,32 @@ def check_region_compliance(dxjson_content, default_region=None):
         num_regions (int):
             The number of regional options set for dnanexus cloud servers,
             this should be 1 and set to the correct region.
+
+    Notes
+    -----
+    The previous implementation was
+    ``if region_list is [default_region] or 'aws:eu-central-1' in region_list``.
+    The first clause compared identity against a freshly built list literal, so
+    it was always False and the configured default_region never took effect. The
+    second clause passed any app that merely *included* eu-central-1, so
+    multi-region apps passed - contradicting the documented standard of "only
+    aws:eu-central-1 is set". This now requires exactly the default region.
     """
     # Find Region options for cloud servers.
     region = dxjson_content.get('regionalOptions', {})
     region_list = list(region.keys())
     num_regions = len(region_list)
 
-    # regional options compliance info.
-    if region_list is [default_region] or 'aws:eu-central-1' in region_list:
-        correct_regional_boolean = True
-    elif region_list is [] or num_regions == 1:
-        correct_regional_boolean = False
-        logger.info("Incorrect regional option set.")
-    else:
-        correct_regional_boolean = False
-        logger.info(
-            "Incorrect regional option set and multiple regions present.")
+    correct_regional_boolean = region_list == [default_region]
+
+    if not correct_regional_boolean:
+        if num_regions > 1:
+            logger.info(
+                f"Incorrect regional option set and multiple regions present: "
+                f"{region_list}"
+            )
+        else:
+            logger.info(f"Incorrect regional option set: {region_list}")
 
     return region_list, correct_regional_boolean, num_regions
 
@@ -161,23 +178,34 @@ def check_interpreter_compliance(dxjson_content):
         uptodate_ubuntu (boolean):
             True/False whether the bash app
             uses an up-to-date version of ubuntu.
+
+    Notes
+    -----
+    Two crashes are fixed here. ``float(get('release', ''))`` raised ValueError
+    for a bash app with no ``release`` key, and ``uptodate_ubuntu`` was never
+    assigned when the interpreter was neither bash nor python, so the return
+    statement raised UnboundLocalError.
     """
-    data = dxjson_content
+    run_spec = dxjson_content.get('runSpec', {})
     dist_version = None
-    # interpreter compliance info.
-    interpreter = data.get('runSpec', {}).get('interpreter', '')
-    distribution = data.get('runSpec', {}).get('distribution')
-    if interpreter == 'bash':
-        dist_version = 0
-        dist_version = float(data.get('runSpec', {}).get('release', ''))
-        if dist_version >= 20:
-            uptodate_ubuntu = True
-        else:
-            uptodate_ubuntu = False
-    elif 'python' in interpreter:
-        uptodate_ubuntu = "NA"
+    interpreter = run_spec.get('interpreter', '')
+    distribution = run_spec.get('distribution')
+    family = interpreter_family(interpreter)
+
+    if family == BASH:
+        release = run_spec.get('release')
+        try:
+            dist_version = float(release)
+        except (TypeError, ValueError):
+            logger.info(
+                f"Bash app has no usable runSpec.release: {release!r}"
+            )
+            return interpreter, distribution, None, False
+        uptodate_ubuntu = dist_version >= 20
     else:
-        logger.info(f"Interpreter not found. Interpreter: {interpreter}")
+        if family == UNKNOWN:
+            logger.info(f"Interpreter not recognised: {interpreter!r}")
+        uptodate_ubuntu = NOT_APPLICABLE
 
     return interpreter, distribution, dist_version, uptodate_ubuntu
 

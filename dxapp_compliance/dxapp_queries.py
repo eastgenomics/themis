@@ -24,8 +24,10 @@ from fastcore.all import *  # noqa: F401,F403
 from ghapi.all import GhApi
 from jinja2 import Environment, FileSystemLoader
 
+from dxapp_compliance.checks.registry import NOT_APPLICABLE
 from dxapp_compliance.checks.runner import run_all_checks
 from dxapp_compliance.config import TEMPLATE_DIR, get_config, setup_logging, today_date
+from dxapp_compliance.models import AppEvidence, RepoRecord
 
 # TODO: Add stats to parts of the html report and use bootrap to style it.
 # TODO: Make report prettier with bootstrap.
@@ -117,11 +119,13 @@ class audit_class:
         # Set config
         self.GITHUB_TOKEN, self.ORGANISATION, self.DEFAULT_REGION = get_config()
 
-    def check_file_compliance(self, app, dxjson_content):
+    def collect_evidence(self, app, dxjson_content):
         """
-        This checks the compliance of each app/applet against the performa guidelines.
-        This includes checking compliance using the dxapp.json file.
-        (dxapp.json = the app/applet settings file)
+        Gathers everything the checks need for one app/applet.
+
+        This is the seam between the GitHub layer and the checks: the checks
+        themselves are a pure function of the returned AppEvidence, which is why
+        they can be tested without mocking the GitHub API.
 
         Parameters
         ----------
@@ -132,40 +136,42 @@ class audit_class:
 
         Returns
         -------
-            compliance_df (pandas dataframe):
-                dataframe of compliance booleans for the app/applet.
-            df_details (pandas dataframe):
-                dataframe of compliance details for the app/applet.
+            AppEvidence
         """
+        repo = RepoRecord.from_api(app)
 
-        # Find source for app/applet and check compliance
+        # Find source for app/applet
         src_file_contents, last_release_date, latest_commit_date = self.get_src_file(
             app=app,
             dxjson_content=dxjson_content,
             organisation_name=self.ORGANISATION,
             github_token=self.GITHUB_TOKEN)
-        # Run all compliance checks
-        compliance_dict, details_dict = run_all_checks(
-            repo_name=app.get('name'),
-            html_url=app['html_url'],
-            dxjson_content=dxjson_content,
-            src_file_contents=src_file_contents,
+
+        (_, _, dependabot_alerts_enabled,
+         dependabot_security_updates_set) = self.get_security_advisories(
+            repo.name
+        )
+        requirements_txt_present = self.check_requirements_file_in_python_app(
+            repo.name
+        )
+
+        entrypoint_path = dxjson_content.get('runSpec', {}).get('file')
+
+        return AppEvidence(
+            repo=repo,
+            dxapp=dxjson_content,
+            # Populated by the git-tree walk once gh_api/contents.py lands.
+            file_paths=(),
+            scripts={entrypoint_path: src_file_contents}
+            if entrypoint_path else {},
+            entrypoint_path=entrypoint_path,
             last_release_date=last_release_date,
             latest_commit_date=latest_commit_date,
-            default_region=self.DEFAULT_REGION
+            dependabot_alerts_enabled=dependabot_alerts_enabled,
+            dependabot_security_updates_set=dependabot_security_updates_set,
+            requirements_txt_present=requirements_txt_present,
+            default_region=self.DEFAULT_REGION,
         )
-        # compliance dataframe
-        df_compliance = pd.DataFrame.from_dict(compliance_dict,
-                                               orient='index')
-        df_compliance = df_compliance.transpose()
-
-        # details dataframe
-        df_details = pd.DataFrame.from_dict(details_dict,
-                                            orient='index')
-        df_details = df_details.transpose()
-        # transpose fixes value error for length differences
-
-        return df_compliance, df_details
 
     def get_list_of_repositories(self, org_username, github_token=None):
         """
@@ -574,15 +580,13 @@ class audit_class:
                 for item in contents
             )
 
-            print(file_exists)
-
         except requests.RequestException as e:
-            print(f"Error checking file: {str(e)}")
-            file_exists = "N/A"
+            logger.error(f"Error checking requirements.txt: {str(e)}")
+            file_exists = NOT_APPLICABLE
 
         except json.JSONDecodeError as e:
-            print(f"Error parsing API response: {str(e)}")
-            file_exists = "N/A"
+            logger.error(f"Error parsing API response: {str(e)}")
+            file_exists = NOT_APPLICABLE
 
         return file_exists
 
@@ -602,47 +606,31 @@ class audit_class:
 
         Returns
         -------
-            compliance_df (dataframe)
-                df of apps/applets with compliance stats.
-            detailed_df (dataframe)
-                df of apps/applets with detailed information.
+            compliance_rows (list[dict])
+                one compliance dict per app/applet.
+            detail_rows (list[dict])
+                one details dict per app/applet.
         """
-        compliance_df = detailed_df = None
-
         if len(list_apps) != len(list_of_json_contents):
             logger.error("Number of apps and list of json contents do not match.")
             raise AssertionError('List of apps and list of API jsons dont match')
 
+        compliance_rows = []
+        detail_rows = []
+
         for app, dxapp_contents in zip(list_apps, list_of_json_contents):
-            repo_name = app.get('name')
+            # The dependabot and requirements results used to be appended to the
+            # dataframe here, after the score denominator had already been
+            # written - which is how bash apps ended up able to score 108%. They
+            # are now part of the evidence and declared in the registry, so they
+            # are counted like every other check.
+            evidence = self.collect_evidence(app, dxapp_contents)
+            outcome = run_all_checks(evidence)
 
-            # Get dependabot and requirements info
-            dependabot_alerts_status, dependabot_security_status, dependabot_alerts_enabled, dependabot_security_updates_set = \
-                self.get_security_advisories(repo_name)
-            file_exists = self.check_requirements_file_in_python_app(repo_name)
+            compliance_rows.append(outcome.compliance)
+            detail_rows.append(outcome.details)
 
-            # Check compliance
-            df_repo, df_repo_details = self.check_file_compliance(app, dxapp_contents)
-
-            # Append security status and requirements
-            df_repo['dependabot_alerts_status'] = dependabot_alerts_enabled
-            df_repo['dependabot_security_status'] = dependabot_security_updates_set
-            df_repo['requirements_file_exists'] = file_exists
-
-            df_repo_details['dependabot_alerts_status'] = dependabot_alerts_enabled
-            df_repo_details['dependabot_security_status'] = dependabot_security_updates_set
-            df_repo_details['requirements_file_exists'] = file_exists
-
-            # Concatenate dfs
-            if compliance_df is None:
-                compliance_df = df_repo
-                detailed_df = df_repo_details
-            else:
-                compliance_df = pd.concat([compliance_df, df_repo], ignore_index=True)
-                detailed_df = pd.concat([detailed_df, df_repo_details], ignore_index=True)
-
-
-        return compliance_df, detailed_df
+        return compliance_rows, detail_rows
 
 
     def compliance_scores_for_each_measure(self, df):

@@ -39,23 +39,17 @@ class TestCheckManualCompiling():
         )
 
 
-class TestCheckSrcFileCompliance():
-    bash_app = {'runSpec': {'interpreter': 'bash'}}
-    python_app = {'runSpec': {'interpreter': 'python3'}}
-    src_compliant = "#!/bin/bash\nset -e\nsamtools view -c in.bam\n"
+class TestEmptySource():
+    """A missing or unfetchable src file must not crash the checks."""
 
-    def test_bash_app_evaluated(self):
-        set_e, no_compile, _ = scripts.check_src_file_compliance(
-            self.bash_app, self.src_compliant
+    def test_empty_string(self):
+        assert scripts.check_set_e("") is False, (
+            "No source text means set -e cannot be shown present"
         )
-        assert (set_e, no_compile) == (True, True), (
-            "A compliant bash app should pass both source checks"
+        assert scripts.check_manual_compiling("") is True, (
+            "No source text means no manual compiling was detected"
         )
 
-    def test_python_app_not_applicable(self):
-        set_e, no_compile, _ = scripts.check_src_file_compliance(
-            self.python_app, self.src_compliant
-        )
-        assert (set_e, no_compile) == ("NA", "NA"), (
-            "set -e and manual compiling stay bash-only and read NA for python"
-        )
+# The bash/python applicability of these two checks is no longer decided here.
+# It is declared once in checks/registry.py and applied by checks/runner.py -
+# see tests/test_runner.py::TestRunAllChecks::test_python_app_skips_bash_only_checks.

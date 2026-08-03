@@ -1,114 +1,173 @@
 """Runs every check for one app and assembles the two result dicts.
 
-Moved from ``compliance_checks.check_all``. ``compliance_dict`` holds the
-booleans that feed the compliance score; ``details_dict`` holds the
-human-readable values for the supplementary table.
+The two dicts are built by asking the registry what columns exist, rather than
+by hand-listing keys as the original ``check_all`` did. That is what keeps the
+score denominator, the summary allow-list, the rename maps and the rendered
+column order from drifting apart.
 
-The ghapi repo object has been replaced by plain ``repo_name`` and ``html_url``
-arguments, so this function is callable with literal values in a test.
+Applicability is enforced in one place here: any scored check whose declared
+``applies_to`` excludes this app's interpreter family is written as
+NOT_APPLICABLE and drops out of the app's denominator.
 """
 
 import logging
 
-from dxapp_compliance.checks import dxapp_json, scripts
+from dxapp_compliance.checks import dependencies, dxapp_json, scripts
+from dxapp_compliance.checks.registry import (
+    COMPLIANCE_COLUMNS,
+    DETAIL_COLUMNS,
+    NOT_APPLICABLE,
+    Role,
+    interpreter_family,
+)
+from dxapp_compliance.models import CheckOutcome
 
 logger = logging.getLogger(__name__)
 
 
-def run_all_checks(repo_name, html_url, dxjson_content,
-                   src_file_contents="",
-                   last_release_date=None,
-                   latest_commit_date=None,
-                   default_region=None):
+def _has_python_sources(evidence):
+    """Whether the repository contains any Python at all.
+
+    Decides whether the requirements.txt check applies. The original gated on
+    GitHub's linguist report and returned a hard False for any repo linguist did
+    not label Python - so a bash app shipping a Python helper with unpinned
+    dependencies was indistinguishable from a compliant one, and pure-shell apps
+    were penalised for lacking a file they have no use for.
     """
-    Checks all compliance measures for an app
-    against Eastgenomics DNAnexus App standards.
+    if evidence.dxapp.get('runSpec', {}).get('interpreter', '').startswith(
+            'python'):
+        return True
+
+    return any(path.endswith('.py') for path in evidence.file_paths)
+
+
+def run_all_checks(evidence):
+    """Run every check for one app.
 
     Parameters
     ----------
-        repo_name (str):
-            name of the app/applet repository.
-        html_url (str):
-            GitHub URL of the app/applet repository.
-        dxjson_content (dict):
-            dictionary with all the information on dxapp.json details.
-        src_file_contents (str):
-            str with the app source code file.
-        last_release_date (str):
-            the date of the last release for the app/applet.
-        latest_commit_date (str):
-            the date of the latest commit for the app/applet.
-        default_region (str):
-            default region to check against.
+        evidence (AppEvidence):
+            Everything already fetched for this app.
 
     Returns
     -------
-        compliance_dict (dict):
-            dict of compliance booleans for the app/applet.
-        details_dict (dict):
-            dict of compliance details for the app/applet.
+        CheckOutcome
     """
-    # Find compliance for app/applet
+    dxapp = evidence.dxapp
+    src = evidence.entrypoint_text
+
     app_boolean, app_or_applet = dxapp_json.check_app_compliance(
-        repo_name, dxjson_content
+        evidence.repo.name, dxapp
     )
     (name, title, eggd_name_boolean,
-     eggd_title_boolean) = dxapp_json.check_naming_compliance(dxjson_content)
+     eggd_title_boolean) = dxapp_json.check_naming_compliance(dxapp)
     (interpreter, distribution, dist_version,
-     uptodate_ubuntu) = dxapp_json.check_interpreter_compliance(dxjson_content)
+     uptodate_ubuntu) = dxapp_json.check_interpreter_compliance(dxapp)
     (region_list, correct_regional_boolean,
      region_options_num) = dxapp_json.check_region_compliance(
-        dxjson_content, default_region
+        dxapp, evidence.default_region
     )
     # Convert list of regions to more readable string
     regions = " ".join([x.split(':')[1].rstrip("']") for x in region_list])
 
-    (set_e_boolean, no_manual_compiling,
-     asset_present) = scripts.check_src_file_compliance(
-        dxjson_content, src_file_contents
-    )
-    timeout_policy, timeout_setting = dxapp_json.check_timeout(dxjson_content)
+    timeout_policy, timeout_setting = dxapp_json.check_timeout(dxapp)
     (authorised_users, authorised_devs, auth_devs_boolean,
-     auth_users_boolean) = dxapp_json.check_users_and_devs(dxjson_content)
+     auth_users_boolean) = dxapp_json.check_users_and_devs(dxapp)
 
-    # Construct dicts to return data.
-    compliance_dict = {'name': name,
-                       'authorised_users': auth_users_boolean,
-                       'authorised_devs': auth_devs_boolean,
-                       'interpreter': interpreter,
-                       'uptodate_ubuntu': uptodate_ubuntu,
-                       'timeout_policy': timeout_policy,
-                       'correct_regional_option': correct_regional_boolean,
-                       'num_of_region_options': region_options_num,
-                       'set_e': set_e_boolean,
-                       'no_manual_compiling': no_manual_compiling,
-                       'dxapp_boolean': app_boolean,
-                       'dxapp_or_applet': app_or_applet,
-                       'eggd_name_boolean': eggd_name_boolean,
-                       'eggd_title_boolean': eggd_title_boolean,
-                       'last_release_date': last_release_date,
-                       'latest_commit_date': latest_commit_date,
-                       'timeout_setting': timeout_setting,
-                       'URL': html_url,
-                       }
+    asset_present = dependencies.check_assets_present(dxapp)
 
-    details_dict = {'name': name,
-                    'authorised_users': authorised_users,
-                    'authorised_devs': authorised_devs,
-                    'interpreter': interpreter,
-                    'distribution': distribution,
-                    'dist_version': dist_version,
-                    'regionalOptions': regions,
-                    'title': title,
-                    'timeout': timeout_policy,
-                    'set_e': set_e_boolean,
-                    'no_manual_compiling': no_manual_compiling,
-                    'asset_present': asset_present,
-                    'dxapp_or_applet': app_or_applet,
-                    'last_release_date': last_release_date,
-                    'latest_commit_date': latest_commit_date,
-                    'timeout_setting': timeout_setting,
-                    'URL': html_url,
-                    }
+    # requirements.txt only means something for a repo that ships Python.
+    if _has_python_sources(evidence):
+        requirements_file_exists = evidence.requirements_txt_present
+    else:
+        requirements_file_exists = NOT_APPLICABLE
 
-    return compliance_dict, details_dict
+    compliance = {
+        'name': name,
+        # Filled in by report.scoring once every app has been checked.
+        'compliance_score': None,
+        'authorised_users': auth_users_boolean,
+        'authorised_devs': auth_devs_boolean,
+        'interpreter': interpreter,
+        'uptodate_ubuntu': uptodate_ubuntu,
+        'timeout_policy': timeout_policy,
+        'correct_regional_option': correct_regional_boolean,
+        'set_e': scripts.check_set_e(src),
+        'no_manual_compiling': scripts.check_manual_compiling(src),
+        'dxapp_boolean': app_boolean,
+        'dxapp_or_applet': app_or_applet,
+        'eggd_name_boolean': eggd_name_boolean,
+        'eggd_title_boolean': eggd_title_boolean,
+        'dependabot_alerts_status': evidence.dependabot_alerts_enabled,
+        'dependabot_security_status':
+            evidence.dependabot_security_updates_set,
+        'requirements_file_exists': requirements_file_exists,
+        'num_of_region_options': region_options_num,
+        'timeout_setting': timeout_setting,
+        'last_release_date': evidence.last_release_date,
+        'latest_commit_date': evidence.latest_commit_date,
+        'URL': evidence.repo.html_url,
+    }
+
+    compliance = apply_applicability(compliance, interpreter)
+
+    details = {
+        'name': name,
+        'compliance_score': None,
+        'authorised_users': authorised_users,
+        'authorised_devs': authorised_devs,
+        'interpreter': interpreter,
+        'distribution': distribution,
+        'dist_version': dist_version,
+        'regionalOptions': regions,
+        'title': title,
+        'timeout': timeout_policy,
+        'timeout_setting': timeout_setting,
+        'set_e': compliance['set_e'],
+        'no_manual_compiling': compliance['no_manual_compiling'],
+        'asset_present': asset_present,
+        'dxapp_or_applet': app_or_applet,
+        'dependabot_alerts_status': evidence.dependabot_alerts_enabled,
+        'dependabot_security_status':
+            evidence.dependabot_security_updates_set,
+        'requirements_file_exists': requirements_file_exists,
+        'last_release_date': evidence.last_release_date,
+        'latest_commit_date': evidence.latest_commit_date,
+        'URL': evidence.repo.html_url,
+    }
+
+    _assert_keys_match(compliance, COMPLIANCE_COLUMNS, "compliance")
+    _assert_keys_match(details, DETAIL_COLUMNS, "details")
+
+    return CheckOutcome(compliance=compliance, details=details)
+
+
+def apply_applicability(compliance, interpreter):
+    """Blank out scored checks that do not apply to this app's interpreter.
+
+    Replaces the hardcoded "if python: set -e and manual compiling are NA"
+    branch. Declaring applicability in the registry means a new check cannot
+    accidentally be scored for an interpreter it makes no sense for.
+    """
+    family = interpreter_family(interpreter)
+    for spec in COMPLIANCE_COLUMNS:
+        if spec.role is Role.SCORED and family not in spec.applies_to:
+            compliance[spec.key] = NOT_APPLICABLE
+
+    return compliance
+
+
+def _assert_keys_match(produced, columns, label):
+    """Fail loudly if the runner and the registry have drifted apart.
+
+    A missing key used to mean a column silently vanished from the report; an
+    undeclared key meant it was computed and then dropped.
+    """
+    declared = {spec.key for spec in columns}
+    actual = set(produced)
+    if declared != actual:
+        raise AssertionError(
+            f"{label} dict does not match the registry. "
+            f"Missing: {sorted(declared - actual)}. "
+            f"Undeclared: {sorted(actual - declared)}."
+        )

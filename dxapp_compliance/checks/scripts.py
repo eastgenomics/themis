@@ -49,41 +49,9 @@ def check_manual_compiling(src_file_contents):
     return not re.search(r".*make install.*", src_file_contents)
 
 
-def check_src_file_compliance(dxjson_content, src_file_contents):
-    """
-    Checks compliance for set -e exit option and manual compiling settings
-    for DNAnexus app performance.
-
-    Parameters
-    ----------
-        dxjson_content (dict):
-            dictionary with all the information on dxapp.json details.
-        src_file_contents (str):
-            str with the app source code file.
-
-    Returns
-    -------
-        set_e_boolean (boolean):
-            True/False whether only the set -e option is used.
-        no_manual_compiling (boolean):
-            True/False whether only the app doesn't manually compile.
-        asset_present (boolean):
-            True/False whether the app declares asset dependencies.
-    """
-    set_e_boolean = no_manual_compiling = None
-    interpreter = dxjson_content.get('runSpec', {}).get('interpreter', '')
-    # Assets present in dxapp.json
-    if dxjson_content.get('assetsDepends', {}):
-        asset_present = True
-    else:
-        asset_present = False
-    # Check for set -e option and manual compiling in src file.
-    if 'python' in interpreter:
-        set_e_boolean = "NA"
-        no_manual_compiling = "NA"
-    else:
-        # Checks for only BASH apps
-        set_e_boolean = check_set_e(src_file_contents)
-        no_manual_compiling = check_manual_compiling(src_file_contents)
-
-    return set_e_boolean, no_manual_compiling, asset_present
+# check_src_file_compliance has been removed. It bundled three unrelated things
+# and hardcoded "if python: NA" for all of them, which would have silently
+# exempted every Python app from the new pip check - the apps it matters most
+# for. Applicability is now declared once per check in checks/registry.py and
+# applied by checks/runner.py, and the asset reader moved to
+# checks/dependencies.py where the runSpec nesting is handled correctly.

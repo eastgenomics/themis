@@ -1,49 +1,40 @@
+import sys
+from pathlib import Path
+
+# The package's parent must be importable for `from dxapp_compliance... import`
+# to resolve when this file is run directly as `python dxapp_queries.py` from
+# inside dxapp_compliance/. Keeps the old invocation working during the refactor.
+sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
+
 import base64
 import json
 import logging
-import requests
-import os
-from datetime import datetime
-# Fastcore extends the python standard library to allow for the use of ghapi.
 from math import ceil
-from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
-import statsmodels.api as sm
-from fastcore.all import *
+import requests
+# Imported for its side effect: plotly's trendline="lowess" requires statsmodels
+# to be importable. The `sm` name itself is unused - do not "clean this up".
+import statsmodels.api as sm  # noqa: F401
+# Fastcore extends the python standard library to allow for the use of ghapi.
+# This star import is also the only source of `re` and HTTP404NotFoundError in
+# this module. Both are imported explicitly in the new package modules.
+from fastcore.all import *  # noqa: F401,F403
 from ghapi.all import GhApi
 from jinja2 import Environment, FileSystemLoader
-import subprocess
+
+from dxapp_compliance.config import TEMPLATE_DIR, get_config, setup_logging, today_date
 
 # TODO: Add stats to parts of the html report and use bootrap to style it.
 # TODO: Make report prettier with bootstrap.
-# TODO: Add assetDepends to the report.
 # TODO: Add list of repos without releases to report. (datatables)
 # TODO: Add instance type to the report.
 
-# Set-up
-# Get Date for today
-today_date = datetime.now().date()
-
 # Remove warnings from pandas which aren't relevant.
 pd.options.mode.chained_assignment = None
-# Set file path for root directory
-ROOT_DIR = Path(__file__).absolute().parents[1]
-# Create format for logging errors in API queries
-LOG_FORMAT = (
-    "%(asctime)s — %(name)s — %(levelname)s"
-    " — %(lineno)d — %(message)s"
-)  # TODO: Change log format
-# Set level to debug, format with date and time and re-write file each time
-logging.basicConfig(
-    filename=ROOT_DIR.joinpath('dxapp_compliance/dx_compliance.log'),
-    level=logging.INFO,
-    format=LOG_FORMAT,
-    filemode='w'
-)
-# Set up logger
+# Set up logger. Handlers are configured in main() via setup_logging(), not at
+# import time - see dxapp_compliance/config.py.
 logger = logging.getLogger("general log")
 
 
@@ -75,9 +66,12 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
         HTML report of all app compliances.
         Including tables of compliance stats and plots.
     """
-    environment = Environment(loader=FileSystemLoader("templates/"))
+    # autoescape is left at Jinja2's default of False deliberately. The plot
+    # variables in Report.html are raw plotly HTML and escaping would mangle
+    # them - do not add select_autoescape here.
+    environment = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
     template = environment.get_template("Report.html")
-    filename = f"Audit_{today_date}.html"
+    filename = f"Audit_{today_date()}.html"
     compliance_html = compliance_df.to_html(table_id="comp",
                                             classes="table table-striped table-hover"
                                             )
@@ -109,31 +103,6 @@ def get_template_render(compliance_df, detailed_df, compliance_stats_summary,
     with open(filename, mode="w", encoding="utf-8") as results:
         results.write(template.render(context))
         print(f"... wrote {filename}")
-
-
-def get_config():
-    """
-    Extracts the config from the json config file.
-
-    Returns
-    -------
-    github_token (str):
-        Github API token for authentication.
-
-    organisation (str):
-        Organisation dnanexus username.
-
-    default_region (str):
-        Default region for running apps in DNANexus.
-
-    """
-    with open('CONFIG.json') as file:
-        config = json.load(file)
-        github_token = config.get('GITHUB_TOKEN')
-        organisation = config.get('organisation')
-        default_region = config.get('default_region')
-
-    return github_token, organisation, default_region
 
 
 class compliance_checks:
@@ -1386,6 +1355,8 @@ class plotting:
 
 
 def main():
+    # Configure logging here rather than at import time.
+    setup_logging()
     # Initialise class with shorthand
     audit = audit_class()
     plots = plotting()

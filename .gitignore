@@ -13,8 +13,12 @@ dxapp_compliance/__pycache__/*
 *.csv#
 *.html
 !TAT_audit/templates/*
+!dxapp_compliance/templates/*
 TAT_audit/tests/__pycache__/*
 *.log
 *.Rhistory
 *.coverage
 *.env
+
+# uv-managed virtualenv. uv.lock IS tracked - it is the reproducibility record.
+.venv/

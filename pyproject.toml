@@ -1,0 +1,33 @@
+[project]
+name = "themis"
+version = "1.4.0"
+description = "Bioinformatics internal auditing tools for East Genomics"
+requires-python = ">=3.10"
+
+# Direct dependencies only. The previous dxapp_compliance/requirements.txt was a
+# conda freeze containing 16 `@ file:///...` entries pointing at other machines'
+# build directories, so it could not be installed anywhere. requirements.txt is
+# now a derived artefact: `uv export --no-hashes --format requirements-txt`.
+dependencies = [
+    "ghapi",         # GitHub API client used throughout gh_api/
+    "fastcore",      # ghapi's companion; supplies HTTP404NotFoundError
+    "requests",      # used directly for the code-security-configuration endpoint
+    "pandas",
+    "plotly",
+    "statsmodels",   # required by plotly's trendline="lowess"; imported for its side effect
+    "jinja2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+# Dependencies only - neither tool directory is built or installed as a
+# distribution. `uv run python -m dxapp_compliance.main` from the repo root puts
+# the root on sys.path, so the package imports resolve with no sys.path hacking.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["dxapp_compliance/tests"]

@@ -4,19 +4,23 @@ This repo contains the script to generate an audit summary report for bioinforma
 
 ## **Installation**
 
-The required Python package dependencies to query the GitHub API and create the final HTML file can be installed with:
+Dependencies are managed with [uv](https://docs.astral.sh/uv/), from the
+`pyproject.toml` at the repository root. From the root:
 
-### Using pip
+```
+uv sync
+```
 
-`pip install -r requirements.txt`
+That creates `.venv/` and installs the exact versions recorded in `uv.lock`.
+`uv.lock` is tracked deliberately — an audit that flags other people's
+unpinned dependency installs should pin its own.
 
-### Using Conda
+`requirements.txt` is kept only for anyone not using uv, and is a **derived
+artefact** — regenerate it rather than editing it by hand:
 
-`conda env create -f environment.yml`
-
-or
-
-`conda create --name <env_name> --file requirements.txt`
+```
+uv export --no-hashes --format requirements-txt > dxapp_compliance/requirements.txt
+```
 
 Config variables should be passed in a CONFIG.json file. This should be placed within dxapp_compliance. i.e. themis/dxapp_compliance/CONFIG.json
 
@@ -87,17 +91,12 @@ A check for 'requirements.txt' exists in a Python GitHub repo using GitHub CLI (
 
 ## **Running**
 
-Change directory to dxapp_compliance
+From the repository root:
 
-`cd themis/dxapp_compliance`
+`uv run python -m dxapp_compliance.main`
 
-Activate environment with conda
-
-`conda activate <env-name>`
-
-Run the script to query the current DNAnexus app/applet repositories in the organisation:
-
-`python dxapp_queries.py`
+`uv run` activates the environment for you, so there is no separate activation
+step.
 
 The script will create a HTML file in the directory you're currently in. If the script is run twice for the same period, if a summary report has been previously generated this will be replaced.
 

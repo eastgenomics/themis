@@ -13,10 +13,32 @@ import logging
 
 import pandas as pd
 import plotly.express as px
+from plotly.offline import get_plotlyjs_version
 
 logger = logging.getLogger(__name__)
 
 FONT = dict(size=18, color="black")
+
+
+def plotlyjs_cdn_url():
+    """CDN URL for the plotly.js build matching the installed plotly.py.
+
+    Taken from plotly rather than hardcoded, so the bundle can never drift out of
+    step with the figures it has to render.
+    """
+    return f"https://cdn.plot.ly/plotly-{get_plotlyjs_version()}.min.js"
+
+
+def _figure_html(fig):
+    """Render a figure as a fragment, without its own copy of plotly.js.
+
+    Each figure used to be rendered with ``full_html=True``, which inlines the
+    whole ~4.8 MB plotly.js bundle - three times over, for a 14 MB report. The
+    library is now loaded once from the CDN by the template. The report already
+    depends on a CDN for jQuery, bootstrap and DataTables, so this adds no new
+    requirement.
+    """
+    return fig.to_html(full_html=False, include_plotlyjs=False)
 
 
 def _empty_plot_html(message):
@@ -58,7 +80,7 @@ def release_date_compliance_plot(df):
     )
     fig.update_layout(font=FONT)
 
-    return fig.to_html(full_html=True)
+    return _figure_html(fig)
 
 
 def compliance_by_latest_activity_plot(df):
@@ -96,7 +118,7 @@ def compliance_by_latest_activity_plot(df):
     )
     fig.update_layout(font=FONT)
 
-    return fig.to_html(full_html=True)
+    return _figure_html(fig)
 
 
 def ubuntu_compliance_timeseries(df):
@@ -138,4 +160,4 @@ def ubuntu_compliance_timeseries(df):
     )
     fig.update_layout(font=FONT)
 
-    return fig.to_html(full_html=True)
+    return _figure_html(fig)

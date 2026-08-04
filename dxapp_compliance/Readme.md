@@ -271,10 +271,31 @@ No mocking and no fixture files: the checks are pure functions of an
 `.gitignore` has a bare `*.json` rule that would silently untrack any fixture
 `dxapp.json`.)
 
+## **Backlog**
+
+Carried over from TODO comments that used to sit at the top of `dxapp_queries.py`,
+kept here now that the file is only a deprecation shim:
+
+- Add summary statistics to parts of the HTML report, and style it with bootstrap.
+- Make the report prettier with bootstrap.
+- Add a list of repos without releases to the report (as a datatable).
+- Add instance type to the report.
+- Revisit the log format (`LOG_FORMAT` in `config.py`).
+
+Done since: *"Add assetDepends to the report"* — `runSpec.assetDepends` is now read
+at the correct path and surfaced in both the **Assets** and **execDepends**
+columns. It had never worked, because the code read a top-level `assetsDepends`.
+
 ## **Known limitations**
 
 - Only **public** repositories are audited. `list_organisation_repos` paginates on
   the organisation's `public_repos` count, so private repositories fall off the
   end of the listing.
+- **The report needs an internet connection to view.** jQuery, bootstrap,
+  DataTables and plotly.js are all loaded from CDNs. plotly.js is loaded once for
+  all three figures rather than inlined into each; inlining made the report ~14 MB
+  instead of ~50 KB. If an offline-viewable report is ever needed, change
+  `_figure_html` in `report/plots.py` to `include_plotlyjs=True` for one figure -
+  and accept the size.
 - Dockerfiles are not scanned — see the dependency-provenance section above for
   what that means for the apt and pip checks.

@@ -28,6 +28,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.3.2/js/buttons.html5.min.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.3.2/js/buttons.print.min.js"></script>
+    <!-- plotly.js, loaded once for all figures on the page. Each figure is
+         rendered as a fragment rather than a standalone document, which keeps
+         the report a few hundred KB instead of ~14 MB (one ~4.8 MB copy of this
+         bundle per plot). The version is emitted by plotly itself so it cannot
+         drift from the figures it renders. -->
+    <script src="{{ plotlyjs_url }}" charset="utf-8"></script>
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.2.0/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.1/css/dataTables.bootstrap5.min.css" />

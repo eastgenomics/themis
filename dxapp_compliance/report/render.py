@@ -12,6 +12,7 @@ import logging
 from jinja2 import Environment, FileSystemLoader
 
 from dxapp_compliance.config import TEMPLATE_DIR, today_date
+from dxapp_compliance.report.plots import plotlyjs_cdn_url
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,9 @@ def render_report(compliance_df, detailed_df, summary_df, plots,
             table_id="details", classes=TABLE_CLASSES, index=False
         ),
         "compliance_stats_summary": _summary_html(summary_df),
+        # plotly.js is loaded once here rather than inlined into each of the
+        # three figures, which is what made the report ~14 MB.
+        "plotlyjs_url": plotlyjs_cdn_url(),
     }
     context.update(plots)
 

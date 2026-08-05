@@ -148,6 +148,27 @@ reference, omitting `access.network` means the executable has no network access,
 so anything declared means the app is not self-contained. The declared value is
 recorded in the details table.
 
+**Sentieon is exempt.** Its binaries contact a licence server on every
+invocation, so a Sentieon app cannot be hermetic and failing it would report a
+constraint as a defect. Such apps read `NA` — dropped from the denominator, not
+awarded a pass they did not earn — and the details carry an asterisk:
+
+> `['*'] || * Sentieon licensing requires outbound access, so this app is exempt
+> rather than failed - but this grant could be narrowed to just the Sentieon
+> licence server`
+
+An app already scoped to only the licence host **passes outright**, so narrowing
+is rewarded rather than merely suggested.
+
+An app counts as Sentieon if its name, title or declared dependencies say so, or
+if its scripts contain `SENTIEON_LICENSE`, `SENTIEON_INSTALL_DIR`, the
+`sentieon-genomics` tarball, or `sentieon` in command position. Case matters for
+the script markers, deliberately: an earlier case-insensitive search for
+"sentieon" exempted an unrelated app whose only connection was the word appearing
+inside a Slack alert message. If your licence server is reached under a name that
+does not contain "sentieon", add it to `SENTIEON_LICENCE_HOSTS` in
+`checks/dxapp_json.py`.
+
 `httpsApp` is noted in the details but does not affect the verdict: it permits
 inbound HTTPS through the platform proxy and neither implies nor requires
 outbound access.

@@ -205,8 +205,13 @@ def sort_findings(findings):
 
 
 def _render_finding(finding):
-    rendered = f"{finding['kind']} [{finding['path']}:{finding['line_no']}] " \
-               f"{finding['snippet']}"
+    # line_no 0 means the finding came from a dxapp.json field rather than a line
+    # of script, so there is no line to cite.
+    location = finding['path']
+    if finding['line_no']:
+        location += f":{finding['line_no']}"
+
+    rendered = f"{finding['kind']} [{location}] {finding['snippet']}"
     if finding.get('reason'):
         rendered += f" [{finding['reason']}]"
 

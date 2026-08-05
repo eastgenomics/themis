@@ -12,7 +12,7 @@ from dxapp_compliance.checks.registry import display_map, rendered_columns
 logger = logging.getLogger(__name__)
 
 
-def format_table(frame, columns):
+def format_table(frame, columns, exclude=()):
     """Rename to display labels and keep only the columns to render.
 
     Parameters
@@ -28,7 +28,7 @@ def format_table(frame, columns):
         the columns marked for rendering.
     """
     renamed = frame.rename(columns=display_map(columns))
-    wanted = rendered_columns(columns)
+    wanted = rendered_columns(columns, exclude=exclude)
 
     missing = [label for label in wanted if label not in renamed.columns]
     if missing:

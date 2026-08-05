@@ -17,7 +17,7 @@ from dxapp_compliance.checks.registry import (
 logger = logging.getLogger(__name__)
 
 
-def applicable_specs(compliance):
+def applicable_specs(compliance, exclude=()):
     """The scored checks that produced a verdict for this app.
 
     A check is excluded when it does not apply to the app's interpreter, or when
@@ -28,12 +28,12 @@ def applicable_specs(compliance):
     family = interpreter_family(compliance.get('interpreter'))
 
     return [
-        spec for spec in scored_specs(family)
+        spec for spec in scored_specs(family, exclude=exclude)
         if compliance.get(spec.key) not in (NOT_APPLICABLE, None)
     ]
 
 
-def score_app(compliance):
+def score_app(compliance, exclude=()):
     """Percentage of applicable checks this app passed.
 
     Parameters
@@ -51,7 +51,7 @@ def score_app(compliance):
     compared with ``is True``. The original summed every cell in the row that
     was ``== True``, which in pandas also matches the integer 1.
     """
-    considered = applicable_specs(compliance)
+    considered = applicable_specs(compliance, exclude=exclude)
     if not considered:
         logger.info(
             f"No applicable checks for {compliance.get('name')!r}; scoring 0."
@@ -64,7 +64,7 @@ def score_app(compliance):
     return round(passed / len(considered) * 100, 2)
 
 
-def score_rows(compliance_rows, detail_rows):
+def score_rows(compliance_rows, detail_rows, exclude=()):
     """Fill in compliance_score on every row, in place.
 
     Both tables carry the score so either can be read on its own.
@@ -74,14 +74,14 @@ def score_rows(compliance_rows, detail_rows):
         tuple: (compliance_rows, detail_rows)
     """
     for compliance, details in zip(compliance_rows, detail_rows):
-        score = score_app(compliance)
+        score = score_app(compliance, exclude=exclude)
         compliance['compliance_score'] = score
         details['compliance_score'] = score
 
     return compliance_rows, detail_rows
 
 
-def summarise_measures(compliance_rows):
+def summarise_measures(compliance_rows, exclude=()):
     """Per-check compliance across all apps, for the summary table.
 
     Returns
@@ -97,7 +97,7 @@ def summarise_measures(compliance_rows):
     reachable because a check can legitimately be NA for every app in a run.
     """
     summary = []
-    for spec in summary_specs():
+    for spec in summary_specs(exclude=exclude):
         values = [row.get(spec.key) for row in compliance_rows]
         no_true = sum(1 for value in values if value is True)
         no_false = sum(1 for value in values if value is False)

@@ -304,7 +304,10 @@ def evaluate_remote_package_install(dxjson_content, scripts=None,
     supporting = _local_package_evidence(dxjson_content, repo_paths, local)
 
     passed = not scored
-    details = format_evidence(scored, supporting=supporting)
+    # "None detected" was ambiguous: it meant "no *remote* installs", but read as
+    # "nothing was found at all" even when local evidence followed it.
+    details = format_evidence(scored, supporting=supporting,
+                              empty_msg="No remote installs")
     if unscored:
         details += (f" || unscored ({len(unscored)} in non-runtime paths): "
                     f"{unscored[0]['path']}:{unscored[0]['line_no']}")
@@ -319,12 +322,12 @@ def _local_package_evidence(dxjson_content, repo_paths, local_findings):
     parts = []
 
     if local_findings:
-        first = local_findings[0]
-        parts.append(
-            f"dpkg -i [{first['path']}:{first['line_no']}]"
-            + (f" (+{len(local_findings) - 1} more)"
-               if len(local_findings) > 1 else "")
+        located = ", ".join(
+            f"{f['path']}:{f['line_no']}" for f in local_findings[:3]
         )
+        if len(local_findings) > 3:
+            located += f" (+{len(local_findings) - 3} more)"
+        parts.append(f"dpkg -i at {located}")
 
     debs = [p for p in repo_paths
             if p.startswith('resources/') and p.lower().endswith('.deb')]
@@ -508,10 +511,20 @@ def evaluate_pip_provenance(dxjson_content, scripts=None, repo_paths=(),
     wheels = [p for p in repo_paths if p.lower().endswith('.whl')]
     supporting_parts = []
     if local:
-        supporting_parts.append(f"{len(local)} local pip install(s)")
+        # Locate them, do not just count them. A reviewer confirming an app is
+        # doing the right thing needs to see the invocation, and the reason it
+        # was judged local, without cloning the repo.
+        for finding in local[:2]:
+            supporting_parts.append(
+                f"{finding['path']}:{finding['line_no']} "
+                f"{finding['snippet'][:60]}"
+                + (f" [{finding['reason']}]" if finding.get('reason') else "")
+            )
+        if len(local) > 2:
+            supporting_parts.append(f"(+{len(local) - 2} more local)")
     if wheels:
         supporting_parts.append(f"{len(wheels)} .whl in repo")
-    supporting = ", ".join(supporting_parts)
+    supporting = "; ".join(supporting_parts)
 
     exec_pip = [
         entry for entry in read_exec_depends(dxjson_content)
@@ -519,7 +532,7 @@ def evaluate_pip_provenance(dxjson_content, scripts=None, repo_paths=(),
     ]
 
     if not remote and not local and not unscored:
-        details = NOTHING_FOUND
+        details = "No pip invocations found"
         if exec_pip:
             details += (f" || note: runSpec.execDepends declares "
                         f"{len(exec_pip)} pip package(s) - see Remote Pkg "
@@ -529,7 +542,8 @@ def evaluate_pip_provenance(dxjson_content, scripts=None, repo_paths=(),
         return NOT_APPLICABLE, details
 
     details = format_evidence(remote, supporting=supporting,
-                              noun="remote pip install")
+                              noun="remote pip install",
+                              empty_msg="No remote pip installs")
     if unscored:
         details += (f" || unscored ({len(unscored)} in non-runtime paths): "
                     f"{unscored[0]['path']}:{unscored[0]['line_no']}")

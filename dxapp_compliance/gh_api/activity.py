@@ -2,7 +2,7 @@
 
 import logging
 
-from fastcore.net import HTTP404NotFoundError
+from dxapp_compliance.gh_api.client import is_not_found
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,9 @@ def latest_release_date(client, repo):
             client.organisation,
             repo.name,
         )
-    except HTTP404NotFoundError:
+    except Exception as error:
+        if not is_not_found(error):
+            raise
         logger.info(f"{repo.name}: no releases.")
         return None
 

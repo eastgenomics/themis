@@ -78,7 +78,9 @@ def run_all_checks(evidence):
 
     # Dependency provenance. These read every fetched script, not just the
     # entrypoint, which is why the git-tree walk exists.
-    no_network_access, network_details = dxapp_json.check_network_access(dxapp)
+    no_network_access, network_details = dxapp_json.check_network_access(
+        dxapp, evidence.scripts
+    )
     no_remote_packages, package_details = (
         dependencies.evaluate_remote_package_install(
             dxapp, evidence.scripts, evidence.file_paths,
@@ -108,7 +110,11 @@ def run_all_checks(evidence):
         requirements_file_exists = NOT_APPLICABLE
 
     compliance = {
-        'name': name,
+        # The repository name, not dxapp.json's `name`. The two often differ,
+        # and the repo name is what the URL points at and what someone acting
+        # on the report will search for. The dxapp.json name is kept in the
+        # details table.
+        'name': evidence.repo.name,
         # Filled in by report.scoring once every app has been checked.
         'compliance_score': None,
         'authorised_users': auth_users_boolean,
@@ -140,7 +146,8 @@ def run_all_checks(evidence):
     compliance = apply_applicability(compliance, interpreter)
 
     details = {
-        'name': name,
+        'name': evidence.repo.name,
+        'dxapp_name': name,
         'compliance_score': None,
         'authorised_users': authorised_users,
         'authorised_devs': authorised_devs,

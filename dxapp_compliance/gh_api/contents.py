@@ -13,9 +13,8 @@ before spending a call at all.
 import base64
 import logging
 
-from fastcore.net import HTTP404NotFoundError
-
 from dxapp_compliance import filepaths
+from dxapp_compliance.gh_api.client import is_not_found
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,9 @@ def list_repo_tree(client, repo):
             tree_sha=repo.default_branch,
             recursive=1,
         )
-    except HTTP404NotFoundError:
+    except Exception as error:
+        if not is_not_found(error):
+            raise
         logger.error(
             f"{repo.name}: could not list the tree for branch "
             f"{repo.default_branch!r}."
@@ -87,7 +88,9 @@ def fetch_blob_text(client, repo, sha):
             repo=repo.name,
             file_sha=sha,
         )
-    except HTTP404NotFoundError:
+    except Exception as error:
+        if not is_not_found(error):
+            raise
         logger.error(f"{repo.name}: blob {sha} not found.")
         return ""
 

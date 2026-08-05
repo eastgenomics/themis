@@ -10,6 +10,7 @@ a plain dict).
 """
 
 import logging
+import re
 
 from dxapp_compliance.checks.registry import (
     BASH,
@@ -306,7 +307,73 @@ def check_naming_compliance(dxjson_content):
     return name, title, eggd_name_boolean, eggd_title_boolean
 
 
-def check_network_access(dxjson_content):
+#: Hosts recognised as Sentieon licence servers. Sentieon binaries contact a
+#: licence server on every invocation, so an app wrapping them cannot be
+#: hermetic. Extend this if the licence server is reached under another name -
+#: an internal host will not necessarily contain "sentieon".
+SENTIEON_LICENCE_HOSTS = (
+    r"sentieon",
+    r"\blicen[cs]e[.-]",
+)
+
+#: Signals that an app really wraps Sentieon, as opposed to merely mentioning it.
+#:
+#: Deliberately NOT a case-insensitive search for "sentieon". That matched
+#: eggd_dx_checker on a Slack alert string - "differences identified in Sentieon
+#: output" - and exempted an app that has nothing to do with Sentieon licensing.
+#: These require the environment variables the binaries read, the distributed
+#: tarball, or `sentieon` invoked in command position. Case matters: the env
+#: vars are upper case and the command is lower case, so prose mentioning
+#: "Sentieon" does not match.
+SENTIEON_APP_MARKERS = re.compile(
+    r"SENTIEON_LICENSE"
+    r"|SENTIEON_INSTALL_DIR"
+    r"|SENTIEON_AUTH_MECH"
+    r"|sentieon-genomics"
+    r"|(?:^|[;&|(){}`$]|\s)sentieon\s+[\w/$-]"
+    r"|sentieon_install_dir",
+    re.MULTILINE,
+)
+
+#: Naming is a deliberate act, so a case-insensitive match is safe here.
+SENTIEON_NAME_MARKER = re.compile(r"sentieon", re.IGNORECASE)
+
+
+def _is_sentieon_licence_host(entry):
+    """Whether one access.network entry names a Sentieon licence server."""
+    return any(re.search(pattern, entry, re.IGNORECASE)
+               for pattern in SENTIEON_LICENCE_HOSTS)
+
+
+def is_sentieon_app(dxjson_content, scripts=None):
+    """Whether this app wraps Sentieon, and so needs licence-server access.
+
+    Two kinds of evidence, deliberately treated differently:
+
+    * The app *name*, *title* or declared dependencies naming Sentieon - a
+      deliberate act, so a plain case-insensitive match is safe.
+    * The scripts actually using Sentieon - which requires a strong marker, not
+      any mention. A loose search here exempted an app whose only connection was
+      the word "Sentieon" inside a Slack alert message.
+
+    ``summary`` is excluded on purpose: it is prose, and prose mentions the tools
+    an app is compared against as readily as the ones it runs.
+    """
+    named = " ".join(str(dxjson_content.get(key) or "")
+                     for key in ('name', 'title'))
+    run_spec = dxjson_content.get('runSpec', {})
+    depends = " ".join(
+        str(run_spec.get(key, "")) for key in ('assetDepends', 'execDepends')
+    )
+    if SENTIEON_NAME_MARKER.search(named) or \
+            SENTIEON_NAME_MARKER.search(depends):
+        return True
+
+    return any(SENTIEON_APP_MARKERS.search(text)
+               for text in (scripts or {}).values())
+
+
+def check_network_access(dxjson_content, scripts=None):
     """
     Checks whether the app declares outbound network access.
 
@@ -316,6 +383,14 @@ def check_network_access(dxjson_content):
     grants outbound access, and an app that needs the network at job time is by
     definition not self-contained.
 
+    Sentieon is the exception. Its binaries contact a licence server on every
+    invocation, so a Sentieon app cannot be hermetic and failing it would be
+    reporting a constraint as a defect. Such apps are therefore exempt rather
+    than failed - but the details carry an asterisk, because an app granted "*"
+    for licensing can almost always be narrowed to the licence server itself.
+    An app already scoped to only the licence host passes outright, so narrowing
+    is rewarded rather than merely suggested.
+
     ``httpsApp`` is noted in the details but does not affect the verdict: it
     permits inbound HTTPS through the platform proxy and neither implies nor
     requires outbound ``access.network``.
@@ -324,15 +399,20 @@ def check_network_access(dxjson_content):
     ----------
         dxjson_content (dict):
             dictionary with all the information on dxapp.json details.
+        scripts (dict, optional):
+            path -> decoded text, used to spot SENTIEON_LICENSE.
 
     Returns
     -------
-        no_network_access (boolean):
-            True when no outbound network access is declared.
+        no_network_access (boolean or "NA"):
+            True when no outbound access is declared, or when it is scoped to a
+            Sentieon licence host. NOT_APPLICABLE for a Sentieon app whose grant
+            is broader than the licence server. False otherwise.
         network_details (str):
-            The declared value, for the details table.
+            The declared value plus any note, for the details table.
     """
     access = dxjson_content.get('access')
+    note = ""
 
     if access is None:
         no_network_access, details = True, "None declared"
@@ -347,13 +427,30 @@ def check_network_access(dxjson_content):
         elif isinstance(network, str):
             # Malformed - the schema says array of strings - but it still
             # expresses intent to reach the network.
-            no_network_access = False
+            entries = [network]
             details = f'"{network}" (not a list)'
+            no_network_access = False
         elif not network:
             no_network_access, details = True, "[] (empty)"
         else:
+            entries = list(network)
+            details = str(entries)
             no_network_access = False
-            details = str(list(network))
+
+        if no_network_access is False:
+            licence_only = all(_is_sentieon_licence_host(str(entry))
+                               for entry in entries)
+            if licence_only:
+                # Scoped to the licence server and nothing else: the narrowest
+                # grant a Sentieon app can have, so treat it as compliant.
+                no_network_access = True
+                note = ("* scoped to the Sentieon licence server, which is the "
+                        "minimum a Sentieon app can run with")
+            elif is_sentieon_app(dxjson_content, scripts):
+                no_network_access = NOT_APPLICABLE
+                note = ("* Sentieon licensing requires outbound access, so this "
+                        "app is exempt rather than failed - but this grant "
+                        "could be narrowed to just the Sentieon licence server")
 
         granted = [
             f"{key}: {access[key]}"
@@ -363,6 +460,9 @@ def check_network_access(dxjson_content):
         ]
         if granted:
             details += " || also grants " + ", ".join(granted)
+
+    if note:
+        details += f" || {note}"
 
     if dxjson_content.get('httpsApp'):
         details += (" || note: httpsApp declared - inbound HTTPS via the "

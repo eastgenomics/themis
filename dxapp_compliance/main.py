@@ -15,7 +15,11 @@ import sys
 
 import pandas as pd
 
-from dxapp_compliance.checks.registry import COMPLIANCE_COLUMNS, DETAIL_COLUMNS
+from dxapp_compliance.checks.registry import (
+    COMPLIANCE_COLUMNS,
+    DETAIL_COLUMNS,
+    resolve_exclusions,
+)
 from dxapp_compliance.checks.runner import run_all_checks
 from dxapp_compliance.config import load_config, setup_logging
 from dxapp_compliance.gh_api import repos
@@ -46,6 +50,13 @@ def parse_args(argv=None):
     parser.add_argument(
         '--limit', type=int,
         help="Audit only the first N app repositories. For development.",
+    )
+    parser.add_argument(
+        '--exclude', nargs='+', metavar='CHECK', default=None,
+        help="Drop checks entirely - neither scored nor shown. Accepts a "
+             "registry key or the label from the report, e.g. "
+             "--exclude 'Dependabot alerts' 'Dependabot security'. Adds to any "
+             "excluded_checks in CONFIG.json.",
     )
     parser.add_argument(
         '--verbose', action='store_true',
@@ -99,6 +110,14 @@ def main(argv=None):
 
     config = load_config(args.config)
     organisation = args.org or config.organisation
+
+    # CONFIG.json and --exclude combine, so a standing exclusion can live in the
+    # config and a one-off can be added on the command line.
+    exclude = resolve_exclusions(
+        tuple(config.excluded_checks) + tuple(args.exclude or ())
+    )
+    if exclude:
+        print(f"Excluding {len(exclude)} check(s): {', '.join(sorted(exclude))}")
     client = GitHubClient(token=config.github_token, organisation=organisation)
 
     before = client.rate_limit_remaining()
@@ -112,13 +131,14 @@ def main(argv=None):
         return 1
 
     # Scored on the dicts, before any dataframe exists - see report/scoring.py.
-    compliance_rows, detail_rows = scoring.score_rows(compliance_rows,
-                                                      detail_rows)
+    compliance_rows, detail_rows = scoring.score_rows(
+        compliance_rows, detail_rows, exclude=exclude
+    )
 
     compliance_df = frames.build_frame(compliance_rows, COMPLIANCE_COLUMNS)
     detailed_df = frames.build_frame(detail_rows, DETAIL_COLUMNS)
     summary_df = frames.build_summary_frame(
-        scoring.summarise_measures(compliance_rows)
+        scoring.summarise_measures(compliance_rows, exclude=exclude)
     )
 
     # Plots read the registry-keyed frames, before columns are relabelled.
@@ -130,8 +150,10 @@ def main(argv=None):
     }
 
     render.render_report(
-        compliance_df=tables.format_table(compliance_df, COMPLIANCE_COLUMNS),
-        detailed_df=tables.format_table(detailed_df, DETAIL_COLUMNS),
+        compliance_df=tables.format_table(compliance_df, COMPLIANCE_COLUMNS,
+                                          exclude=exclude),
+        detailed_df=tables.format_table(detailed_df, DETAIL_COLUMNS,
+                                        exclude=exclude),
         summary_df=summary_df,
         plots=plot_html,
         output_dir=args.output_dir,

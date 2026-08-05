@@ -8,8 +8,7 @@ import json
 import logging
 from math import ceil
 
-from fastcore.net import HTTP404NotFoundError
-
+from dxapp_compliance.gh_api.client import is_not_found
 from dxapp_compliance.models import RepoRecord
 
 logger = logging.getLogger(__name__)
@@ -92,7 +91,9 @@ def fetch_dxapp_json(client, repo):
             repo.name,
             'dxapp.json',
         )
-    except HTTP404NotFoundError:
+    except Exception as error:
+        if not is_not_found(error):
+            raise
         logger.info(f"{repo.name} is not an app (no dxapp.json).")
         return None
 

@@ -4,13 +4,47 @@ import logging
 import time
 
 import requests
-from fastcore.net import HTTP403ForbiddenError
 from ghapi.all import GhApi
 
 logger = logging.getLogger(__name__)
 
 REST_ROOT = "https://api.github.com"
 API_VERSION = "2022-11-28"
+
+
+def error_status(error):
+    """HTTP status carried by a ghapi exception, or None.
+
+    ghapi 1.x raised typed fastcore exceptions (HTTP404NotFoundError); ghapi 2.x
+    raises a single fastspec.errors.APIError carrying status_code. Reading the
+    status rather than catching a class keeps this working across both, and means
+    a future reshuffle of the exception hierarchy cannot silently stop a 404 from
+    being recognised - which matters because "404 on dxapp.json" is how the audit
+    decides a repository is not an app.
+    """
+    for attribute in ('status_code', 'status', 'code'):
+        value = getattr(error, attribute, None)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+
+    # fastcore's typed exceptions encode the status in the class name.
+    name = type(error).__name__
+    if name.startswith('HTTP') and name[4:7].isdigit():
+        return int(name[4:7])
+
+    return None
+
+
+def is_not_found(error):
+    """Whether an exception represents a GitHub 404."""
+    return error_status(error) == 404
+
+
+def is_rate_limited(error):
+    """Whether an exception represents a rate-limit refusal."""
+    return error_status(error) in (403, 429)
 
 
 class GitHubClient:
@@ -23,7 +57,13 @@ class GitHubClient:
     def __init__(self, token, organisation):
         self.token = token
         self.organisation = organisation
-        self.api = GhApi(token=token)
+        # sync=True is required, not optional. ghapi 2.x defaults to sync=False,
+        # which makes every endpoint a coroutine - calling one without awaiting
+        # it returns a coroutine object, so the first attribute access fails with
+        # "'coroutine' object is not subscriptable" and a "was never awaited"
+        # warning. ghapi 1.x, which this code was originally written against, was
+        # synchronous by default.
+        self.api = GhApi(token=token, sync=True)
         self.calls = 0
 
         self.session = requests.Session()
@@ -43,11 +83,13 @@ class GitHubClient:
         self.calls += 1
         try:
             return func(*args, **kwargs)
-        except HTTP403ForbiddenError:
+        except Exception as error:
+            if not is_rate_limited(error):
+                raise
             wait = 60
             logger.warning(
-                f"403 from GitHub (likely a secondary rate limit); waiting "
-                f"{wait}s and retrying once."
+                f"{error_status(error)} from GitHub (likely a secondary rate "
+                f"limit); waiting {wait}s and retrying once."
             )
             time.sleep(wait)
             self.calls += 1

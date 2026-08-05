@@ -19,8 +19,11 @@ tuples below, and ``tests/test_registry.py`` asserts the runner produces exactly
 the declared keys.
 """
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum, auto
+
+logger = logging.getLogger(__name__)
 
 #: The one "not applicable" marker. The original used both "NA" (in the check
 #: functions) and "N/A" (in the GitHub-facing functions); any denominator rule
@@ -143,6 +146,7 @@ COMPLIANCE_COLUMNS = (
 # `timeout`. One keyed registry cannot express that.
 DETAIL_COLUMNS = (
     ColumnSpec('name', 'name', Role.INFO),
+    ColumnSpec('dxapp_name', 'dxapp.json name', Role.INFO),
     ColumnSpec('compliance_score', 'compliance %', Role.INFO),
     ColumnSpec('authorised_users', 'Auth Users', Role.INFO),
     ColumnSpec('authorised_devs', 'Auth Devs', Role.INFO),
@@ -190,7 +194,44 @@ def detail_keys():
     return tuple(spec.key for spec in DETAIL_COLUMNS)
 
 
-def scored_specs(family=None):
+def resolve_exclusions(exclude):
+    """Normalise a list of check identifiers to a set of registry keys.
+
+    Accepts either a key (``dependabot_alerts_status``) or the display label
+    ("Dependabot alerts"), since the label is what appears in the report and so
+    is what someone reading it will reach for. Unknown identifiers are logged
+    rather than ignored, so a typo does not silently fail to exclude anything.
+
+    Returns
+    -------
+        frozenset[str]: registry keys.
+    """
+    if not exclude:
+        return frozenset()
+
+    by_key = {s.key: s.key for s in COMPLIANCE_COLUMNS + DETAIL_COLUMNS}
+    by_display = {s.display.lower(): s.key
+                  for s in COMPLIANCE_COLUMNS + DETAIL_COLUMNS}
+
+    resolved, unknown = set(), []
+    for item in exclude:
+        name = str(item).strip()
+        key = by_key.get(name) or by_display.get(name.lower())
+        if key:
+            resolved.add(key)
+        else:
+            unknown.append(name)
+
+    if unknown:
+        logger.warning(
+            f"Ignoring unknown check(s) in the exclusion list: {unknown}. "
+            f"Valid keys: {sorted(by_key)}"
+        )
+
+    return frozenset(resolved)
+
+
+def scored_specs(family=None, exclude=()):
     """Scored columns, optionally filtered to those applicable to a family.
 
     Parameters
@@ -198,21 +239,27 @@ def scored_specs(family=None):
         family (str, optional):
             An interpreter family. When given, only checks applicable to it are
             returned.
+        exclude (iterable, optional):
+            Registry keys to drop entirely - neither scored nor summarised.
 
     Returns
     -------
         tuple[ColumnSpec, ...]
     """
-    specs = tuple(s for s in COMPLIANCE_COLUMNS if s.role is Role.SCORED)
+    excluded = exclude if isinstance(exclude, frozenset) \
+        else resolve_exclusions(exclude)
+
+    specs = tuple(s for s in COMPLIANCE_COLUMNS
+                  if s.role is Role.SCORED and s.key not in excluded)
     if family is None:
         return specs
 
     return tuple(s for s in specs if family in s.applies_to)
 
 
-def summary_specs():
+def summary_specs(exclude=()):
     """Columns that appear as rows in the per-measure summary table."""
-    return scored_specs()
+    return scored_specs(exclude=exclude)
 
 
 def display_map(columns):
@@ -220,6 +267,10 @@ def display_map(columns):
     return {spec.key: spec.display for spec in columns}
 
 
-def rendered_columns(columns):
+def rendered_columns(columns, exclude=()):
     """Display labels of the columns to render, in order."""
-    return [spec.display for spec in columns if spec.in_table]
+    excluded = exclude if isinstance(exclude, frozenset) \
+        else resolve_exclusions(exclude)
+
+    return [spec.display for spec in columns
+            if spec.in_table and spec.key not in excluded]

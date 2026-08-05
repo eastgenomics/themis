@@ -143,3 +143,67 @@ class TestRenderedColumns():
         assert registry.SCORE_DISPLAY in rendered, (
             "The template sorts on this header text by default"
         )
+
+
+class TestExclusions():
+    """Checks can be switched off via CONFIG.json or --exclude."""
+
+    def test_exclude_by_key(self):
+        excluded = registry.resolve_exclusions(['dependabot_alerts_status'])
+        keys = {s.key for s in registry.scored_specs(exclude=excluded)}
+        assert 'dependabot_alerts_status' not in keys, (
+            "An excluded check must not be scored"
+        )
+
+    def test_exclude_by_display_label(self):
+        """The label is what appears in the report, so it is what someone
+        reading the report will reach for."""
+        excluded = registry.resolve_exclusions(['Dependabot alerts'])
+        assert excluded == frozenset({'dependabot_alerts_status'}), (
+            f"A display label should resolve to its key; got {excluded}"
+        )
+
+    def test_label_match_is_case_insensitive(self):
+        assert registry.resolve_exclusions(['dependabot ALERTS']) == \
+            frozenset({'dependabot_alerts_status'})
+
+    def test_unknown_key_is_reported_not_silently_dropped(self, caplog):
+        excluded = registry.resolve_exclusions(['no_such_check'])
+        assert excluded == frozenset(), "An unknown name resolves to nothing"
+        assert 'no_such_check' in caplog.text, (
+            "A typo must be logged, or it silently fails to exclude anything"
+        )
+
+    def test_excluded_column_not_rendered(self):
+        excluded = registry.resolve_exclusions(['Dependabot alerts'])
+        rendered = registry.rendered_columns(COMPLIANCE_COLUMNS,
+                                             exclude=excluded)
+        assert 'Dependabot alerts' not in rendered, (
+            "An excluded check should disappear from the table too"
+        )
+
+    def test_excluded_check_omitted_from_summary(self):
+        excluded = registry.resolve_exclusions(['Dependabot alerts'])
+        names = {s.key for s in registry.summary_specs(exclude=excluded)}
+        assert 'dependabot_alerts_status' not in names
+
+    def test_empty_exclusion_changes_nothing(self):
+        assert registry.scored_specs() == registry.scored_specs(exclude=[])
+
+    def test_exclusion_raises_scores_of_previously_failing_apps(self):
+        """Excluding a check both apps fail should raise both scores."""
+        from dxapp_compliance.report import scoring
+        compliance = {
+            'interpreter': 'bash',
+            'dependabot_alerts_status': False,
+            'timeout_policy': True,
+        }
+        before = scoring.score_app(compliance)
+        after = scoring.score_app(
+            compliance,
+            exclude=registry.resolve_exclusions(['dependabot_alerts_status']),
+        )
+        assert after > before, (
+            f"Dropping a failing check should raise the score: "
+            f"{before} -> {after}"
+        )

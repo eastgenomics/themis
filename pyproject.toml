@@ -9,8 +9,11 @@ requires-python = ">=3.10"
 # build directories, so it could not be installed anywhere. requirements.txt is
 # now a derived artefact: `uv export --no-hashes --format requirements-txt`.
 dependencies = [
-    "ghapi",         # GitHub API client used throughout gh_api/
-    "fastcore",      # ghapi's companion; supplies HTTP404NotFoundError
+    # >=2 required: gh_api/client.py passes GhApi(sync=True), which does not
+    # exist in 1.x. ghapi 2.x defaults to async, so omitting it makes every
+    # endpoint a coroutine.
+    "ghapi>=2.0",
+    "fastcore",      # ghapi's companion
     "requests",      # used directly for the code-security-configuration endpoint
     "pandas",
     "plotly",

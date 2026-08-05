@@ -104,6 +104,80 @@ class TestNetworkAccess():
         )
 
 
+class TestSentieonLicenceExemption():
+    """Sentieon binaries contact a licence server on every invocation, so such
+    an app cannot be hermetic. Failing it would report a constraint as a defect.
+    """
+
+    sentieon_app = {'name': 'eggd_sentieon_dnaseq',
+                    'access': {'network': ['*']}}
+    sentieon_script = {'src/code.sh':
+                       'export SENTIEON_LICENSE=licsrv.example.nhs.uk:8990\n'}
+
+    def test_wildcard_on_a_sentieon_app_is_exempt_not_failed(self):
+        verdict, details = dxapp_json.check_network_access(self.sentieon_app)
+        assert verdict == NOT_APPLICABLE, (
+            f"A Sentieon app must be exempt, not failed; got {verdict!r}"
+        )
+        assert 'narrowed' in details, (
+            f"The exemption should still push for a narrower grant: {details}"
+        )
+
+    def test_exemption_detected_from_the_script(self):
+        """SENTIEON_LICENSE in the source is the strongest signal, and catches
+        apps whose name gives nothing away."""
+        app = {'name': 'eggd_something', 'access': {'network': ['*']}}
+        verdict, _ = dxapp_json.check_network_access(app, self.sentieon_script)
+        assert verdict == NOT_APPLICABLE, (
+            "SENTIEON_LICENSE in a script should trigger the exemption"
+        )
+
+    def test_scoped_to_the_licence_server_passes_outright(self):
+        """Narrowing is rewarded, not merely suggested."""
+        app = {'name': 'eggd_sentieon_dnaseq',
+               'access': {'network': ['licsrv.sentieon.com']}}
+        verdict, details = dxapp_json.check_network_access(app)
+        assert verdict is True, (
+            f"A grant scoped to the licence server is the minimum a Sentieon "
+            f"app can run with and should pass; got {verdict!r}"
+        )
+        assert 'minimum' in details, details
+
+    def test_non_sentieon_app_still_fails_on_wildcard(self):
+        app = {'name': 'eggd_something', 'access': {'network': ['*']}}
+        verdict, _ = dxapp_json.check_network_access(app)
+        assert verdict is False, (
+            "The exemption must not leak to apps that are not Sentieon"
+        )
+
+    def test_non_sentieon_app_with_sentieon_free_scripts_still_fails(self):
+        app = {'name': 'eggd_something', 'access': {'network': ['*']}}
+        verdict, _ = dxapp_json.check_network_access(
+            app, {'src/code.sh': 'samtools view -c in.bam\n'}
+        )
+        assert verdict is False, (
+            "Unrelated scripts must not trigger the exemption"
+        )
+
+    def test_sentieon_app_without_network_still_passes(self):
+        app = {'name': 'eggd_sentieon_dnaseq'}
+        verdict, details = dxapp_json.check_network_access(app)
+        assert verdict is True and details == "None declared", (
+            "A Sentieon app declaring no network is simply compliant"
+        )
+
+    def test_exemption_excluded_from_the_score(self):
+        """NOT_APPLICABLE keeps the app out of the denominator, so the exemption
+        neither rewards nor penalises."""
+        from dxapp_compliance.report.scoring import applicable_specs
+        compliance = {'interpreter': 'bash',
+                      'no_network_access': NOT_APPLICABLE}
+        keys = {spec.key for spec in applicable_specs(compliance)}
+        assert 'no_network_access' not in keys, (
+            "An exempt app must not have the check counted against it"
+        )
+
+
 class TestExecDepends():
     def test_omitted_package_manager_defaults_to_apt(self):
         """Per the DNAnexus docs, package_manager defaults to apt."""
@@ -264,7 +338,11 @@ class TestFailDominance():
             {}, scripts, (), 'src/code.sh'
         )
         assert ok is True, "An app that installs nothing remotely passes"
-        assert details.startswith("None detected"), details
+        assert details.startswith("No remote installs"), (
+            f"The empty message must say what was absent - plain 'None "
+            f"detected' read as 'nothing found' even when local evidence "
+            f"followed it: {details}"
+        )
 
 
 class TestPipDetection():
@@ -429,7 +507,7 @@ class TestPipProvenanceCheck():
         assert verdict == NOT_APPLICABLE, (
             "With no pip the check is vacuous and must not award a free pass"
         )
-        assert details.startswith("None detected"), details
+        assert details.startswith("No pip invocations found"), details
 
     def test_wheel_in_repo_is_evidence_not_a_requirement(self):
         """Wheels often arrive via a DNAnexus asset, so their absence from the

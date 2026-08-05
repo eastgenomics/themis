@@ -61,6 +61,9 @@ class Config:
     github_token: str
     organisation: str
     default_region: str
+    #: Checks to drop entirely - neither scored nor rendered. Accepts registry
+    #: keys or the display labels shown in the report.
+    excluded_checks: tuple = ()
 
 
 def load_config(config_path=None):
@@ -96,6 +99,7 @@ def load_config(config_path=None):
         github_token=config.get('GITHUB_TOKEN'),
         organisation=config.get('organisation'),
         default_region=config.get('default_region'),
+        excluded_checks=tuple(config.get('excluded_checks') or ()),
     )
 
 

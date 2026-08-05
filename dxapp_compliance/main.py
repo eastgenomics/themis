@@ -59,6 +59,13 @@ def parse_args(argv=None):
              "excluded_checks in CONFIG.json.",
     )
     parser.add_argument(
+        '--eggd-only', action='store_true', default=None,
+        help="Audit only repositories whose NAME starts with eggd_, leaving out "
+             "vendor demos and third-party forks. Distinct from the eggd_ name "
+             "and title checks, which read dxapp.json. Can also be set as "
+             "eggd_repos_only in CONFIG.json.",
+    )
+    parser.add_argument(
         '--verbose', action='store_true',
         help="Log at DEBUG level.",
     )
@@ -66,7 +73,7 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def audit(client, default_region, limit=None):
+def audit(client, default_region, limit=None, eggd_only=False):
     """Collect and check every app in the organisation.
 
     Returns
@@ -77,6 +84,14 @@ def audit(client, default_region, limit=None):
     print(f"Number of items: {len(all_repos)}")
 
     records, dxapp_contents = repos.select_apps(client, all_repos)
+
+    if eggd_only:
+        records, dxapp_contents, skipped = repos.filter_eggd_repos(
+            records, dxapp_contents
+        )
+        print(f"Excluding {len(skipped)} repo(s) without the eggd_ prefix; "
+              f"{len(records)} remain. See the log for names.")
+
     if limit:
         logger.info(f"Limiting the audit to the first {limit} apps.")
         records, dxapp_contents = records[:limit], dxapp_contents[:limit]
@@ -123,7 +138,9 @@ def main(argv=None):
     before = client.rate_limit_remaining()
 
     compliance_rows, detail_rows = audit(
-        client, config.default_region, limit=args.limit
+        client, config.default_region, limit=args.limit,
+        eggd_only=(config.eggd_repos_only if args.eggd_only is None
+                   else args.eggd_only),
     )
 
     if not compliance_rows:

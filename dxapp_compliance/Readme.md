@@ -254,7 +254,48 @@ Options:
 | `--output-dir DIR` | Write the report somewhere other than the working directory |
 | `--org NAME` | Override the organisation from CONFIG.json |
 | `--limit N` | Audit only the first N apps, for development |
+| `--eggd-only` | Audit only repositories whose **name** starts with `eggd_` |
+| `--exclude CHECK ...` | Drop checks entirely - see below |
 | `--verbose` | Log at DEBUG level |
+
+### Narrowing what gets audited
+
+**Excluding repositories.** `--eggd-only` restricts the audit to repositories
+whose *name* carries the `eggd_` prefix, which leaves out vendor demos, templates
+and third-party forks that were never meant to meet the in-house standard. The
+excluded names are logged, never silently dropped.
+
+Note this is a different thing from the `eggd_ name` and `eggd_ title` checks,
+which read `dxapp.json`. The two routinely disagree — the repository
+`eggd_nirvana` contains an app named `nirvana_v2.1.0` — so a repo is in scope by
+its own name, and the dxapp.json naming is then one of the things judged.
+
+**Excluding checks.** `--exclude` drops a check entirely: not scored, not
+summarised, not rendered. It accepts either the registry key or the label shown
+in the report, and an unrecognised name is logged rather than silently ignored:
+
+```
+uv run python -m dxapp_compliance.main --exclude 'Dependabot alerts' 'Dependabot security'
+```
+
+Both can be set permanently in `CONFIG.json`, and combine with the command line:
+
+```json
+{
+  "GITHUB_TOKEN": "XXX",
+  "organisation": "eastgenomics",
+  "default_region": "aws:eu-central-1",
+  "eggd_repos_only": true,
+  "excluded_checks": ["Dependabot alerts", "Dependabot security"]
+}
+```
+
+A note on the Dependabot checks specifically: the
+`code-security-configuration` endpoint 404s for every repository in an
+organisation that has no configuration attached, and for a token without the
+`security_events` scope. Both checks then read `NA` and drop out of the
+summary — which is honest, but if that is the permanent situation for your
+organisation, excluding them outright is tidier.
 
 `python dxapp_queries.py` still works via a deprecation shim, but will be removed
 in the next release.

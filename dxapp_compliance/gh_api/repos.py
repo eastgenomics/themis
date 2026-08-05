@@ -15,6 +15,58 @@ logger = logging.getLogger(__name__)
 
 PER_PAGE = 30
 
+#: The East GLH naming standard for an in-house app repository.
+EGGD_PREFIX = 'eggd_'
+
+
+def has_eggd_prefix(repo_name):
+    """Whether a repository name carries the eggd_ prefix.
+
+    Matched case-insensitively: the prefix is a deliberate naming act, so
+    ``EGGD_`` is the same intent as ``eggd_``.
+    """
+    return str(repo_name or "").lower().startswith(EGGD_PREFIX)
+
+
+def filter_eggd_repos(records, contents):
+    """Keep only repositories whose *name* carries the eggd_ prefix.
+
+    Note this is the repository name, which is a different thing from the
+    ``eggd_ name`` and ``eggd_ title`` checks - those read dxapp.json, and the
+    two frequently disagree (``eggd_nirvana`` the repo contains
+    ``nirvana_v2.1.0`` the app). This filter is about which repositories are in
+    scope at all, typically to leave out vendor demos and third-party forks that
+    were never meant to meet the in-house standard.
+
+    Parameters
+    ----------
+        records (list[RepoRecord])
+        contents (list[dict]):
+            Parallel list of parsed dxapp.json contents.
+
+    Returns
+    -------
+        tuple: (kept_records, kept_contents, skipped_names)
+    """
+    kept_records, kept_contents, skipped = [], [], []
+
+    for record, dxapp in zip(records, contents):
+        if has_eggd_prefix(record.name):
+            kept_records.append(record)
+            kept_contents.append(dxapp)
+        else:
+            skipped.append(record.name)
+
+    if skipped:
+        # Named, not just counted - an app dropping out of the audit should never
+        # be something you have to go looking for.
+        logger.info(
+            f"Excluding {len(skipped)} repositories without the "
+            f"{EGGD_PREFIX!r} prefix: {sorted(skipped)}"
+        )
+
+    return kept_records, kept_contents, skipped
+
 
 def list_organisation_repos(client):
     """Every non-archived repository in the organisation.

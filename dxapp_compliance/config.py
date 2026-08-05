@@ -64,6 +64,9 @@ class Config:
     #: Checks to drop entirely - neither scored nor rendered. Accepts registry
     #: keys or the display labels shown in the report.
     excluded_checks: tuple = ()
+    #: Audit only repositories whose name carries the eggd_ prefix, leaving out
+    #: vendor demos and third-party forks.
+    eggd_repos_only: bool = False
 
 
 def load_config(config_path=None):
@@ -100,6 +103,7 @@ def load_config(config_path=None):
         organisation=config.get('organisation'),
         default_region=config.get('default_region'),
         excluded_checks=tuple(config.get('excluded_checks') or ()),
+        eggd_repos_only=bool(config.get('eggd_repos_only', False)),
     )
 
 

@@ -263,7 +263,7 @@ From the repository root:
 `uv run` activates the environment for you, so there is no separate activation
 step.
 
-The script will create a HTML file in the directory you're currently in. If the script is run twice for the same period, if a summary report has been previously generated this will be replaced.
+The script writes `Audit_<date>.html` to the directory you're currently in, or `Audit_eggd_only_<date>.html` when `--eggd-only` is used - a report over a filtered subset is not comparable with one over the whole estate, so the two must not overwrite each other. If the script is run twice for the same period, if a summary report has been previously generated this will be replaced.
 
 Note: This requires a GitHub access token with the correct permissions to access all the repositories in the organisation.
 
@@ -350,9 +350,9 @@ columns. It had never worked, because the code read a top-level `assetsDepends`.
 
 ## **Known limitations**
 
-- Only **public** repositories are audited. `list_organisation_repos` paginates on
-  the organisation's `public_repos` count, so private repositories fall off the
-  end of the listing.
+- Only **public** repositories are audited, by request: the listing is filtered
+  server-side with `type=public`. Pass a different `repo_type` to
+  `list_organisation_repos` to widen it.
 - **The report needs an internet connection to view.** jQuery, bootstrap,
   DataTables and plotly.js are all loaded from CDNs. plotly.js is loaded once for
   all three figures rather than inlined into each; inlining made the report ~14 MB

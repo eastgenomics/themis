@@ -6,14 +6,16 @@ A repository is an app if and only if it has a root ``dxapp.json``.
 import base64
 import json
 import logging
-from math import ceil
 
 from dxapp_compliance.gh_api.client import is_not_found
 from dxapp_compliance.models import RepoRecord
 
 logger = logging.getLogger(__name__)
 
-PER_PAGE = 30
+#: 100 is the API maximum, and fewer pages means fewer calls.
+PER_PAGE = 100
+#: Safety bound so a pagination bug cannot loop forever.
+MAX_PAGES = 100
 
 #: The East GLH naming standard for an in-house app repository.
 EGGD_PREFIX = 'eggd_'
@@ -68,31 +70,55 @@ def filter_eggd_repos(records, contents):
     return kept_records, kept_contents, skipped
 
 
-def list_organisation_repos(client):
-    """Every non-archived repository in the organisation.
+def list_organisation_repos(client, repo_type='public'):
+    """Every repository of the given type in the organisation.
 
-    Note this paginates on ``public_repos``, so private repositories fall off the
-    end of the listing. That is a known limitation, accepted for now because all
-    app repositories in this organisation are public.
+    Pages until the API returns a short page, rather than computing a page count
+    from the organisation's ``public_repos``. That arithmetic was wrong in a way
+    that silently lost repositories: the listing endpoint returns every repo the
+    token can see, public and private together, so in an org with 318 public and
+    52 private repos it fetched ceil(318/30) = 11 pages = 330 of 370 and dropped
+    the last 40 - including public app repos such as eggd_cgp-purple. Looping
+    until exhaustion cannot be wrong in that way.
+
+    ``repo_type='public'`` also filters server-side, so private repositories are
+    excluded by request rather than by accident.
+
+    Parameters
+    ----------
+        client (GitHubClient)
+        repo_type (str):
+            'public', 'private', 'all', 'forks', 'sources' or 'member'.
 
     Returns
     -------
         list: raw repo objects from the API.
     """
-    org = client.call(client.api.orgs.get, client.organisation)
-    total = org['public_repos']
-    logger.info(f"{client.organisation} has {total} public repositories.")
-
-    pages = ceil(total / PER_PAGE)
     all_repos = []
-    for page in range(1, pages + 1):
-        response = client.call(
+    page = 1
+    while True:
+        response = list(client.call(
             client.api.repos.list_for_org,
             org=client.organisation,
+            type=repo_type,
             per_page=PER_PAGE,
             page=page,
-        )
-        all_repos += list(response)
+        ))
+        all_repos += response
+        if len(response) < PER_PAGE:
+            break
+        page += 1
+        if page > MAX_PAGES:
+            logger.error(
+                f"Stopped paginating at {MAX_PAGES} pages - the repository "
+                f"listing may be incomplete."
+            )
+            break
+
+    logger.info(
+        f"{client.organisation}: {len(all_repos)} {repo_type} repositories "
+        f"across {page} page(s)."
+    )
 
     return all_repos
 

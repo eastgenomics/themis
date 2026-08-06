@@ -46,8 +46,24 @@ def _summary_html(summary_df):
     )
 
 
+def report_filename(label=None, date=None):
+    """Filename for a report, tagged with the scope it covers.
+
+    A report over a filtered subset is not comparable with one over the whole
+    estate, so the two must not share a filename and silently overwrite each
+    other - which they would, since the name is otherwise only the date.
+
+    Returns
+    -------
+        str: e.g. 'Audit_eggd_only_2026-08-05.html'.
+    """
+    stamp = date or today_date()
+
+    return f"Audit_{label}_{stamp}.html" if label else f"Audit_{stamp}.html"
+
+
 def render_report(compliance_df, detailed_df, summary_df, plots,
-                  output_dir=None):
+                  output_dir=None, label=None):
     """Render the report and write it to disk.
 
     Parameters
@@ -63,6 +79,8 @@ def render_report(compliance_df, detailed_df, summary_df, plots,
         output_dir (str or Path, optional):
             Where to write the report. Defaults to the working directory, as
             before.
+        label (str, optional):
+            Scope tag for the filename, e.g. 'eggd_only'.
 
     Returns
     -------
@@ -74,7 +92,7 @@ def render_report(compliance_df, detailed_df, summary_df, plots,
     environment = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
     template = environment.get_template("Report.html")
 
-    filename = f"Audit_{today_date()}.html"
+    filename = report_filename(label)
     path = f"{output_dir}/{filename}" if output_dir else filename
 
     context = {

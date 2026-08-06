@@ -137,10 +137,11 @@ def main(argv=None):
 
     before = client.rate_limit_remaining()
 
+    eggd_only = (config.eggd_repos_only if args.eggd_only is None
+                 else args.eggd_only)
+
     compliance_rows, detail_rows = audit(
-        client, config.default_region, limit=args.limit,
-        eggd_only=(config.eggd_repos_only if args.eggd_only is None
-                   else args.eggd_only),
+        client, config.default_region, limit=args.limit, eggd_only=eggd_only,
     )
 
     if not compliance_rows:
@@ -174,6 +175,9 @@ def main(argv=None):
         summary_df=summary_df,
         plots=plot_html,
         output_dir=args.output_dir,
+        # Tag the filename with the scope, so a filtered report cannot silently
+        # overwrite one covering the whole estate.
+        label='eggd_only' if eggd_only else None,
     )
 
     after = client.rate_limit_remaining()

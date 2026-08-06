@@ -74,3 +74,79 @@ class TestFilterEggdRepos():
             "A repo named eggd_* is in scope even when its dxapp.json name is "
             "not prefixed - that is what the eggd_ name check is for"
         )
+
+
+class FakeClient():
+    """Minimal stand-in for GitHubClient, hand-written rather than mocked.
+
+    Serves a fixed repo list in pages, so the pagination loop can be exercised
+    without a network call or a mocking library.
+    """
+
+    def __init__(self, repos, per_page):
+        self.repos = repos
+        self.per_page = per_page
+        self.organisation = 'eastgenomics'
+        self.pages_served = 0
+        self.api = self
+
+        class _Repos:
+            list_for_org = staticmethod(lambda **kw: None)
+        self.repos_group = _Repos()
+
+    def call(self, func, **kwargs):
+        self.pages_served += 1
+        page = kwargs['page']
+        start = (page - 1) * self.per_page
+        return self.repos[start:start + self.per_page]
+
+
+class TestPagination():
+    """Regression tests for repositories being silently dropped.
+
+    The page count used to be ceil(public_repos / per_page). The listing endpoint
+    returns public and private repos together, so in an org with 318 public and
+    52 private the arithmetic fetched 330 of 370 and lost the last 40 - including
+    public app repos. Looping until a short page cannot fail that way.
+    """
+
+    def _run(self, count, per_page):
+        from dxapp_compliance.gh_api import repos as repos_module
+        original = repos_module.PER_PAGE
+        repos_module.PER_PAGE = per_page
+        try:
+            fake = FakeClient([{'name': f'repo{i:03d}'} for i in range(count)],
+                              per_page)
+            fake.api = type('A', (), {'repos': type('R', (), {
+                'list_for_org': staticmethod(lambda **kw: None)})()})()
+            listed = repos_module.list_organisation_repos(fake)
+            return listed, fake.pages_served
+        finally:
+            repos_module.PER_PAGE = original
+
+    def test_fetches_every_repo_beyond_the_first_page(self):
+        listed, _ = self._run(370, 100)
+        assert len(listed) == 370, (
+            f"Every repository must be listed, got {len(listed)}. This is the "
+            f"bug that hid eggd_cgp-purple."
+        )
+
+    def test_exact_multiple_of_page_size(self):
+        """The boundary case: a full final page must trigger one more request,
+        or the last page is assumed to be the end when it is not."""
+        listed, _ = self._run(200, 100)
+        assert len(listed) == 200, (
+            f"A count that is an exact multiple of the page size must not "
+            f"truncate; got {len(listed)}"
+        )
+
+    def test_short_first_page_stops_immediately(self):
+        listed, pages = self._run(7, 100)
+        assert len(listed) == 7 and pages == 1, (
+            f"A short first page means there is nothing more to fetch; "
+            f"got {len(listed)} repos over {pages} pages"
+        )
+
+    def test_empty_organisation(self):
+        listed, pages = self._run(0, 100)
+        assert listed == [] and pages == 1, "No repos should not loop"

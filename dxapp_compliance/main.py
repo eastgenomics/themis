@@ -66,6 +66,18 @@ def parse_args(argv=None):
              "eggd_repos_only in CONFIG.json.",
     )
     parser.add_argument(
+        '--exclude-repos', nargs='+', metavar='NAME', default=None,
+        help="Repository names to leave out of the audit. Glob patterns work, "
+             "so 'ngc_*' excludes a family. Combines with --exclude-repos-file "
+             "and excluded_repos in CONFIG.json.",
+    )
+    parser.add_argument(
+        '--exclude-repos-file', metavar='PATH',
+        help="File of repository names to exclude, one per line. Blank lines "
+             "are skipped and # starts a comment, so the file can record why "
+             "each one is excluded.",
+    )
+    parser.add_argument(
         '--verbose', action='store_true',
         help="Log at DEBUG level.",
     )
@@ -73,7 +85,8 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def audit(client, default_region, limit=None, eggd_only=False):
+def audit(client, default_region, limit=None, eggd_only=False,
+          excluded_repos=()):
     """Collect and check every app in the organisation.
 
     Returns
@@ -83,14 +96,20 @@ def audit(client, default_region, limit=None, eggd_only=False):
     all_repos = repos.list_organisation_repos(client)
     print(f"Number of items: {len(all_repos)}")
 
-    records, dxapp_contents = repos.select_apps(client, all_repos)
+    # Both filters run on the raw listing, before any dxapp.json is fetched, so
+    # an excluded repository costs no API call.
+    if excluded_repos:
+        all_repos, skipped = repos.filter_excluded_repos(all_repos,
+                                                         excluded_repos)
+        print(f"Excluding {len(skipped)} named repo(s). See the log for names.")
 
     if eggd_only:
-        records, dxapp_contents, skipped = repos.filter_eggd_repos(
-            records, dxapp_contents
-        )
-        print(f"Excluding {len(skipped)} repo(s) without the eggd_ prefix; "
-              f"{len(records)} remain. See the log for names.")
+        all_repos, skipped = repos.filter_eggd_repos(all_repos)
+        print(f"Excluding {len(skipped)} repo(s) without the eggd_ prefix. "
+              f"See the log for names.")
+
+    records, dxapp_contents = repos.select_apps(client, all_repos)
+    print(f"{len(records)} app repositories to audit.")
 
     if limit:
         logger.info(f"Limiting the audit to the first {limit} apps.")
@@ -140,8 +159,16 @@ def main(argv=None):
     eggd_only = (config.eggd_repos_only if args.eggd_only is None
                  else args.eggd_only)
 
+    # CONFIG.json, --exclude-repos and --exclude-repos-file all combine, so a
+    # standing list can live in the config or a file and a one-off can be added
+    # on the command line.
+    excluded_repos = list(config.excluded_repos) + list(args.exclude_repos or ())
+    if args.exclude_repos_file:
+        excluded_repos += repos.load_repo_exclusions(args.exclude_repos_file)
+
     compliance_rows, detail_rows = audit(
         client, config.default_region, limit=args.limit, eggd_only=eggd_only,
+        excluded_repos=excluded_repos,
     )
 
     if not compliance_rows:

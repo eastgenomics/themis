@@ -67,6 +67,8 @@ class Config:
     #: Audit only repositories whose name carries the eggd_ prefix, leaving out
     #: vendor demos and third-party forks.
     eggd_repos_only: bool = False
+    #: Repository names or globs to leave out of the audit entirely.
+    excluded_repos: tuple = ()
 
 
 def load_config(config_path=None):
@@ -104,6 +106,7 @@ def load_config(config_path=None):
         default_region=config.get('default_region'),
         excluded_checks=tuple(config.get('excluded_checks') or ()),
         eggd_repos_only=bool(config.get('eggd_repos_only', False)),
+        excluded_repos=tuple(config.get('excluded_repos') or ()),
     )
 
 

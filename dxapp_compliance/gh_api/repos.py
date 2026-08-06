@@ -6,6 +6,8 @@ A repository is an app if and only if it has a root ``dxapp.json``.
 import base64
 import json
 import logging
+from fnmatch import fnmatch
+from pathlib import Path
 
 from dxapp_compliance.gh_api.client import is_not_found
 from dxapp_compliance.models import RepoRecord
@@ -30,8 +32,13 @@ def has_eggd_prefix(repo_name):
     return str(repo_name or "").lower().startswith(EGGD_PREFIX)
 
 
-def filter_eggd_repos(records, contents):
+def filter_eggd_repos(repos):
     """Keep only repositories whose *name* carries the eggd_ prefix.
+
+    Operates on the raw listing, before dxapp.json is fetched, so an excluded
+    repository costs no API call. It also means the two parallel lists of
+    records and dxapp.json contents can never be misaligned by a filter, because
+    filtering happens before they exist.
 
     Note this is the repository name, which is a different thing from the
     ``eggd_ name`` and ``eggd_ title`` checks - those read dxapp.json, and the
@@ -42,32 +49,124 @@ def filter_eggd_repos(records, contents):
 
     Parameters
     ----------
-        records (list[RepoRecord])
-        contents (list[dict]):
-            Parallel list of parsed dxapp.json contents.
+        repos (list[dict]):
+            Raw repo objects from the listing endpoint.
 
     Returns
     -------
-        tuple: (kept_records, kept_contents, skipped_names)
+        tuple: (kept, skipped_names)
     """
-    kept_records, kept_contents, skipped = [], [], []
-
-    for record, dxapp in zip(records, contents):
-        if has_eggd_prefix(record.name):
-            kept_records.append(record)
-            kept_contents.append(dxapp)
+    kept, skipped = [], []
+    for repo in repos:
+        if has_eggd_prefix(repo.get('name')):
+            kept.append(repo)
         else:
-            skipped.append(record.name)
+            skipped.append(repo.get('name'))
 
     if skipped:
-        # Named, not just counted - an app dropping out of the audit should never
-        # be something you have to go looking for.
+        # Named, not just counted - a repository dropping out of the audit should
+        # never be something you have to go looking for.
         logger.info(
             f"Excluding {len(skipped)} repositories without the "
             f"{EGGD_PREFIX!r} prefix: {sorted(skipped)}"
         )
 
-    return kept_records, kept_contents, skipped
+    return kept, skipped
+
+
+def load_repo_exclusions(path):
+    """Read repository names to exclude, one per line.
+
+    Blank lines are skipped and ``#`` starts a comment, so the file can record
+    *why* each repository is excluded - which is the difference between a list
+    someone can maintain and one nobody dares touch.
+
+    Parameters
+    ----------
+        path (str or Path)
+
+    Returns
+    -------
+        list[str]
+
+    Raises
+    ------
+        FileNotFoundError:
+            Rather than silently excluding nothing, which would look like the
+            audit ignoring the request.
+    """
+    file_path = Path(path)
+    if not file_path.is_file():
+        raise FileNotFoundError(f"No repository exclusion file at {file_path}")
+
+    names = []
+    for line in file_path.read_text().splitlines():
+        entry = line.split('#', 1)[0].strip()
+        if entry:
+            names.append(entry)
+
+    logger.info(f"Read {len(names)} repository exclusion(s) from {file_path}")
+
+    return names
+
+
+def matches_any(repo_name, patterns):
+    """Whether a repository name matches any exclusion pattern.
+
+    Matching is case-insensitive and glob-aware, so ``ngc_*`` excludes a family
+    while a plain name still matches only itself.
+    """
+    name = str(repo_name or "").lower()
+
+    return any(fnmatch(name, str(pattern).lower()) for pattern in patterns)
+
+
+def filter_excluded_repos(repos, patterns):
+    """Drop repositories whose name matches an exclusion pattern.
+
+    Applied to the raw listing, before dxapp.json is fetched. As well as saving
+    a call per excluded repository, this means a pattern naming a repo that is
+    not an app still counts as matched - filtering afterwards reported such
+    patterns as matching nothing, which read as a typo when it was not.
+
+    Parameters
+    ----------
+        repos (list[dict]):
+            Raw repo objects from the listing endpoint.
+        patterns (iterable[str]):
+            Names or globs.
+
+    Returns
+    -------
+        tuple: (kept, skipped_names)
+    """
+    patterns = [p for p in (patterns or []) if str(p).strip()]
+    if not patterns:
+        return list(repos), []
+
+    kept, skipped = [], []
+    for repo in repos:
+        if matches_any(repo.get('name'), patterns):
+            skipped.append(repo.get('name'))
+        else:
+            kept.append(repo)
+
+    unused = [p for p in patterns
+              if not any(fnmatch(str(n).lower(), str(p).lower())
+                         for n in skipped)]
+    if unused:
+        # A pattern matching nothing usually means a typo or a renamed repo, and
+        # silently excluding nothing looks identical to the audit working.
+        logger.warning(
+            f"Repository exclusion pattern(s) matched nothing: {sorted(unused)}"
+        )
+
+    if skipped:
+        logger.info(
+            f"Excluding {len(skipped)} named repositories: {sorted(skipped)}"
+        )
+
+    return kept, skipped
 
 
 def list_organisation_repos(client, repo_type='public'):

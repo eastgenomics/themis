@@ -69,6 +69,10 @@ class Config:
     eggd_repos_only: bool = False
     #: Repository names or globs to leave out of the audit entirely.
     excluded_repos: tuple = ()
+    #: Audit only apps referenced by a workflow or a conductor assay config.
+    in_use_only: bool = False
+    #: Repository holding the eggd_conductor assay configs.
+    conductor_config_repo: str = 'eggd_conductor_configs'
 
 
 def load_config(config_path=None):
@@ -107,6 +111,9 @@ def load_config(config_path=None):
         excluded_checks=tuple(config.get('excluded_checks') or ()),
         eggd_repos_only=bool(config.get('eggd_repos_only', False)),
         excluded_repos=tuple(config.get('excluded_repos') or ()),
+        in_use_only=bool(config.get('in_use_only', False)),
+        conductor_config_repo=config.get('conductor_config_repo')
+        or 'eggd_conductor_configs',
     )
 
 

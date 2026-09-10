@@ -276,6 +276,8 @@ Options:
 | `--org NAME` | Override the organisation from CONFIG.json |
 | `--limit N` | Audit only the first N apps, for development |
 | `--eggd-only` | Audit only repositories whose **name** starts with `eggd_` |
+| `--in-use` | Audit only apps referenced by a workflow or conductor config |
+| `--in-use-source` | `workflows`, `conductor` or `both` (default) |
 | `--exclude CHECK ...` | Drop checks entirely - see below |
 | `--verbose` | Log at DEBUG level |
 
@@ -290,6 +292,35 @@ Note this is a different thing from the `eggd_ name` and `eggd_ title` checks,
 which read `dxapp.json`. The two routinely disagree — the repository
 `eggd_nirvana` contains an app named `nirvana_v2.1.0` — so a repo is in scope by
 its own name, and the dxapp.json naming is then one of the things judged.
+
+**Auditing only what actually runs.** `--in-use` restricts the audit to apps
+referenced by a DNAnexus workflow definition (`dxworkflow.json`) or an
+eggd_conductor assay config, rather than every repository that happens to have a
+`dxapp.json`. On the current estate that is 46 apps rather than 92.
+
+Two reference formats are parsed:
+
+```
+dxworkflow.json     {"stages": [{"executable": "app-eggd_fastqc/1.2.1"}]}
+conductor config    {"executables": {"app-J6Q1VVQ...": {"name": "eggd_MultiQC/3.3.0"}}}
+```
+
+Conductor keys are opaque DNAnexus ids, so the human name comes from the `name`
+field. Where a conductor entry names a *workflow* rather than an app, it is
+followed through to that workflow's own stages — an app used only inside a
+workflow that conductor launches is still in production.
+
+`--in-use-source {workflows,conductor,both}` narrows which definitions count.
+The conductor repository defaults to `eggd_conductor_configs` and can be changed
+with `conductor_config_repo` in CONFIG.json.
+
+Two things are reported rather than swallowed, because both mean the picture is
+incomplete:
+
+- **Referenced apps with no repository here** — normally third-party
+  (`sentieon-dnaseq`, `cnvkit_batch`), but a renamed repo looks identical.
+- **Workflows a conductor config names but no `dxworkflow.json` declares** —
+  their apps are invisible to this mode, so they are logged as unresolved.
 
 **Excluding checks.** `--exclude` drops a check entirely: not scored, not
 summarised, not rendered. It accepts either the registry key or the label shown

@@ -22,7 +22,7 @@ from dxapp_compliance.checks.registry import (
 )
 from dxapp_compliance.checks.runner import run_all_checks
 from dxapp_compliance.config import load_config, setup_logging
-from dxapp_compliance.gh_api import repos
+from dxapp_compliance.gh_api import repos, usage
 from dxapp_compliance.gh_api.client import GitHubClient
 from dxapp_compliance.gh_api.collect import collect_evidence
 from dxapp_compliance.report import frames, plots, render, scoring, tables
@@ -78,6 +78,18 @@ def parse_args(argv=None):
              "each one is excluded.",
     )
     parser.add_argument(
+        '--in-use', action='store_true', default=None,
+        help="Audit only apps referenced by a DNAnexus workflow definition or "
+             "an eggd_conductor assay config - what actually runs, rather than "
+             "every repository that happens to have a dxapp.json. Apps reached "
+             "only via a workflow that conductor launches are included.",
+    )
+    parser.add_argument(
+        '--in-use-source', choices=('workflows', 'conductor', 'both'),
+        default='both',
+        help="Which definitions count as 'in use'. Default both.",
+    )
+    parser.add_argument(
         '--verbose', action='store_true',
         help="Log at DEBUG level.",
     )
@@ -86,7 +98,8 @@ def parse_args(argv=None):
 
 
 def audit(client, default_region, limit=None, eggd_only=False,
-          excluded_repos=()):
+          excluded_repos=(), in_use=False, in_use_source='both',
+          conductor_repo='eggd_conductor_configs'):
     """Collect and check every app in the organisation.
 
     Returns
@@ -102,6 +115,21 @@ def audit(client, default_region, limit=None, eggd_only=False,
         all_repos, skipped = repos.filter_excluded_repos(all_repos,
                                                          excluded_repos)
         print(f"Excluding {len(skipped)} named repo(s). See the log for names.")
+
+    if in_use:
+        used, _ = usage.discover_used_apps(
+            client,
+            use_workflows=in_use_source in ('workflows', 'both'),
+            use_conductor=in_use_source in ('conductor', 'both'),
+            conductor_repo=conductor_repo,
+        )
+        all_repos, skipped, unmatched = usage.filter_repos_in_use(all_repos,
+                                                                  used)
+        print(f"{len(used)} apps referenced in use; excluding "
+              f"{len(skipped)} repo(s) not referenced.")
+        if unmatched:
+            print(f"  {len(unmatched)} referenced app(s) have no repository "
+                  f"here (third-party, or renamed) - see the log.")
 
     if eggd_only:
         all_repos, skipped = repos.filter_eggd_repos(all_repos)
@@ -162,13 +190,17 @@ def main(argv=None):
     # CONFIG.json, --exclude-repos and --exclude-repos-file all combine, so a
     # standing list can live in the config or a file and a one-off can be added
     # on the command line.
+    in_use = config.in_use_only if args.in_use is None else args.in_use
+
     excluded_repos = list(config.excluded_repos) + list(args.exclude_repos or ())
     if args.exclude_repos_file:
         excluded_repos += repos.load_repo_exclusions(args.exclude_repos_file)
 
     compliance_rows, detail_rows = audit(
         client, config.default_region, limit=args.limit, eggd_only=eggd_only,
-        excluded_repos=excluded_repos,
+        excluded_repos=excluded_repos, in_use=in_use,
+        in_use_source=args.in_use_source,
+        conductor_repo=config.conductor_config_repo,
     )
 
     if not compliance_rows:
@@ -204,7 +236,10 @@ def main(argv=None):
         output_dir=args.output_dir,
         # Tag the filename with the scope, so a filtered report cannot silently
         # overwrite one covering the whole estate.
-        label='eggd_only' if eggd_only else None,
+        label='_'.join(filter(None, [
+            'in_use' if in_use else None,
+            'eggd_only' if eggd_only else None,
+        ])) or None,
     )
 
     after = client.rate_limit_remaining()

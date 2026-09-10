@@ -1,5 +1,10 @@
 """Plotly figures for the report, as embeddable HTML.
 
+Axes are given column *names* rather than Series. ``px.scatter`` only applies
+the ``labels`` mapping to named columns - handed a Series it cannot know which
+column the values came from, so it labelled the axes "x" and "y" and the
+mapping was silently ignored.
+
 Every function copies its input before touching it. The originals mutated the
 caller's dataframe - ``df['last_release_date'] = pd.to_datetime(...)`` operated
 on the frame the caller still held and went on to render, so the rendered
@@ -70,8 +75,8 @@ def release_date_compliance_plot(df):
 
     fig = px.scatter(
         data_frame=ordered,
-        x=ordered['last_release_date'],
-        y=ordered['compliance_score'],
+        x='last_release_date',
+        y='compliance_score',
         labels={
             'last_release_date': 'Date of last release',
             'compliance_score': 'Compliance (%)',
@@ -105,8 +110,8 @@ def compliance_by_latest_activity_plot(df):
 
     fig = px.scatter(
         data_frame=ordered,
-        x=ordered['latest_commit_date'],
-        y=ordered['compliance_score'],
+        x='latest_commit_date',
+        y='compliance_score',
         labels={
             'latest_commit_date': 'Date of last commit',
             'compliance_score': 'Compliance (%)',
@@ -147,9 +152,9 @@ def ubuntu_compliance_timeseries(df):
 
     fig = px.scatter(
         data_frame=ordered,
-        x=ordered['last_release_date'],
-        y=ordered['compliance_score'],
-        color=ordered['dist_version'],
+        x='last_release_date',
+        y='compliance_score',
+        color='dist_version',
         labels={
             'last_release_date': 'Date of last release',
             'compliance_score': 'Compliance (%)',

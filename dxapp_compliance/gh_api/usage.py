@@ -41,6 +41,34 @@ DNANEXUS_ID = re.compile(r'^[0-9A-Za-z]{24}$')
 
 EXECUTABLE_PREFIXES = ('app-', 'applet-', 'workflow-')
 
+#: A trailing version on a workflow name: _v3.4.0, _3.4.0, _v2.16.0.
+TRAILING_VERSION = re.compile(r'_v?\d+(?:\.\d+)*$', re.IGNORECASE)
+#: Any version-looking run of numbers, for ordering.
+VERSION_NUMBERS = re.compile(r'(\d+(?:\.\d+)*)')
+
+
+def base_workflow_name(name):
+    """A workflow name with its trailing version removed.
+
+    ``uranus_main_workflow_GRCh38_v3.4.0`` -> ``uranus_main_workflow_GRCh38``.
+    Also handles a missing 'v' (``gaea_main_workflow_1.0.0``), which is a typo
+    that exists in the estate.
+    """
+    return TRAILING_VERSION.sub('', str(name or "").strip())
+
+
+def version_key(text):
+    """Sort key from the last version-looking number in a string.
+
+    Compared as integer tuples so 3.10 sorts above 3.9, which a string compare
+    gets backwards.
+    """
+    matches = VERSION_NUMBERS.findall(str(text or ""))
+    if not matches:
+        return ()
+
+    return tuple(int(part) for part in matches[-1].split('.'))
+
 
 def strip_version(name):
     """Drop a trailing /version from an executable name."""
@@ -213,6 +241,38 @@ def find_conductor_configs(client, repo=CONDUCTOR_CONFIG_REPO,
             and item['path'].endswith('.json')]
 
 
+def latest_config_per_assay(configs):
+    """Keep only the newest conductor config for each assay.
+
+    ``configs`` maps path -> parsed config. An assay accumulates config files
+    over time (MYE carries both uranus v4.0.2 and v5.3.0), and counting the
+    superseded ones would attribute retired apps to a live assay.
+
+    Returns
+    -------
+        dict: path -> config, one per assay.
+    """
+    newest = {}
+    for path, config in configs.items():
+        if not isinstance(config, dict):
+            continue
+        assay = str(config.get('assay') or config.get('assay_code') or path)
+        # Prefer the config's own version field; fall back to the filename.
+        stamp = version_key(config.get('version')) or version_key(path)
+        current = newest.get(assay)
+        if current is None or stamp > current[1]:
+            newest[assay] = (path, stamp)
+
+    superseded = set(configs) - {path for path, _ in newest.values()}
+    if superseded:
+        logger.info(
+            f"Ignoring {len(superseded)} superseded conductor config(s): "
+            f"{sorted(superseded)}"
+        )
+
+    return {path: configs[path] for path, _ in newest.values()}
+
+
 def discover_used_apps(client, use_workflows=True, use_conductor=True,
                        conductor_repo=CONDUCTOR_CONFIG_REPO):
     """App names referenced by workflows and/or conductor configs.
@@ -236,10 +296,18 @@ def discover_used_apps(client, use_workflows=True, use_conductor=True,
 
     workflows = load_workflows(client) if (use_workflows or use_conductor) \
         else {}
-    # Workflow names are compared case-insensitively: a conductor config and the
-    # workflow's own dxworkflow.json do not always agree on case
-    # (uranus_main_workflow_GRCh38 vs ..._grch38).
-    by_lower = {name.lower(): info for name, info in workflows.items()}
+    # Resolve on the base name with the version stripped, so a config pinning a
+    # superseded version still finds the workflow. Conductor configs routinely
+    # lag the repo - MYE pins uranus v3.3.0 while the repo declares v3.4.0, and
+    # PCAN pins eunomia v1.4.1 against v2.0.0 - and an exact match left those
+    # assays' apps unattributed. Where several workflows share a base name the
+    # highest version wins, which is what "the latest workflow" means.
+    by_base = {}
+    for name, info in workflows.items():
+        base = base_workflow_name(name).lower()
+        current = by_base.get(base)
+        if current is None or version_key(name) > version_key(current['name']):
+            by_base[base] = dict(info, name=name)
 
     if use_workflows:
         for name, info in workflows.items():
@@ -247,10 +315,14 @@ def discover_used_apps(client, use_workflows=True, use_conductor=True,
                 record(executable_app_name(executable), name)
 
     if use_conductor:
+        loaded = {}
         for path in find_conductor_configs(client, conductor_repo):
             config = _decode(client, conductor_repo, path)
-            if not config:
-                continue
+            if config:
+                loaded[path] = config
+
+        # Only the newest config for each assay counts.
+        for path, config in latest_config_per_assay(loaded).items():
             label = path.split('/')[-1].replace('.json', '')
             for key, display_name in parse_conductor_executables(config):
                 workflow_name = workflow_reference_name(key, display_name)
@@ -261,11 +333,19 @@ def discover_used_apps(client, use_workflows=True, use_conductor=True,
                     # missing repository. Follow it through to its stages
                     # instead - an app used only inside a workflow that conductor
                     # launches is still in production.
-                    info = by_lower.get(workflow_name.lower())
+                    info = by_base.get(
+                        base_workflow_name(workflow_name).lower()
+                    )
                     if info:
+                        resolved = info['name']
+                        if resolved != workflow_name:
+                            logger.info(
+                                f"{label}: pins {workflow_name!r}; using the "
+                                f"current {resolved!r}."
+                            )
                         for executable in info['executables']:
                             record(executable_app_name(executable),
-                                   f"{label} -> {workflow_name}")
+                                   f"{label} -> {resolved}")
                     else:
                         unresolved.add(workflow_name)
                     continue

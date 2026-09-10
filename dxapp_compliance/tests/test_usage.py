@@ -280,3 +280,88 @@ class TestDiscoverUsedApps():
             "Knowing which workflow pulls an app in is what makes the filter "
             "auditable"
         )
+
+
+class TestVersionHandling():
+    def test_base_name_strips_v_prefixed_version(self):
+        assert usage.base_workflow_name('uranus_main_workflow_GRCh38_v3.4.0') \
+            == 'uranus_main_workflow_GRCh38'
+
+    def test_base_name_strips_version_without_the_v(self):
+        """gaea_main_workflow_1.0.0 is missing the 'v' - a real typo in the
+        estate, and an exact match left LYM's apps unattributed."""
+        assert usage.base_workflow_name('gaea_main_workflow_1.0.0') == \
+            'gaea_main_workflow'
+
+    def test_base_name_of_an_unversioned_name(self):
+        assert usage.base_workflow_name('some_workflow') == 'some_workflow'
+
+    def test_version_key_orders_numerically(self):
+        """3.10 is newer than 3.9, which a string compare gets backwards."""
+        assert usage.version_key('cfg_v3.10.0') > usage.version_key('cfg_v3.9.0')
+
+    def test_version_key_of_no_version(self):
+        assert usage.version_key('plain') == ()
+
+
+class TestLatestWorkflowResolution():
+    def test_config_pinning_an_older_version_resolves_to_current(self):
+        """MYE pins uranus v3.3.0 while the repo declares v3.4.0."""
+        client = FakeUsageClient(
+            {'eggd_uranus_main_workflow': {
+                'name': 'uranus_main_workflow_GRCh38_v3.4.0',
+                'stages': [{'executable': 'app-eggd_uranus_thing/1.0.0'}]}},
+            {'assay_configs/MYE/c.json': {'assay': 'MYE', 'executables': {
+                'workflow-J9pzKv84jBJzBZfz33GzFV7q':
+                    {'name': 'uranus_main_workflow_GRCh38_v3.3.0'}}}},
+        )
+        used, unresolved = usage.discover_used_apps(client,
+                                                    use_workflows=False)
+        assert 'eggd_uranus_thing' in used, (
+            f"A pinned older version must still resolve; unresolved={unresolved}"
+        )
+        assert unresolved == set()
+
+    def test_highest_version_wins_when_bases_collide(self):
+        client = FakeUsageClient(
+            {'old': {'name': 'eunomia_workflow_v1.4.1',
+                     'stages': [{'executable': 'app-old_app/1.0'}]},
+             'new': {'name': 'eunomia_workflow_v2.0.0',
+                     'stages': [{'executable': 'app-new_app/1.0'}]}},
+            {'assay_configs/PCAN/c.json': {'assay': 'PCAN', 'executables': {
+                'workflow-J9pzKv84jBJzBZfz33GzFV7q':
+                    {'name': 'eunomia_workflow_v1.4.1'}}}},
+        )
+        used, _ = usage.discover_used_apps(client, use_workflows=False)
+        assert 'new_app' in used and 'old_app' not in used, (
+            f"The latest workflow should win; got {sorted(used)}"
+        )
+
+
+class TestLatestConfigPerAssay():
+    def test_supersedes_older_config_for_the_same_assay(self):
+        configs = {
+            'assay_configs/MYE/uranus_MYE_config_v4.0.2.json':
+                {'assay': 'MYE', 'version': '4.0.2'},
+            'assay_configs/MYE/uranus_MYE_config_v5.3.0.json':
+                {'assay': 'MYE', 'version': '5.3.0'},
+        }
+        kept = usage.latest_config_per_assay(configs)
+        assert list(kept) == \
+            ['assay_configs/MYE/uranus_MYE_config_v5.3.0.json'], (
+            f"Only the newest MYE config should count; got {list(kept)}"
+        )
+
+    def test_different_assays_all_kept(self):
+        configs = {'a.json': {'assay': 'CEN', 'version': '1.0.0'},
+                   'b.json': {'assay': 'TWE', 'version': '1.0.0'}}
+        assert len(usage.latest_config_per_assay(configs)) == 2
+
+    def test_falls_back_to_the_filename_version(self):
+        configs = {'cfg_v1.0.0.json': {'assay': 'X'},
+                   'cfg_v2.0.0.json': {'assay': 'X'}}
+        assert list(usage.latest_config_per_assay(configs)) == \
+            ['cfg_v2.0.0.json']
+
+    def test_malformed_entries_skipped(self):
+        assert usage.latest_config_per_assay({'a.json': None}) == {}

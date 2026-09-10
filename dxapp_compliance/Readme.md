@@ -254,6 +254,29 @@ It will **over-report**:
   - an internal PyPI mirror via `--index-url`, reported as remote — arguably
     correct, since it is still a network fetch
 
+### Per-assay view
+
+When run with `--in-use`, every app is attributed to the assays whose conductor
+configs reference it, and the report gains:
+
+- an **Assays** column in both tables (`CEN, TWE` for an app used by two);
+- **one table per assay**, so you can see what a given assay actually runs;
+- a **plot coloured by assay**. An app used by several assays is coloured
+  `Multiple` rather than given a combination of its own, which would produce a
+  legend with more entries than there are assays.
+
+The assay is taken from the config's **directory** (`assay_configs/CEN/...`),
+not parsed out of its filename - filenames are inconsistent, some carrying the
+assay twice and some not at all.
+
+An app reached only through a workflow definition, with no conductor config
+naming it, has no assay attribution and is omitted from the per-assay tables. It
+still appears in the main table.
+
+Note the configs are read from the **default branch** of
+`eggd_conductor_configs`, so the assay list reflects what is merged there rather
+than any local checkout.
+
 ## **Running**
 
 From the repository root:

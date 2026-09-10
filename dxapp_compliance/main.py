@@ -116,6 +116,7 @@ def audit(client, default_region, limit=None, eggd_only=False,
                                                          excluded_repos)
         print(f"Excluding {len(skipped)} named repo(s). See the log for names.")
 
+    assays_by_app = {}
     if in_use:
         used, _ = usage.discover_used_apps(
             client,
@@ -125,6 +126,9 @@ def audit(client, default_region, limit=None, eggd_only=False,
         )
         all_repos, skipped, unmatched = usage.filter_repos_in_use(all_repos,
                                                                   used)
+        # Which assays reference each app. Discarding this was why the report
+        # had no per-assay view.
+        assays_by_app = usage.app_assays(used)
         print(f"{len(used)} apps referenced in use; excluding "
               f"{len(skipped)} repo(s) not referenced.")
         if unmatched:
@@ -148,7 +152,10 @@ def audit(client, default_region, limit=None, eggd_only=False,
 
     for repo, dxapp in zip(records, dxapp_contents):
         try:
-            evidence = collect_evidence(client, repo, dxapp, default_region)
+            evidence = collect_evidence(
+                client, repo, dxapp, default_region,
+                assays=assays_by_app.get(str(repo.name).lower(), ()),
+            )
             outcome = run_all_checks(evidence)
         except Exception:
             # One unusual repository must not lose the whole report. The
@@ -224,7 +231,15 @@ def main(argv=None):
         "ubuntu_comp_plot": plots.ubuntu_compliance_timeseries(detailed_df),
         "compliance_bycommitdate_plot":
             plots.compliance_by_latest_activity_plot(compliance_df),
+        # Empty string rather than a placeholder when there is no attribution,
+        # so the template omits the section entirely.
+        "assay_comp_plot": plots.assay_compliance_plot(compliance_df)
+        if any(row.get('assays') for row in compliance_rows) else "",
     }
+
+    # One table per assay, from the same frame the main table is built from.
+    assay_tables = tables.split_by_assay(compliance_df, COMPLIANCE_COLUMNS,
+                                         exclude=exclude)
 
     render.render_report(
         compliance_df=tables.format_table(compliance_df, COMPLIANCE_COLUMNS,
@@ -233,6 +248,7 @@ def main(argv=None):
                                         exclude=exclude),
         summary_df=summary_df,
         plots=plot_html,
+        assay_tables=assay_tables,
         output_dir=args.output_dir,
         # Tag the filename with the scope, so a filtered report cannot silently
         # overwrite one covering the whole estate.

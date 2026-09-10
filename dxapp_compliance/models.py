@@ -80,6 +80,11 @@ class AppEvidence:
     dependabot_security_updates_set: Union[bool, str] = False
     requirements_txt_present: Union[bool, str] = False
     default_region: Optional[str] = None
+    #: Assay codes whose conductor configs reference this app, from
+    #: gh_api.usage. Empty when the app is not referenced by any config - either
+    #: it is reached only through a workflow definition, or the audit was not
+    #: run with --in-use.
+    assays: Tuple[str, ...] = ()
 
     @property
     def entrypoint_text(self):
@@ -100,3 +105,34 @@ class CheckOutcome:
 
     compliance: dict
     details: dict
+
+
+#: Shown for an app reached by more than one assay's configs. Colouring a plot
+#: needs one value per app, and listing every combination would produce a legend
+#: with more entries than there are assays.
+MULTIPLE_ASSAYS = 'Multiple'
+#: Shown for an app with no assay attribution - reached only via a workflow
+#: definition, not via any conductor config.
+NO_ASSAY = 'Unattributed'
+
+
+def primary_assay(assays):
+    """One label per app, for colouring a plot or filling a column.
+
+    Lives here rather than in gh_api.usage so that report/ can use it without
+    importing the GitHub layer, which tests/test_layering.py forbids.
+
+    Parameters
+    ----------
+        assays (sequence): assay codes for one app.
+
+    Returns
+    -------
+        str
+    """
+    if not assays:
+        return NO_ASSAY
+    if len(assays) == 1:
+        return assays[0]
+
+    return MULTIPLE_ASSAYS

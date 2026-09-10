@@ -20,6 +20,8 @@ import pandas as pd
 import plotly.express as px
 from plotly.offline import get_plotlyjs_version
 
+from dxapp_compliance.models import NO_ASSAY, primary_assay
+
 logger = logging.getLogger(__name__)
 
 FONT = dict(size=18, color="black")
@@ -164,5 +166,62 @@ def ubuntu_compliance_timeseries(df):
         hover_data=["last_release_date", "dist_version"],
     )
     fig.update_layout(font=FONT)
+
+    return _figure_html(fig)
+
+
+def assay_compliance_plot(df):
+    """Compliance by app, coloured by the assay that references it.
+
+    Only meaningful when the audit ran with --in-use, since that is what
+    populates the assay attribution. An app reached by several assays' configs
+    is coloured "Multiple" rather than given a combination of its own, which
+    would produce a legend with more entries than there are assays.
+
+    Parameters
+    ----------
+        df (pandas.DataFrame):
+            Compliance frame with 'assays', 'compliance_score' and 'name'.
+
+    Returns
+    -------
+        str: the figure as standalone HTML.
+    """
+    df = df.copy()
+    if df.empty:
+        return _empty_plot_html("no apps")
+
+    if 'assays' not in df.columns:
+        return _empty_plot_html("no assay column")
+
+    df['assay_group'] = df['assays'].apply(
+        lambda value: primary_assay(
+            [a for a in str(value or "").split(', ') if a]
+        )
+    )
+
+    if set(df['assay_group']) <= {NO_ASSAY}:
+        return _empty_plot_html(
+            "no assay attribution - run with --in-use to populate it"
+        )
+
+    # Sorted so the x-axis groups apps of the same assay together, which is what
+    # makes the colouring readable.
+    ordered = df.sort_values(by=['assay_group', 'compliance_score'])
+
+    fig = px.scatter(
+        data_frame=ordered,
+        x='name',
+        y='compliance_score',
+        color='assay_group',
+        labels={
+            'name': 'App',
+            'compliance_score': 'Compliance (%)',
+            'assay_group': 'Assay',
+        },
+        hover_name="name",
+        hover_data=["assays"],
+    )
+    fig.update_layout(font=FONT, xaxis={'tickangle': -45})
 
     return _figure_html(fig)

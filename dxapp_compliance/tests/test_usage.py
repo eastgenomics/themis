@@ -365,3 +365,70 @@ class TestLatestConfigPerAssay():
 
     def test_malformed_entries_skipped(self):
         assert usage.latest_config_per_assay({'a.json': None}) == {}
+
+
+class TestAssayFromPath():
+    """The assay is the config's directory, not part of its filename.
+
+    Filenames are inconsistent - some carry the assay, some carry it twice, some
+    not at all - so parsing them would be unreliable.
+    """
+
+    def test_directory_is_the_assay(self):
+        assert usage.assay_from_path(
+            'assay_configs/CEN/eggd_conductor_dias_CEN_config_v3.1.1.json'
+        ) == 'CEN'
+
+    def test_assay_not_taken_from_filename(self):
+        assert usage.assay_from_path(
+            'assay_configs/TWE/eggd_conductor_dias_CEN_config_v1.json'
+        ) == 'TWE', "The directory wins over whatever the filename says"
+
+    def test_config_loose_in_the_prefix_has_no_assay(self):
+        assert usage.assay_from_path('assay_configs/stray.json') is None
+
+    def test_path_outside_the_prefix(self):
+        assert usage.assay_from_path('app_configs/eggd_conductor.cfg') is None
+
+    def test_empty(self):
+        assert usage.assay_from_path('') is None
+        assert usage.assay_from_path(None) is None
+
+
+class TestAppAssays():
+    def test_pulls_assay_tagged_sources_only(self):
+        used = {
+            'eggd_vep': {'assay:CEN', 'assay:TWE',
+                         'eggd_conductor_dias_CEN_config_v3 -> dias_single'},
+            'eggd_solo': {'dias_single_v2.16.0'},
+        }
+        assays = usage.app_assays(used)
+        assert assays['eggd_vep'] == ('CEN', 'TWE'), (
+            "Only assay-tagged sources count, and they are sorted"
+        )
+        assert assays['eggd_solo'] == (), (
+            "An app reached only through a workflow has no assay attribution"
+        )
+
+    def test_empty_input(self):
+        assert usage.app_assays({}) == {}
+        assert usage.app_assays(None) == {}
+
+
+class TestPrimaryAssay():
+    def test_single(self):
+        assert usage.primary_assay(['CEN']) == 'CEN'
+
+    def test_multiple_collapses(self):
+        assert usage.primary_assay(['CEN', 'TWE']) == usage.MULTIPLE_ASSAYS, (
+            "Listing every combination would give a legend with more entries "
+            "than there are assays"
+        )
+
+    def test_none(self):
+        assert usage.primary_assay([]) == usage.NO_ASSAY
+
+    def test_lives_in_models_so_report_can_use_it(self):
+        """report/ must not import gh_api - see tests/test_layering.py."""
+        from dxapp_compliance.models import primary_assay
+        assert primary_assay(['CEN']) == 'CEN'

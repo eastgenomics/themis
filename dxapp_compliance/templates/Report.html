@@ -94,8 +94,32 @@
         <div> {{ compliance_bycommitdate_plot }} </div>
         <p class="fw-bold">Plot of compliance by release date</p>
         <div> {{ release_comp_plot }} </div>
+        {% if assay_comp_plot %}
+        <p class="fw-bold">Plot of compliance by app, coloured by assay</p>
+        <div> {{ assay_comp_plot }} </div>
+        {% endif %}
         <br />
     </div>
+    {% if assay_tables %}
+    <hr />
+    <div class="container-fluid" style="padding-right: 60px; padding-bottom: 50px; padding-left: 60px;">
+        <h5 class="fs-4">
+            Compliance by assay <i class="bi bi-table fa-4x"></i>
+        </h5>
+        <p>
+            One table per assay, from the eggd_conductor assay configs. An app
+            used by more than one assay appears in each of their tables, because
+            it really is in use by each.
+        </p>
+        {% for entry in assay_tables %}
+        <p class="fw-bold">{{ entry.assay }} &mdash; {{ entry.count }} app(s)</p>
+        <div style="margin-bottom: 30px;">
+            {{ entry.table | safe }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <hr />
     <div class="container-fluid" style="padding-right: 60px; padding-bottom: 50px; padding-left: 60px;">
         <h5 class="fs-4">

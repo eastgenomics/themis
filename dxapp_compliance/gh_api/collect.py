@@ -14,7 +14,7 @@ from dxapp_compliance.models import AppEvidence
 logger = logging.getLogger(__name__)
 
 
-def collect_evidence(client, repo, dxapp, default_region=None):
+def collect_evidence(client, repo, dxapp, default_region=None, assays=()):
     """Gather everything the checks need for one app.
 
     Parameters
@@ -58,4 +58,5 @@ def collect_evidence(client, repo, dxapp, default_region=None):
         # requirements alongside itself under resources/.
         requirements_txt_present=filepaths.has_requirements_txt(paths),
         default_region=default_region,
+        assays=tuple(assays),
     )

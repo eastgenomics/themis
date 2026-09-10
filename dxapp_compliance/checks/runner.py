@@ -129,6 +129,7 @@ def run_all_checks(evidence):
         'no_remote_package_install': no_remote_packages,
         'pip_uses_local_wheels': pip_local_wheels,
         'dxapp_boolean': app_boolean,
+        'assays': ', '.join(evidence.assays) or '',
         'dxapp_or_applet': app_or_applet,
         'eggd_name_boolean': eggd_name_boolean,
         'eggd_title_boolean': eggd_title_boolean,
@@ -165,6 +166,7 @@ def run_all_checks(evidence):
         'exec_depends': exec_depends_rendered or "None declared",
         'package_install_details': package_details,
         'pip_install_details': pip_details,
+        'assays': ', '.join(evidence.assays) or '',
         'dxapp_or_applet': app_or_applet,
         'dependabot_alerts_status': evidence.dependabot_alerts_enabled,
         'dependabot_security_status':

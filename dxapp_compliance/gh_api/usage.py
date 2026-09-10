@@ -27,12 +27,69 @@ import json
 import logging
 import re
 
+from dxapp_compliance.models import (  # noqa: F401 - re-exported
+    MULTIPLE_ASSAYS,
+    NO_ASSAY,
+    primary_assay,
+)
+
 logger = logging.getLogger(__name__)
 
 #: Default repository holding the eggd_conductor assay configs.
 CONDUCTOR_CONFIG_REPO = 'eggd_conductor_configs'
 #: Where the assay configs live within it.
 CONDUCTOR_CONFIG_PREFIX = 'assay_configs/'
+
+#: Marks a recorded source as an assay code rather than a config or workflow
+#: name, so assay attribution can be pulled back out without parsing filenames.
+ASSAY_PREFIX = 'assay:'
+
+
+
+def assay_from_path(path, prefix=CONDUCTOR_CONFIG_PREFIX):
+    """The assay code a conductor config sits under.
+
+    ``assay_configs/CEN/eggd_conductor_dias_CEN_config_v3.1.1.json`` -> ``CEN``.
+
+    Taken from the directory rather than parsed out of the filename: the
+    directory is the authoritative grouping, and filenames are inconsistent
+    (some carry the assay, some carry it twice, some not at all).
+
+    Returns
+    -------
+        str or None
+    """
+    if not path or not path.startswith(prefix):
+        return None
+
+    remainder = path[len(prefix):].split('/')
+
+    # Needs at least <assay>/<file>; a config loose in the prefix has no assay.
+    return remainder[0] if len(remainder) > 1 and remainder[0] else None
+
+
+def app_assays(used):
+    """Map each app to the assays whose configs reference it.
+
+    Parameters
+    ----------
+        used (dict): app name -> set of sources, from discover_used_apps.
+
+    Returns
+    -------
+        dict: app name -> tuple of assay codes, sorted.
+    """
+    assays = {}
+    for app, sources in (used or {}).items():
+        found = sorted(
+            source[len(ASSAY_PREFIX):] for source in sources
+            if source.startswith(ASSAY_PREFIX)
+        )
+        assays[app] = tuple(found)
+
+    return assays
+
+
 
 #: A DNAnexus object id: 24 alphanumeric characters after the class prefix.
 #: Distinguishes 'app-J6Q1VVQ4Pf3XgF2j1jz53qv9' (opaque) from
@@ -324,6 +381,19 @@ def discover_used_apps(client, use_workflows=True, use_conductor=True,
         # Only the newest config for each assay counts.
         for path, config in latest_config_per_assay(loaded).items():
             label = path.split('/')[-1].replace('.json', '')
+            # Tag every app this config reaches with its assay, so the report can
+            # group by assay. Recorded as a separate ASSAY_PREFIX-tagged source
+            # rather than folded into the label: the label is a filename and
+            # exists for traceability, while the assay is the directory and is
+            # the thing worth grouping on.
+            assay = assay_from_path(path)
+            assay_source = f"{ASSAY_PREFIX}{assay}" if assay else None
+
+            def record_with_assay(app_name, source):
+                record(app_name, source)
+                if assay_source:
+                    record(app_name, assay_source)
+
             for key, display_name in parse_conductor_executables(config):
                 workflow_name = workflow_reference_name(key, display_name)
 
@@ -344,16 +414,16 @@ def discover_used_apps(client, use_workflows=True, use_conductor=True,
                                 f"current {resolved!r}."
                             )
                         for executable in info['executables']:
-                            record(executable_app_name(executable),
-                                   f"{label} -> {resolved}")
+                            record_with_assay(executable_app_name(executable),
+                                              f"{label} -> {resolved}")
                     else:
                         unresolved.add(workflow_name)
                     continue
 
                 # An app entry keys on an opaque id, so the name field is the
                 # only thing that maps to a repository.
-                record(executable_app_name(key), label)
-                record(executable_app_name(display_name), label)
+                record_with_assay(executable_app_name(key), label)
+                record_with_assay(executable_app_name(display_name), label)
 
     if unresolved:
         # Worth surfacing: a workflow named by a config but absent from GitHub

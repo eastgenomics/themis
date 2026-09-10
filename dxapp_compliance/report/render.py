@@ -63,7 +63,7 @@ def report_filename(label=None, date=None):
 
 
 def render_report(compliance_df, detailed_df, summary_df, plots,
-                  output_dir=None, label=None):
+                  output_dir=None, label=None, assay_tables=None):
     """Render the report and write it to disk.
 
     Parameters
@@ -105,6 +105,16 @@ def render_report(compliance_df, detailed_df, summary_df, plots,
             table_id="details", classes=TABLE_CLASSES, index=False
         ),
         "compliance_stats_summary": _summary_html(summary_df),
+        # One table per assay. Rendered with the same classes as the main
+        # tables so DataTables picks them up and resolves their columns by
+        # header text exactly as it does the others.
+        "assay_tables": [
+            {"assay": assay,
+             "table": table.to_html(table_id=f"assay_{assay}",
+                                    classes=TABLE_CLASSES, index=False),
+             "count": len(table)}
+            for assay, table in (assay_tables or {}).items()
+        ],
         # plotly.js is loaded once here rather than inlined into each of the
         # three figures, which is what made the report ~14 MB.
         "plotlyjs_url": plotlyjs_cdn_url(),

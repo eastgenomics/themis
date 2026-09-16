@@ -221,10 +221,17 @@ def parse_conductor_executables(config):
     return pairs
 
 
-def _decode(client, repo, path):
-    """Fetch and parse a JSON file from a repository, or None."""
+def _decode(client, repo, path, ref=None):
+    """Fetch and parse a JSON file from a repository, or None.
+
+    ``ref`` must be passed whenever the tree was listed at a non-default branch.
+    The contents endpoint defaults to the default branch independently of how the
+    path was discovered, so omitting it silently returns None for any file that
+    exists only on the other ref - the file disappears rather than erroring.
+    """
+    query = f"?ref={ref}" if ref else ""
     response = client.get(
-        f"/repos/{client.organisation}/{repo}/contents/{path}"
+        f"/repos/{client.organisation}/{repo}/contents/{path}{query}"
     )
     if not response or 'content' not in response:
         return None
@@ -278,18 +285,37 @@ def load_workflows(client):
     return workflows
 
 
+def default_branch(client, repo):
+    """A repository's default branch, or 'main' if it cannot be read."""
+    info = client.get(f"/repos/{client.organisation}/{repo}")
+
+    return (info or {}).get('default_branch') or 'main'
+
+
 def find_conductor_configs(client, repo=CONDUCTOR_CONFIG_REPO,
-                           prefix=CONDUCTOR_CONFIG_PREFIX):
+                           prefix=CONDUCTOR_CONFIG_PREFIX, ref=None):
     """Paths of the conductor assay configs.
+
+    Parameters
+    ----------
+        ref (str, optional):
+            Branch, tag or commit to read. Defaults to the repository's default
+            branch - queried rather than assumed to be called 'main', which it
+            previously was.
+
+            Worth passing when an assay's config is still on an unmerged branch:
+            a config that is not on the default branch does not exist as far as
+            the audit is concerned, and its apps look unused.
 
     Returns
     -------
         list[str]
     """
+    ref = ref or default_branch(client, repo)
     tree = client.get(f"/repos/{client.organisation}/{repo}/git/trees/"
-                      f"main?recursive=1")
+                      f"{ref}?recursive=1")
     if not tree:
-        logger.error(f"Could not list {repo}; is the branch named 'main'?")
+        logger.error(f"Could not list {repo} at ref {ref!r}.")
         return []
 
     return [item['path'] for item in tree.get('tree', [])
@@ -331,7 +357,8 @@ def latest_config_per_assay(configs):
 
 
 def discover_used_apps(client, use_workflows=True, use_conductor=True,
-                       conductor_repo=CONDUCTOR_CONFIG_REPO):
+                       conductor_repo=CONDUCTOR_CONFIG_REPO,
+                       conductor_ref=None):
     """App names referenced by workflows and/or conductor configs.
 
     A conductor entry naming a workflow is followed through to that workflow's
@@ -373,8 +400,10 @@ def discover_used_apps(client, use_workflows=True, use_conductor=True,
 
     if use_conductor:
         loaded = {}
-        for path in find_conductor_configs(client, conductor_repo):
-            config = _decode(client, conductor_repo, path)
+        ref = conductor_ref or default_branch(client, conductor_repo)
+        logger.info(f"Reading conductor configs from {conductor_repo}@{ref}.")
+        for path in find_conductor_configs(client, conductor_repo, ref=ref):
+            config = _decode(client, conductor_repo, path, ref=ref)
             if config:
                 loaded[path] = config
 

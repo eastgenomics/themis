@@ -90,6 +90,12 @@ def parse_args(argv=None):
         help="Which definitions count as 'in use'. Default both.",
     )
     parser.add_argument(
+        '--conductor-ref',
+        help="Branch, tag or commit of the conductor config repo to read. "
+             "Defaults to its default branch. Use this to include an assay "
+             "whose config is still on an unmerged branch.",
+    )
+    parser.add_argument(
         '--verbose', action='store_true',
         help="Log at DEBUG level.",
     )
@@ -97,9 +103,46 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
+def _report_assay_coverage(assays_by_app, kept_repos):
+    """Print how many repos each assay resolved to, including none.
+
+    An assay whose apps all fail to match a repository produces no table, which
+    in the report is indistinguishable from the assay not existing at all. It is
+    a real case - a config naming its apps without the eggd_ prefix matches
+    nothing - so the count is stated here rather than left to be inferred from a
+    missing table.
+
+    Counted against the audited set rather than merely the repositories that
+    exist: an app can name a real repository that carries no dxapp.json, which
+    still yields no row and so no table.
+    """
+    kept = {
+        str(getattr(repo, 'name', None) or "").lower()
+        for repo in kept_repos
+    }
+
+    counts = {}
+    for app, assays in assays_by_app.items():
+        for assay in assays:
+            counts.setdefault(assay, [0, 0])
+            counts[assay][0] += 1
+            if app in kept:
+                counts[assay][1] += 1
+
+    if not counts:
+        return
+
+    print("  assays referenced:")
+    for assay in sorted(counts):
+        referenced, matched = counts[assay]
+        note = "  <- nothing audited, so no table" if not matched else ""
+        print(f"    {assay:10} {matched:>3} of {referenced:>3} apps"
+              f" audited{note}")
+
+
 def audit(client, default_region, limit=None, eggd_only=False,
           excluded_repos=(), in_use=False, in_use_source='both',
-          conductor_repo='eggd_conductor_configs'):
+          conductor_repo='eggd_conductor_configs', conductor_ref=None):
     """Collect and check every app in the organisation.
 
     Returns
@@ -123,6 +166,7 @@ def audit(client, default_region, limit=None, eggd_only=False,
             use_workflows=in_use_source in ('workflows', 'both'),
             use_conductor=in_use_source in ('conductor', 'both'),
             conductor_repo=conductor_repo,
+            conductor_ref=conductor_ref,
         )
         all_repos, skipped, unmatched = usage.filter_repos_in_use(all_repos,
                                                                   used)
@@ -142,6 +186,9 @@ def audit(client, default_region, limit=None, eggd_only=False,
 
     records, dxapp_contents = repos.select_apps(client, all_repos)
     print(f"{len(records)} app repositories to audit.")
+
+    if assays_by_app:
+        _report_assay_coverage(assays_by_app, records)
 
     if limit:
         logger.info(f"Limiting the audit to the first {limit} apps.")
@@ -208,6 +255,8 @@ def main(argv=None):
         excluded_repos=excluded_repos, in_use=in_use,
         in_use_source=args.in_use_source,
         conductor_repo=config.conductor_config_repo,
+        # CLI wins over CONFIG.json, which wins over the default branch.
+        conductor_ref=args.conductor_ref or config.conductor_config_ref,
     )
 
     if not compliance_rows:

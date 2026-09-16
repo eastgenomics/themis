@@ -273,9 +273,32 @@ An app reached only through a workflow definition, with no conductor config
 naming it, has no assay attribution and is omitted from the per-assay tables. It
 still appears in the main table.
 
-Note the configs are read from the **default branch** of
-`eggd_conductor_configs`, so the assay list reflects what is merged there rather
-than any local checkout.
+Configs are read from the **default branch** of `eggd_conductor_configs` by
+default, so the assay list reflects what is merged there rather than any local
+checkout. Use `--conductor-ref` to read another branch, tag or commit:
+
+```
+uv run python -m dxapp_compliance.main --in-use \
+    --conductor-ref DI-3246_atlas_v1.0.0_modular_release
+```
+
+That is how to include an assay whose config is still on an unmerged branch -
+CGP, for instance, exists only on that branch, so an audit of the default branch
+reports its apps as unused. Remember the rest of the assays then reflect that
+branch's state too, which may be older than the default branch.
+
+The run prints how many of each assay's apps were actually audited:
+
+```
+  assays referenced:
+    CEN         14 of  15 apps audited
+    HRD          0 of   2 apps audited  <- nothing audited, so no table
+```
+
+An assay can resolve to nothing - HRD's older config names its apps `multiqc`
+and `multi_fastqc` without the `eggd_` prefix, so neither matches a repository.
+The count is printed because a missing table would otherwise be
+indistinguishable from the assay not existing at all.
 
 ## **Running**
 

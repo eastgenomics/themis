@@ -167,29 +167,46 @@ class TestFilterReposInUse():
 class FakeUsageClient():
     """Serves fixed workflow and conductor content, hand-written not mocked."""
 
-    def __init__(self, workflows, configs):
+    def __init__(self, workflows, configs, default_branch='main'):
         self.organisation = 'eastgenomics'
         self.workflows = workflows      # repo -> dxworkflow dict
         self.configs = configs          # path -> config dict
+        self.default_branch = default_branch
+        #: Refs seen on contents and tree requests, so a test can assert the ref
+        #: actually reaches them. The real contents endpoint defaults to the
+        #: default branch independently of how a path was discovered, so a ref
+        #: dropped here means a file silently vanishes.
+        self.refs_requested = []
 
     def get(self, path, **kw):
         import base64
         import json
-        if path.startswith('/search/code'):
+
+        # Mirror the real API: a ref travels as a query parameter, and the
+        # endpoint ignores how the path was discovered.
+        bare, _, query = path.partition('?')
+        if query.startswith('ref='):
+            self.refs_requested.append(query[len('ref='):])
+
+        if bare.startswith('/search/code'):
             return {'items': [{'repository': {'name': r},
                                'path': 'dxworkflow.json'}
                               for r in self.workflows]}
-        if '/git/trees/' in path:
+        if '/git/trees/' in bare:
+            self.refs_requested.append(bare.rsplit('/git/trees/', 1)[1])
             return {'tree': [{'type': 'blob', 'path': p}
                              for p in self.configs]}
         for repo, content in self.workflows.items():
-            if f'/{repo}/contents/dxworkflow.json' in path:
+            if f'/{repo}/contents/dxworkflow.json' in bare:
                 return {'content': base64.b64encode(
                     json.dumps(content).encode()).decode()}
         for cfg, content in self.configs.items():
-            if path.endswith(cfg):
+            if bare.endswith(cfg):
                 return {'content': base64.b64encode(
                     json.dumps(content).encode()).decode()}
+        # A bare /repos/<org>/<repo> lookup - the default-branch query.
+        if bare.count('/') == 3 and bare.startswith('/repos/'):
+            return {'default_branch': self.default_branch}
         return None
 
 
@@ -432,3 +449,70 @@ class TestPrimaryAssay():
         """report/ must not import gh_api - see tests/test_layering.py."""
         from dxapp_compliance.models import primary_assay
         assert primary_assay(['CEN']) == 'CEN'
+
+
+class TestConductorRef():
+    """Reading configs from a ref other than the default branch.
+
+    This exists because CGP's assay config lives only on an unmerged branch, so
+    an audit of the default branch reported CGP's apps as unused.
+    """
+
+    def _client(self):
+        return FakeUsageClient(
+            {'wf': {'name': 'atlas_workflow_v1.0.0',
+                    'stages': [{'executable': 'app-eggd_cgp_tool/1.0'}]}},
+            {'assay_configs/CGP/eggd_conductor_atlas_CGP_config_v1.0.0.json': {
+                'assay': 'CGP',
+                'executables': {'app-J6Q1VVQ4Pf3XgF2j1jz53qv9':
+                                {'name': 'eggd_cgp_tool/1.0'}}}},
+        )
+
+    def test_default_branch_used_when_no_ref_given(self):
+        client = FakeUsageClient({}, {}, default_branch='trunk')
+        assert usage.default_branch(client, 'any_repo') == 'trunk', (
+            "The branch is queried, not assumed to be called 'main'"
+        )
+
+    def test_falls_back_to_main_when_unreadable(self):
+        class Silent:
+            organisation = 'eastgenomics'
+
+            def get(self, path, **kw):
+                return None
+
+        assert usage.default_branch(Silent(), 'r') == 'main'
+
+    def test_explicit_ref_reaches_the_tree_and_the_contents(self):
+        """The trap: the contents endpoint defaults to the default branch
+        regardless of how the path was discovered, so a ref dropped there makes
+        a branch-only file silently vanish rather than error."""
+        client = self._client()
+        used, _ = usage.discover_used_apps(
+            client, use_workflows=False,
+            conductor_ref='DI-3246_atlas_v1.0.0_modular_release',
+        )
+        assert 'eggd_cgp_tool' in used, (
+            f"The config on the ref should be read; got {sorted(used)}"
+        )
+        assert set(client.refs_requested) == \
+            {'DI-3246_atlas_v1.0.0_modular_release'}, (
+            f"Every request must carry the ref, not just the tree listing; "
+            f"saw {client.refs_requested}"
+        )
+
+    def test_assay_attributed_from_a_branch_only_config(self):
+        client = self._client()
+        used, _ = usage.discover_used_apps(
+            client, use_workflows=False, conductor_ref='some-branch',
+        )
+        assert usage.app_assays(used)['eggd_cgp_tool'] == ('CGP',), (
+            "An assay present only on a branch should still be attributed"
+        )
+
+    def test_no_ref_still_works(self):
+        client = self._client()
+        used, _ = usage.discover_used_apps(client, use_workflows=False)
+        assert 'eggd_cgp_tool' in used, (
+            "Omitting the ref must keep working, reading the default branch"
+        )

@@ -73,6 +73,11 @@ class Config:
     in_use_only: bool = False
     #: Repository holding the eggd_conductor assay configs.
     conductor_config_repo: str = 'eggd_conductor_configs'
+    #: Branch, tag or commit of that repository to read. None means its default
+    #: branch. Set this to audit against an assay config that is still on an
+    #: unmerged branch - such a config does not exist as far as the default
+    #: branch is concerned, and its apps look unused.
+    conductor_config_ref: str = None
 
 
 def load_config(config_path=None):
@@ -114,6 +119,7 @@ def load_config(config_path=None):
         in_use_only=bool(config.get('in_use_only', False)),
         conductor_config_repo=config.get('conductor_config_repo')
         or 'eggd_conductor_configs',
+        conductor_config_ref=config.get('conductor_config_ref') or None,
     )
 
 
